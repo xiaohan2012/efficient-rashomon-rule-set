@@ -13,7 +13,7 @@ from aix360.algorithms.rule_induction.trxf.core.predicate import Predicate, Feat
 from aix360.algorithms.rule_induction.rbm.utils import OPERATOR_MAPS
 from aix360.algorithms.rule_induction.trxf.core.utils import batch_evaluate
 
-from common import PatternSet
+from .common import PatternSet
 
 
 def construct_dnf_rule(

@@ -10,8 +10,8 @@ from aix360.algorithms.rbm import FeatureBinarizer
 from aix360.algorithms.rule_induction.rbm.boolean_rule_cg import BooleanRuleCG as BRCG
 
 
-from .contrastive_patterns import construct_program, BoundedWeightSATCallback
-from .weight_gen import WeightGen
+from .sat.contrastive_patterns import construct_program, BoundedWeightSATCallback
+from .sat.weight_gen import WeightGen
 from .models import construct_dnf_rule, DNFRuleSetClassifier, EnsembleDNFClassifier
 
 from .common import PatternSet
