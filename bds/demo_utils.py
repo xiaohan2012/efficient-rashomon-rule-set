@@ -10,11 +10,11 @@ from aix360.algorithms.rbm import FeatureBinarizer
 from aix360.algorithms.rule_induction.rbm.boolean_rule_cg import BooleanRuleCG as BRCG
 
 
-from contrastive_patterns import construct_program, BoundedWeightSATCallback
-from weight_gen import WeightGen
-from models import construct_dnf_rule, DNFRuleSetClassifier, EnsembleDNFClassifier
+from .contrastive_patterns import construct_program, BoundedWeightSATCallback
+from .weight_gen import WeightGen
+from .models import construct_dnf_rule, DNFRuleSetClassifier, EnsembleDNFClassifier
 
-from common import PatternSet
+from .common import PatternSet
 
 
 def binarize_data(X_train_df, X_test_df, return_fb=False):

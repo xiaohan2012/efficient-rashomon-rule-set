@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from typing import List
-from demo_utils import prettify_axes
-from common import CMAP
+from .demo_utils import prettify_axes
+from .common import CMAP
 
 
 def plot_decision_boundary(

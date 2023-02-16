@@ -7,7 +7,6 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-sklearn = "^0.0.post1"
 seaborn = "^0.12.2"
 ortools = "^9.5.2237"
 pandas = "^1.5.3"
@@ -15,6 +14,10 @@ notebook = "^6.5.2"
 ray = "^2.2.0"
 pytest = "^7.2.1"
 jupyter-nbextensions-configurator = "^0.6.1"
+logzero = "^1.7.0"
+scikit-learn = "^1.2.1"
+tqdm = "^4.64.1"
+galois = "^0.3.3"
 
 
 [build-system]
