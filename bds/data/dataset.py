@@ -33,6 +33,7 @@ class Dataset:
             random_state=self.random_state
         )
 
+        
         if self.split_train:
             (
                 self.X_train,
@@ -45,6 +46,13 @@ class Dataset:
                 test_size=self.validation_ratio,
                 random_state=self.random_state,
             )
+
+        # convert the pd.Series to np.ndarray
+        self.y_train = self.y_train.to_numpy()
+        self.y_test = self.y_test.to_numpy()
+        if self.split_train:
+            self.y_validation = self.y_validation.to_numpy()
+
 
 class BinaryDataset(Dataset):
     def load(self):
@@ -61,3 +69,17 @@ class BinaryDataset(Dataset):
         if self.split_train:
             self.X_validation_b = fb.transform(self.X_validation)
             convert_numerical_columns_to_bool(self.X_validation_b)
+
+    def __repr__(self):
+        train_size, test_size = self.X_train_b.shape[0], self.X_test_b.shape[0]
+        num_raw_features = self.X_train.shape[1]
+        num_binary_features = self.X_train_b.shape[1]
+
+        summ = f'name: {self.name}\n'
+        summ += f'train_size: {train_size}, '
+        if self.split_train:
+            summ += f'validation_size: {self.X_validation_b.shape[0]}, '
+        summ += f'test_size: {test_size}\n'
+        summ += f'num. of raw features: {num_raw_features}\n'
+        summ += f'num. of binary features: {num_binary_features}\n'
+        return summ

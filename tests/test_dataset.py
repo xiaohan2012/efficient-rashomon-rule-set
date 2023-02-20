@@ -1,4 +1,6 @@
 import pytest
+import numpy as np
+
 from bds.data.dataset import BinaryDataset, Dataset
 
 SAMPLE_DATASET_NAMES = ['iris', 'heart', 'ilpd']
@@ -28,3 +30,7 @@ def test_Dataset(dataset_name):
     assert ds.X_train.shape[0] == ds.y_train.shape[0]
     assert ds.X_validation.shape[0] == ds.y_validation.shape[0]
     assert ds.X_test.shape[0] == ds.y_test.shape[0]
+
+    for y in [ds.y_train, ds.y_test, ds.y_validation]:
+        assert isinstance(y, np.ndarray)
+    
