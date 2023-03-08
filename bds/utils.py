@@ -1,9 +1,11 @@
 import numpy as np
+import pandas as pd
 import os
 import pickle as pkl
 import json
 import math
 import tempfile
+from itertools import chain, combinations
 
 from .common import Program
 
@@ -57,3 +59,19 @@ def load_pickle(path):
 def save_json(obj, path):
     with open(path, "w") as f:
         json.dump(obj, f, indent=4)
+
+
+def convert_numerical_columns_to_bool(df: pd.DataFrame):
+    """
+    given a dataframe, convert its columns of numerical types to have boolean
+
+    this operation is inplace
+    """
+    numerical_column_names = df.select_dtypes(include=[np.number]).columns
+    df.loc[:, numerical_column_names] = df[numerical_column_names].astype(bool)
+
+
+def powerset(iterable, min_size=0):
+    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+    s = list(iterable)
+    return chain.from_iterable(combinations(s, r) for r in range(min_size, len(s)+1))

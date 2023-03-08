@@ -4,7 +4,7 @@ from ortools.sat.python.cp_model import BoundedLinearExpression
 
 from matplotlib import pyplot as plt
 
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Set
 
 # variable type of constraint programing in ortools
 CPVar = ortools.sat.python.cp_model.IntVar
@@ -19,6 +19,8 @@ Solver = cp_model.CpSolver
 # output of the solver
 Pattern = Tuple[int]
 PatternSet = Tuple[Pattern]
+
+SupportSet = Set[int]
 
 # plotting related
 CMAP = plt.cm.coolwarm
