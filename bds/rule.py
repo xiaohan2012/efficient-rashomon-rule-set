@@ -32,3 +32,8 @@ class RuleSet:
     
     def __iter__(self):
         return (ent for ent in self.rule_entries)
+
+# void rule_vand(VECTOR, VECTOR, VECTOR, int, int *);
+# void rule_vandnot(VECTOR, VECTOR, VECTOR, int, int *);
+# void rule_vor(VECTOR, VECTOR, VECTOR, int, int *);
+# void rule_not(VECTOR, VECTOR, int, int *);    
