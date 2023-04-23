@@ -1,5 +1,5 @@
-from typing import Dict, List, Optional, Tuple, Union
-
+from typing import Dict, Optional, Tuple, Union
+from typing import List
 import numpy as np
 
 from .cache_tree import CacheTree, Node
@@ -64,7 +64,7 @@ class BranchAndBoundNaive:
         """prepare for the branch and bound, e.g., initialize the queue and the cache tree"""
         self.tree = CacheTree()
 
-        self.tree.add_node(Node.get_root(), parent=None)
+        self.tree.add_node(Node.(), parent=None)
 
         self.queue = Queue()
         not_captured = None  # TODO: what does empty rule not capture?

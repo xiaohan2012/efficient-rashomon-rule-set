@@ -1,39 +1,102 @@
-import numpy as np
-
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union
+
+import numpy as np
 
 from .rule import RuleSet
 
 
 @dataclass
 class Node:
-    node_id: int
+    rule_id: int
     lower_bound: float
     objective: float
-    depth: int
     num_captured: int
+
     equivalent_minority: float = 0
-    children: Dict[int, "Node"] = field(default_factory=list)
+
+    children: Dict[int, "Node"] = field(default_factory=dict)
+    depth: int = 0
     parent: Optional["Node"] = None
+
+    def __post_init__(self):
+        """if parent is not None, 'bind' self and parent by upting children and depth accordingly"""
+        if self.parent is not None:
+            assert isinstance(self.parent, Node)
+            self.parent.add_child(self)
+            self.depth = self.parent.depth + 1
 
     @property
     def num_children(self):
         return len(self.children)
 
-    def get_ruleset(self):
-        """get the rule set or prefix associated with this node/rule"""
-        return RuleSet
+    def add_child(self, node: "Node"):
+        if node == self:
+            raise ValueError('cannot add "self" as a child of itself')
+
+        if node.rule_id in self.children:
+            raise KeyError(f"{node} is already a child!")
+        self.children[node.rule_id] = node
+        node.parent = self
+
+    def get_ruleset_ids(self):
+        """get the rule ids of the rule set associated with this node/rule"""
+        ret = {self.rule_id}
+        if self.parent is not None:
+            ret |= self.parent.get_ruleset_ids()
+        return ret
 
     @classmethod
-    def get_root(cls, captured: np.ndarray):
+    def make_root(cls, fpr: float, num_train_pts: int) -> "Node":
+        """create the root of a cache tree
+
+        fpr: false positive rate if the default rule captures all training pts and predict them to be negative
+        num_train_pts: number of training points
+
+        the root corresponds to the "default rule", which captures all points and predicts the default label (negative)
+        """
         return Node(
-            node_id=0,
-            lower_bound=0.0,
-            objective=0.0,
+            rule_id=0,
+            lower_bound=0.0,  # the false positive rate, which is zero
+            objective=fpr,  # the false negative rate, the complexity is zero since the default rule does not add into the complexity term
             depth=0,
-            num_captured=captured.sum(),
+            num_captured=num_train_pts,
+            parent=None,
         )
+
+    def __eq__(self, other):
+        """two nodes are equal if:
+
+        - they have exactly the same attribute values, including parent
+        - the above equiality condition carries to the parents (and recursively)
+        """
+        if type(other) != type(self):
+            return False
+
+        attributes_to_compare_directly = [
+            "rule_id",
+            "lower_bound",
+            "objective",
+            "depth",
+            "num_captured",
+            "equivalent_minority",
+        ]
+        for attr_name in attributes_to_compare_directly:
+            if getattr(self, attr_name) != getattr(other, attr_name):
+                return False
+
+        if (self.parent is None and other.parent is not None) or (
+            self.parent is not None and other.parent is None
+        ):
+            return False
+
+        if self.parent is not None and other.parent is not None:
+            return self.parent == other.parent
+
+        return True
+
+    def __repr__(self):
+        return f"Node(rule_id={self.rule_id}, num_children={self.num_children})"
 
 
 class CacheTree:
@@ -52,20 +115,18 @@ class CacheTree:
     def root(self):
         if self._root is None:
             raise ValueError("root is not set yet")
-        self._root
+        return self._root
 
     def _set_root(self, node: Node):
-        assert (
-            self._root is None
-        ), "Root has already been set! Do not do it again on the same tree."
+        if self._root is not None:
+            raise ValueError("Root has already been set!")
         self._root = node
 
-    def add_node(self, node: Node, parent: Optional[Node]):
-        """add node as a child to parent"""
-        node.parent = parent
-        parent.children[node.node_id] = node
-
-        if parent is None:
+    def add_node(self, node: Node, parent: Optional[Node] = None):
+        """add node as a child (to parent if it is given)"""
+        if parent is not None:
+            parent.add_child(node)
+        else:
             self._set_root(node)
 
         self._num_nodes += 1
