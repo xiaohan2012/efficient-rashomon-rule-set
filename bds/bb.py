@@ -39,7 +39,7 @@ def incremental_update_obj(
     return the incremental false negative fraction for a rule set (prefix + current rule)
     and the indicator vector of false negatives
 
-    u: positive points not captured by the prefix
+    u: points not captured by the prefix
     v: points captured by the current rule (in the context of the prefix)
     y: true labels
     """
@@ -48,7 +48,7 @@ def incremental_update_obj(
     _assert_binary_array(v)
     f = np.logical_and(
         u, np.bitwise_not(v)
-    )  # positives not captured by both prefix and the rule
+    )  # points not captured by both prefix and the rule
     g = np.logical_and(f, y)  # false negatives
     return g.sum() / y.shape[0], f
 

@@ -26,11 +26,11 @@ def test_incremental_update_obj(seed, num_fp):
 
 
 def test_incremental_update_lb():
-    u = np.array([0, 1, 1, 0, 0, 1, 0], dtype=bool)  # positives not captured by prefix
+    u = np.array([0, 1, 1, 0, 0, 1, 0], dtype=bool)  # points not captured by prefix
     v = np.array([0, 1, 0, 0, 1, 0, 0], dtype=bool)  # captured by rule
     f = np.array(
         [0, 0, 1, 0, 0, 1, 0], dtype=bool
-    )  # positives not captured by the rule + prefix
+    )  # not captured by the rule and prefix
     y = np.array([0, 1, 1, 0, 1, 1, 0], dtype=bool)  # the true labels
     fn, actual_f = incremental_update_obj(u, v, y)
 
