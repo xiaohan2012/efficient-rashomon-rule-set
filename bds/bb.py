@@ -90,14 +90,15 @@ class BranchAndBoundNaive:
         item = (self.tree.root, not_captured)
         self.queue.push(item, key=0)
 
-    def run(self):
+    def run(self, return_objective=False):
         self.prepare()
 
         while not self.queue.is_empty:
             cur_node, not_captured = self.queue.pop()
             yield from self.loop(
                 cur_node,
-                not_captured
+                not_captured,
+                return_objective=return_objective
             )
 
     def _captured_by_rule(self, rule: Rule, parent_not_captured: np.ndarray):
@@ -108,6 +109,7 @@ class BranchAndBoundNaive:
         self,
         parent_node: Node,
         parent_not_captured: np.ndarray,
+            return_objective=False
     ):
         """
         check one node in the search tree and search one level down
@@ -146,4 +148,8 @@ class BranchAndBoundNaive:
 
                     if obj <= self.ub:
                         logger.debug(f"yield rule {rule.id} as a feasible solution")
-                        yield child_node.get_ruleset_ids()
+                        ruleset = child_node.get_ruleset_ids()
+                        if return_objective:
+                            yield (ruleset, child_node.objective)
+                        else:
+                            yield ruleset

@@ -226,3 +226,26 @@ class TestBranchAndBoundNaive:
                 all_feasible_solutions_sorted_by_objective[:num_feasible_solutions],
             )
         )
+
+    def test_check_objective_calculation(self, rules, y):
+        lmbd = 0.1
+        ub = float("inf")
+        bb = BranchAndBoundNaive(rules, ub=ub, y=y, lmbd=lmbd)
+        feasible_solutions = list(bb.run(return_objective=True))
+
+        actual = dict(map(lambda tpl: (tuple(tpl[0]), tpl[1]), feasible_solutions))
+        expected = {
+            (0, 2): 0.1,
+            (0, 3): 0.3,
+            (0, 2, 3): 0.4,
+            (0, 1, 2): 0.6,
+            (0, 1, 3): 0.8,
+            (0, 1, 2, 3): 0.9,
+            (0, 1): 0.9,
+        }
+
+        # compare the two dict
+        # due to numerical instability, we use allclose to check
+        assert set(actual.keys()) == set(expected.keys())
+        for k in actual.keys():
+            np.testing.assert_allclose(actual[k], expected[k])
