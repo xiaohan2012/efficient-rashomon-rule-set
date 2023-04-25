@@ -1,5 +1,4 @@
 import pytest
-import numpy as np
 
 from bds.cache_tree import CacheTree, Node
 
@@ -75,14 +74,14 @@ class TestNode:
 
     def test_make_root(self):
         num_train_pts = 10
-        fpr = 0.2
-        root = Node.make_root(fpr=fpr, num_train_pts=num_train_pts)
+        fnr = 0.2
+        root = Node.make_root(fnr=fnr, num_train_pts=num_train_pts)
 
         assert root.num_captured == num_train_pts
         assert root.rule_id == 0
         assert root.depth == 0
         assert root.lower_bound == 0
-        assert root.objective == fpr
+        assert root.objective == fnr
 
     def test_get_ruleset_ids(self):
         leaf = create_dummy_node(

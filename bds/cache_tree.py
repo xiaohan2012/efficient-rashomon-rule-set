@@ -1,10 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union
 
-import numpy as np
-
-from .rule import RuleSet
-
 
 @dataclass
 class Node:
@@ -12,7 +8,7 @@ class Node:
     lower_bound: float
     objective: float
     num_captured: int
-
+    # TODO: should I store not captured?
     equivalent_minority: float = 0
 
     children: Dict[int, "Node"] = field(default_factory=dict)
@@ -47,10 +43,10 @@ class Node:
         return ret
 
     @classmethod
-    def make_root(cls, fpr: float, num_train_pts: int) -> "Node":
+    def make_root(cls, fnr: float, num_train_pts: int) -> "Node":
         """create the root of a cache tree
 
-        fpr: false positive rate if the default rule captures all training pts and predict them to be negative
+        fnr: the false positive rate of the default rule which captures all training pts and predict them to be negative
         num_train_pts: number of training points
 
         the root corresponds to the "default rule", which captures all points and predicts the default label (negative)
@@ -58,7 +54,7 @@ class Node:
         return Node(
             rule_id=0,
             lower_bound=0.0,  # the false positive rate, which is zero
-            objective=fpr,  # the false negative rate, the complexity is zero since the default rule does not add into the complexity term
+            objective=fnr,  # the false negative rate, the complexity is zero since the default rule does not add into the complexity term
             depth=0,
             num_captured=num_train_pts,
             parent=None,
@@ -95,8 +91,13 @@ class Node:
 
         return True
 
+    def __gt__(self, other):
+        if type(other) != type(self):
+            raise TypeError(f'{other} is not of type {type(self)}')
+        return self.rule_id > other.rule_id
+        
     def __repr__(self):
-        return f"Node(rule_id={self.rule_id}, num_children={self.num_children})"
+        return f"Node(rule_id={self.rule_id}, lower_bound={self.lower_bound}, objective={self.objective})"
 
 
 class CacheTree:

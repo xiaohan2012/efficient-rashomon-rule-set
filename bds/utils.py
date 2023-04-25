@@ -10,10 +10,8 @@ from itertools import chain, combinations
 from .common import Program
 
 
-def randints(num, vmin=0, vmax=100000):
+def randints(num, vmin=0, vmax=100000) -> np.ndarray:
     return np.random.randint(vmin, vmax, num)
-
-
 
 
 def int_floor(num: float):
@@ -74,4 +72,14 @@ def convert_numerical_columns_to_bool(df: pd.DataFrame):
 def powerset(iterable, min_size=0):
     "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
     s = list(iterable)
-    return chain.from_iterable(combinations(s, r) for r in range(min_size, len(s)+1))
+    return chain.from_iterable(combinations(s, r) for r in range(min_size, len(s) + 1))
+
+def bin_array(arr):
+    """create a binary array"""
+    return np.array(arr, dtype=bool)
+
+def bin_zeros(shape):
+    return np.zeros(shape, dtype=bool)
+
+def bin_ones(shape):
+    return np.ones(shape, dtype=bool)

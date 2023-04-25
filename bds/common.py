@@ -26,3 +26,5 @@ SupportSet = Set[int]
 CMAP = plt.cm.coolwarm
 
 PATTERN_LOG_LEVEL = 5
+
+EPSILON = 1e-10
