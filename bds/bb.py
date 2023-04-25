@@ -54,7 +54,11 @@ def incremental_update_obj(
 
 
 class BranchAndBoundNaive:
-    """an implementation of the branch and bound algorithm for enumerating good decision sets"""
+    """an implementation of the branch and bound algorithm for enumerating good decision sets.
+
+    only hierarchical lower bound is used for pruning
+
+    """
 
     def __init__(self, rules: List[Rule], ub: float, y: np.ndarray, lmbd: float):
         """
