@@ -68,32 +68,34 @@ class BranchAndBoundNaive:
         lmbd: the parameter that controls regularization strength
         """
         _assert_binary_array(y)
-
+        #
         self.rules = rules
         self.ub = ub
         self.y = y
         self.lmbd = lmbd
-
+        #
         self.num_train_pts = y.shape[0]
-
+        #
         # false negative rate of the default rule = fraction of positives
         self.default_rule_fnr = y.sum() / self.num_train_pts
+        
 
     def prepare(self):
         """prepare for the branch and bound, e.g., initialize the queue and the cache tree"""
         self.tree = CacheTree()
-
+        #
         root = Node.make_root(self.default_rule_fnr, self.num_train_pts)
-
+        #
         # add the root
         self.tree.add_node(root)
-
+        # 
         self.queue: Queue = Queue()
         not_captured = bin_ones(self.y.shape)  # the dafault rule captures nothing
-
+        # 
         item = (self.tree.root, not_captured)
         self.queue.push(item, key=0)
-
+        #
+        #
     def run(self, return_objective=False):
         self.prepare()
 
