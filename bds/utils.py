@@ -74,12 +74,20 @@ def powerset(iterable, min_size=0):
     s = list(iterable)
     return chain.from_iterable(combinations(s, r) for r in range(min_size, len(s) + 1))
 
+
 def bin_array(arr):
     """create a binary array"""
     return np.array(arr, dtype=bool)
 
+
 def bin_zeros(shape):
     return np.zeros(shape, dtype=bool)
 
+
 def bin_ones(shape):
     return np.ones(shape, dtype=bool)
+
+
+def assert_binary_array(arr):
+    assert isinstance(arr, np.ndarray)
+    assert arr.dtype == bool
