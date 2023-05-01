@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional, Tuple, Union
+from typing import Tuple
 from typing import List
 import numpy as np
 from logzero import logger
@@ -48,13 +48,8 @@ def incremental_update_obj(
     return g.sum() / y.shape[0], f
 
 
-class BranchAndBoundNaive:
-    """an implementation of the branch and bound algorithm for enumerating good decision sets.
-
-    only hierarchical lower bound is used for pruning
-
-    """
-
+class BranchAndBoundGeneric:
+    """generic class of branch-and-bound algorithm for decision set enumeration"""
     def __init__(self, rules: List[Rule], ub: float, y: np.ndarray, lmbd: float):
         """
         rules: a list of candidate rules
@@ -74,20 +69,15 @@ class BranchAndBoundNaive:
         # false negative rate of the default rule = fraction of positives
         self.default_rule_fnr = y.sum() / self.num_train_pts
 
+    def reset_tree(self):
+        raise NotImplementedError()
+
+    def reset_queue(self):
+        raise NotImplementedError()
+
     def reset(self):
-        """initialize the queue and the cache tree"""
-        self.tree = CacheTree()
-
-        root = Node.make_root(self.default_rule_fnr, self.num_train_pts)
-
-        # add the root
-        self.tree.add_node(root)
-
-        self.queue: Queue = Queue()
-        not_captured = bin_ones(self.y.shape)  # the dafault rule captures nothing
-
-        item = (self.tree.root, not_captured)
-        self.queue.push(item, key=0)
+        self.reset_tree()
+        self.reset_queue()
 
     def _captured_by_rule(self, rule: Rule, parent_not_captured: np.ndarray):
         """return the captured array for the rule in the context of parent"""
@@ -97,10 +87,34 @@ class BranchAndBoundNaive:
         self.reset()
 
         while not self.queue.is_empty:
-            cur_node, not_captured = self.queue.pop()
+            queue_item = self.queue.pop()
             yield from self._loop(
-                cur_node, not_captured, return_objective=return_objective
+                *queue_item, return_objective=return_objective
             )
+
+    def _loop(self, *args, **kwargs):
+        "the inner loop, corresponding to the evaluation of one item in the queue"
+        raise NotImplementedError()
+
+class BranchAndBoundNaive(BranchAndBoundGeneric):
+    """an implementation of the branch and bound algorithm for enumerating good decision sets.
+
+    only hierarchical lower bound is used for pruning
+    """
+
+    def reset_tree(self):
+        self.tree = CacheTree()
+        root = Node.make_root(self.default_rule_fnr, self.num_train_pts)
+
+        # add the root
+        self.tree.add_node(root)
+
+    def reset_queue(self):
+        self.queue: Queue = Queue()
+        not_captured = bin_ones(self.y.shape)  # the dafault rule captures nothing
+
+        item = (self.tree.root, not_captured)
+        self.queue.push(item, key=0)
 
     def _loop(
         self, parent_node: Node, parent_not_captured: np.ndarray, return_objective=False

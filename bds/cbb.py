@@ -7,7 +7,7 @@ from .utils import assert_binary_array, bin_ones, bin_zeros
 from .cache_tree import CacheTree, Node
 from .queue import Queue
 from .rule import Rule
-from .bb import incremental_update_lb, incremental_update_obj
+from .bb import BranchAndBoundNaive, incremental_update_lb, incremental_update_obj
 
 
 def check_if_not_unsatisfied(
@@ -78,38 +78,11 @@ def check_if_satisfied(s: np.ndarray, z: np.ndarray, t: np.ndarray) -> bool:
     return True
 
 
-class ConstrainedBranchAndBoundNaive:
-    def __init__(self, rules: List[Rule], ub: float, y: np.ndarray, lmbd: float):
-        """
-        rules: a list of candidate rules
-        ub: the upper bound on objective value of any ruleset to be returned
-        y: the ground truth label
-        lmbd: the parameter that controls regularization strength
-        """
-        assert_binary_array(y)
-
-        self.rules = rules
-        self.ub = ub
-        self.y = y
-        self.lmbd = lmbd
-
-        self.num_train_pts = y.shape[0]
-
-        # false negative rate of the default rule = fraction of positives
-        self.default_rule_fnr = y.sum() / self.num_train_pts
-
-    def reset(self, A: np.ndarray, t: np.ndarray):
-        """initialize the queue and the cache tree and assign the parity constraint system specified by A and t"""
-        self.tree = CacheTree()
-
-        root = Node.make_root(self.default_rule_fnr, self.num_train_pts)
-
-        # add the root
-        self.tree.add_node(root)
-
+class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
+    def reset_queue(self, A: np.ndarray, t: np.ndarray):
         self.queue: Queue = Queue()
         not_captured = bin_ones(self.y.shape)  # the dafault rule captures nothing
-
+        
         # assign the parity constraint system
         self.A = A
         self.t = t
@@ -130,10 +103,10 @@ class ConstrainedBranchAndBoundNaive:
         item = (self.tree.root, not_captured, s, z)
         self.queue.push(item, key=0)
 
-    def _captured_by_rule(self, rule: Rule, parent_not_captured: np.ndarray):
-        """return the captured array for the rule in the context of parent"""
-        return np.logical_and(parent_not_captured, rule.truthtable)
-
+    def reset(self, A: np.ndarray, t: np.ndarray):
+        self.reset_tree()
+        self.reset_queue(A, t)
+        
     def run(self, A: np.ndarray, t: np.ndarray, return_objective=False):
         self.reset(A, t)
 
