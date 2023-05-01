@@ -6,6 +6,7 @@ import json
 import math
 import tempfile
 from itertools import chain, combinations
+from typing import Optional, List, Dict, Tuple, Union, Set
 
 from .common import Program
 
@@ -74,12 +75,26 @@ def powerset(iterable, min_size=0):
     s = list(iterable)
     return chain.from_iterable(combinations(s, r) for r in range(min_size, len(s) + 1))
 
+
 def bin_array(arr):
     """create a binary array"""
     return np.array(arr, dtype=bool)
 
+
 def bin_zeros(shape):
     return np.zeros(shape, dtype=bool)
 
+
 def bin_ones(shape):
     return np.ones(shape, dtype=bool)
+
+
+def assert_binary_array(arr):
+    assert isinstance(arr, np.ndarray)
+    assert arr.dtype == bool
+
+
+def solutions_to_dict(sols: List[Tuple[Set[int], float]]) -> Dict[Tuple[int], float]:
+    """transform a list of solutions (each is a tuple of rule set indices + objective value)
+    to a dictionary of rule set (as a tuple of ints) to the objective value"""
+    return dict(map(lambda tpl: (tuple(tpl[0]), tpl[1]), sols))
