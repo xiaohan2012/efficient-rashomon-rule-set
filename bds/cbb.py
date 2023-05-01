@@ -1,7 +1,13 @@
-# constrained branch-and-bounch
+# constrained branch-and-bound
 import numpy as np
 from typing import Optional, List, Dict, Tuple, Union
-from .utils import assert_binary_array
+from logzero import logger
+
+from .utils import assert_binary_array, bin_ones, bin_zeros
+from .cache_tree import CacheTree, Node
+from .queue import Queue
+from .rule import Rule
+from .bb import incremental_update_lb, incremental_update_obj
 
 
 def check_if_not_unsatisfied(
@@ -70,3 +76,125 @@ def check_if_satisfied(s: np.ndarray, z: np.ndarray, t: np.ndarray) -> bool:
         elif (s[i] == -1) and (z[i] != t[i]):  # undecided
             return False
     return True
+
+
+class ConstrainedBranchAndBoundNaive:
+    def __init__(self, rules: List[Rule], ub: float, y: np.ndarray, lmbd: float):
+        """
+        rules: a list of candidate rules
+        ub: the upper bound on objective value of any ruleset to be returned
+        y: the ground truth label
+        lmbd: the parameter that controls regularization strength
+        """
+        assert_binary_array(y)
+
+        self.rules = rules
+        self.ub = ub
+        self.y = y
+        self.lmbd = lmbd
+
+        self.num_train_pts = y.shape[0]
+
+        # false negative rate of the default rule = fraction of positives
+        self.default_rule_fnr = y.sum() / self.num_train_pts
+
+    def reset(self, A: np.ndarray, t: np.ndarray):
+        """initialize the queue and the cache tree and assign the parity constraint system specified by A and t"""
+        self.tree = CacheTree()
+
+        root = Node.make_root(self.default_rule_fnr, self.num_train_pts)
+
+        # add the root
+        self.tree.add_node(root)
+
+        self.queue: Queue = Queue()
+        not_captured = bin_ones(self.y.shape)  # the dafault rule captures nothing
+
+        # assign the parity constraint system
+        self.A = A
+        self.t = t
+
+        assert (
+            self.A.shape[0] == self.t.shape[0]
+        ), f"dimension mismatch: {self.A.shape[0]} != {self.t.shape[0]}"
+
+        num_constraints = self.A.shape[0]
+        # the satisfication status constraint
+        # -1 means ?, 0 means unsatisified, 1 means satisfied
+        s = np.ones(num_constraints, dtype=int) * -1
+        # the parity status constraint
+        # 0 mean an even number of rules are selected
+        # 1 mean an odd number of rules are selected
+        z = bin_zeros(num_constraints)
+
+        item = (self.tree.root, not_captured, s, z)
+        self.queue.push(item, key=0)
+
+    def _captured_by_rule(self, rule: Rule, parent_not_captured: np.ndarray):
+        """return the captured array for the rule in the context of parent"""
+        return np.logical_and(parent_not_captured, rule.truthtable)
+
+    def run(self, A: np.ndarray, t: np.ndarray, return_objective=False):
+        self.reset(A, t)
+
+        while not self.queue.is_empty:
+            cur_node, not_captured, s, z = self.queue.pop()
+            yield from self._loop(
+                cur_node, not_captured, s, z, return_objective=return_objective
+            )
+
+    def _loop(
+        self,
+            parent_node: Node, parent_not_captured: np.ndarray,
+            s: np.ndarray,
+            z: np.ndarray,
+            return_objective=False
+    ):
+        """
+        check one node in the search tree, update the queue, and yield feasible solution if exists
+
+        parent_node: the current node/prefix to check
+        parent_not_captured: postives not captured by the current prefix
+        s: the satisfifaction state vector
+        z: the parity state vector
+        return_objective: True if return the objective of the evaluated node
+        """
+        parent_lb = parent_node.lower_bound
+        for rule in self.rules:
+            if rule.id > parent_node.rule_id:
+                logger.debug(f"considering rule {rule.id}")
+                sp, zp, not_unsatisfied = check_if_not_unsatisfied(
+                    rule.id, self.A, self.t, s, z
+                )
+                if not_unsatisfied:
+                    captured = self._captured_by_rule(rule, parent_not_captured)
+
+                    lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
+
+                    if lb <= self.ub:
+                        fn_fraction, not_captured = incremental_update_obj(
+                            parent_not_captured, captured, self.y
+                        )
+                        obj = lb + fn_fraction
+
+                        child_node = Node(
+                            rule_id=rule.id,
+                            lower_bound=lb,
+                            objective=obj,
+                            num_captured=captured.sum(),
+                        )
+
+                        self.tree.add_node(child_node, parent_node)
+
+                        self.queue.push(
+                            (child_node, not_captured, sp, zp),
+                            key=child_node.lower_bound,  # TODO: consider other types of prioritization
+                        )
+
+                        if obj <= self.ub and check_if_satisfied(sp, zp, self.t):
+                            logger.debug(f"yield rule {rule.id} as a feasible solution")
+                            ruleset = child_node.get_ruleset_ids()
+                            if return_objective:
+                                yield (ruleset, child_node.objective)
+                            else:
+                                yield ruleset

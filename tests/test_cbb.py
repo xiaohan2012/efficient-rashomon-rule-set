@@ -1,8 +1,15 @@
-import pytest
 import numpy as np
+import pytest
 
-from bds.cbb import check_if_not_unsatisfied, check_if_satisfied
-from bds.utils import bin_array
+from bds.cbb import (
+    ConstrainedBranchAndBoundNaive,
+    check_if_not_unsatisfied,
+    check_if_satisfied,
+)
+from bds.utils import bin_array, solutions_to_dict
+
+from .fixtures import rules, y
+from .utils import assert_dict_allclose
 
 
 class TestCheckIfNotUnsatisfied:
@@ -75,20 +82,136 @@ class TestCheckIfNotUnsatisfied:
         assert not_unsatisfied is False
 
 
-class TestCheckIfSatisfied():
+class TestCheckIfSatisfied:
     @pytest.mark.parametrize(
-        's, z, expected_result',
-        [([-1, -1], [1, 0], True),
-         ([-1,  1], [1, 0], True),
-         ([1, 1], [1, 0], True),
-         ([0, 1], [1, 0], False),  # 1st constraint is unsatisfied
-         ([1, -1], [1, 0], True),
-         ([-1, -1], [0, 1], False),
-         ([1, -1], [1, 1], False),
-         ([1, 1], [0, 1], True),  # perhaps impossible case: constraints are satisfied but parity vector does not match
-         ([-1,  1], [0, 0], False)])
+        "s, z, expected_result",
+        [
+            ([-1, -1], [1, 0], True),
+            ([-1, 1], [1, 0], True),
+            ([1, 1], [1, 0], True),
+            ([0, 1], [1, 0], False),  # 1st constraint is unsatisfied
+            ([1, -1], [1, 0], True),
+            ([-1, -1], [0, 1], False),
+            ([1, -1], [1, 1], False),
+            (
+                [1, 1],
+                [0, 1],
+                True,
+            ),  # perhaps impossible case: constraints are satisfied but parity vector does not match
+            ([-1, 1], [0, 0], False),
+        ],
+    )
     def test_case(self, s, z, expected_result):
         t = bin_array([1, 0])
         s = np.array(s, dtype=int)
         z = bin_array(z)
         assert check_if_satisfied(s, z, t) is expected_result
+
+
+class TestConstrainedBranchAndBoundNaive:
+    def test_reset(self, rules, y):
+        ub = float("inf")
+        lmbd = 0.1
+        cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
+
+        A = bin_array([[1, 0, 1], [0, 1, 0]])
+        t = bin_array([0, 1])
+
+        cbb.reset(A, t)
+
+        assert cbb.queue.size == 1
+        item = cbb.queue.front()
+        s, z = item[2:]
+        np.testing.assert_allclose(s, -1)
+        np.testing.assert_allclose(z, 0)
+
+    @pytest.mark.parametrize(
+        "ub, expected",
+        [
+            (
+                float("inf"),
+                {(0, 2): 0.1, (0, 1, 2, 3): 0.9},
+            ),  # all satisfied solutions are returned
+            (0.5, {(0, 2): 0.1}),
+            (0.01, dict()),
+        ],
+    )
+    def test_varying_ub_case_1(self, rules, y, ub, expected):
+        lmbd = 0.1
+        cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
+
+        # 3 rules
+        # 2 constraints
+        A = bin_array([[1, 0, 1], [0, 1, 0]])  # 0  # 1
+        # rule-2 has to be selected
+        # rule-0 and rule-1 is either both selected or both unselected
+        t = bin_array([0, 1])
+        res_iter = cbb.run(A, t, return_objective=True)
+
+        sols = list(res_iter)
+        actual = solutions_to_dict(sols)
+        assert_dict_allclose(actual, expected)
+
+    @pytest.mark.parametrize(
+        "ub, expected",
+        [
+            (float("inf"), {(0, 3): 0.3, (0, 1): 0.9}),
+            (0.5, {(0, 3): 0.3}),
+            (0.1, dict()),
+        ],
+    )
+    def test_varying_ub_case_2(self, rules, y, ub, expected):
+        lmbd = 0.1
+        cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
+
+        A = bin_array([[1, 0, 1], [0, 1, 0]])  # 1  # 0
+        # either rule 1 or rule 3 is selected
+        # rule 2 cannot be selected
+        t = bin_array([1, 0])
+        res_iter = cbb.run(A, t, return_objective=True)
+
+        sols = list(res_iter)
+        actual = solutions_to_dict(sols)
+        assert_dict_allclose(actual, expected)
+
+    @pytest.mark.parametrize(
+        "ub, expected",
+        [
+            (float("inf"), {(0, 1, 2, 3): 0.9}),
+            (0.1, dict()),
+        ],
+    )
+    def test_varying_ub_case_3(self, rules, y, ub, expected):
+        lmbd = 0.1
+        cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
+
+        A = bin_array([[1, 0, 1], [1, 1, 0]])  # 0  # 0
+        # either both rule 1 and rule 3 are selected or neither is selected
+        # either both rule 1 and rule 2 are selected or neither is selected
+        t = bin_array([0, 0])
+        res_iter = cbb.run(A, t, return_objective=True)
+        sols = list(res_iter)
+        actual = solutions_to_dict(sols)
+        assert_dict_allclose(actual, expected)
+
+    @pytest.mark.parametrize(
+        "ub, expected",
+        [
+            (float("inf"), {(0, 1, 3): 0.8, (0, 2): 0.1}),
+            (0.1, {(0, 2): 0.1}),
+            (0.01, dict()),
+        ],
+    )
+    def test_varying_ub_case_(self, rules, y, ub, expected):
+        lmbd = 0.1
+        cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
+
+        A = bin_array([[1, 0, 1], [1, 1, 0]])  # 0  # 1
+        # either both rule 1 and rule 3 are selected or neither is selected
+        # either rule 1 or rule 2 is selected
+        t = bin_array([0, 1])
+        res_iter = cbb.run(A, t, return_objective=True)
+        sols = list(res_iter)
+
+        actual = solutions_to_dict(sols)
+        assert_dict_allclose(actual, expected)

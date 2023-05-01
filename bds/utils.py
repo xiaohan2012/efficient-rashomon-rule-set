@@ -6,6 +6,7 @@ import json
 import math
 import tempfile
 from itertools import chain, combinations
+from typing import Optional, List, Dict, Tuple, Union, Set
 
 from .common import Program
 
@@ -91,3 +92,9 @@ def bin_ones(shape):
 def assert_binary_array(arr):
     assert isinstance(arr, np.ndarray)
     assert arr.dtype == bool
+
+
+def solutions_to_dict(sols: List[Tuple[Set[int], float]]) -> Dict[Tuple[int], float]:
+    """transform a list of solutions (each is a tuple of rule set indices + objective value)
+    to a dictionary of rule set (as a tuple of ints) to the objective value"""
+    return dict(map(lambda tpl: (tuple(tpl[0]), tpl[1]), sols))

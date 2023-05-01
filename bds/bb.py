@@ -12,7 +12,6 @@ from .utils import bin_ones, assert_binary_array
 logger.setLevel(logging.DEBUG)
 
 
-
 def incremental_update_lb(v: np.ndarray, y: np.ndarray):
     """
     return the incremental false positive fraction for a given rule
@@ -75,8 +74,8 @@ class BranchAndBoundNaive:
         # false negative rate of the default rule = fraction of positives
         self.default_rule_fnr = y.sum() / self.num_train_pts
 
-    def prepare(self):
-        """prepare for the branch and bound, e.g., initialize the queue and the cache tree"""
+    def reset(self):
+        """initialize the queue and the cache tree"""
         self.tree = CacheTree()
 
         root = Node.make_root(self.default_rule_fnr, self.num_train_pts)
@@ -90,27 +89,28 @@ class BranchAndBoundNaive:
         item = (self.tree.root, not_captured)
         self.queue.push(item, key=0)
 
-    def run(self, return_objective=False):
-        self.prepare()
-
-        while not self.queue.is_empty:
-            cur_node, not_captured = self.queue.pop()
-            yield from self.loop(
-                cur_node, not_captured, return_objective=return_objective
-            )
-
     def _captured_by_rule(self, rule: Rule, parent_not_captured: np.ndarray):
         """return the captured array for the rule in the context of parent"""
         return np.logical_and(parent_not_captured, rule.truthtable)
 
-    def loop(
+    def run(self, return_objective=False):
+        self.reset()
+
+        while not self.queue.is_empty:
+            cur_node, not_captured = self.queue.pop()
+            yield from self._loop(
+                cur_node, not_captured, return_objective=return_objective
+            )
+
+    def _loop(
         self, parent_node: Node, parent_not_captured: np.ndarray, return_objective=False
     ):
         """
-        check one node in the search tree and search one level down
+        check one node in the search tree, update the queue, and yield feasible solution if exists
 
-        parent_node: the current node/prefix to evaluate on
+        parent_node: the current node/prefix to check
         parent_not_captured: postives not captured by the current prefix
+        return_objective: True if return the objective of the evaluated node
         """
         parent_lb = parent_node.lower_bound
         for rule in self.rules:
@@ -121,7 +121,6 @@ class BranchAndBoundNaive:
                 lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
 
                 if lb <= self.ub:
-                    print(f"pushing rule {rule.id} to queue")
                     fn_fraction, not_captured = incremental_update_obj(
                         parent_not_captured, captured, self.y
                     )

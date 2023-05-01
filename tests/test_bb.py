@@ -3,8 +3,9 @@ import pytest
 
 from bds.bb import BranchAndBoundNaive, incremental_update_lb, incremental_update_obj
 from bds.common import EPSILON
-from bds.rule import Rule
-from bds.utils import bin_array, randints
+from bds.utils import bin_array, randints, solutions_to_dict
+from .fixtures import rules, y
+from .utils import assert_dict_allclose
 
 
 @pytest.mark.parametrize("seed", randints(5))
@@ -39,38 +40,6 @@ def test_incremental_update_lb():
     assert actual_f.dtype == bool
 
 
-@pytest.fixture
-def y():
-    return np.array([0, 0, 1, 0, 1], dtype=bool)
-
-
-@pytest.fixture
-def rules(y):
-    return [
-        Rule(
-            id=1,
-            name="rule-1",
-            cardinality=1,
-            truthtable=np.array([0, 1, 0, 1, 0], dtype=bool),
-            ids=np.array([1, 3]),
-        ),
-        Rule(
-            id=2,
-            name="rule-2",
-            cardinality=1,
-            truthtable=np.array([0, 0, 1, 0, 1], dtype=bool),
-            ids=np.array([2, 4]),
-        ),
-        Rule(
-            id=3,
-            name="rule-3",
-            cardinality=1,
-            truthtable=np.array([1, 0, 1, 0, 1], dtype=bool),
-            ids=np.array([0, 2, 4]),
-        ),
-    ]
-
-
 class TestBranchAndBoundNaive:
     def create_bb_object(self, rules, y, lmbd=0.1):
         return BranchAndBoundNaive(rules, ub=10, y=y, lmbd=lmbd)
@@ -84,7 +53,7 @@ class TestBranchAndBoundNaive:
 
     def test_prepare(self, rules, y):
         bb = self.create_bb_object(rules, y)
-        bb.prepare()
+        bb.reset()
 
         # front and tree root are both accessible
         # and refer to the same node
@@ -100,11 +69,11 @@ class TestBranchAndBoundNaive:
 
         # the first iteration of the branch and bound
         bb = BranchAndBoundNaive(rules, ub=ub, y=y, lmbd=lmbd)
-        bb.prepare()
+        bb.reset()
 
         node, not_captured = bb.queue.pop()
 
-        iter_obj = bb.loop(node, not_captured)
+        iter_obj = bb._loop(node, not_captured)
         feasible_ruleset_ids = list(iter_obj)  # evoke the generator
 
         assert len(feasible_ruleset_ids) == 3  # all singleton rulesets are feasible
@@ -145,11 +114,11 @@ class TestBranchAndBoundNaive:
         # we assume lmbd is fixed and try different upper bo
         lmbd = 0.1
         bb = BranchAndBoundNaive(rules, ub=ub, y=y, lmbd=lmbd)
-        bb.prepare()
+        bb.reset()
 
         node, not_captured = bb.queue.pop()
 
-        iter_obj = bb.loop(node, not_captured)
+        iter_obj = bb._loop(node, not_captured)
         feasible_ruleset_ids = list(iter_obj)  # evoke the generator
 
         assert len(feasible_ruleset_ids) == num_feasible_solutions
@@ -233,7 +202,7 @@ class TestBranchAndBoundNaive:
         bb = BranchAndBoundNaive(rules, ub=ub, y=y, lmbd=lmbd)
         feasible_solutions = list(bb.run(return_objective=True))
 
-        actual = dict(map(lambda tpl: (tuple(tpl[0]), tpl[1]), feasible_solutions))
+        actual = solutions_to_dict(feasible_solutions)
         expected = {
             (0, 2): 0.1,
             (0, 3): 0.3,
@@ -245,7 +214,4 @@ class TestBranchAndBoundNaive:
         }
 
         # compare the two dict
-        # due to numerical instability, we use allclose to check
-        assert set(actual.keys()) == set(expected.keys())
-        for k in actual.keys():
-            np.testing.assert_allclose(actual[k], expected[k])
+        assert_dict_allclose(actual, expected)
