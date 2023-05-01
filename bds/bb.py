@@ -83,8 +83,8 @@ class BranchAndBoundGeneric:
         """return the captured array for the rule in the context of parent"""
         return np.logical_and(parent_not_captured, rule.truthtable)
 
-    def run(self, return_objective=False):
-        self.reset()
+    def run(self, *args, return_objective=False):
+        self.reset(*args)
 
         while not self.queue.is_empty:
             queue_item = self.queue.pop()

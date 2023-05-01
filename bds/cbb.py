@@ -107,15 +107,6 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         self.reset_tree()
         self.reset_queue(A, t)
         
-    def run(self, A: np.ndarray, t: np.ndarray, return_objective=False):
-        self.reset(A, t)
-
-        while not self.queue.is_empty:
-            cur_node, not_captured, s, z = self.queue.pop()
-            yield from self._loop(
-                cur_node, not_captured, s, z, return_objective=return_objective
-            )
-
     def _loop(
         self,
             parent_node: Node, parent_not_captured: np.ndarray,
