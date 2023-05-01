@@ -89,6 +89,10 @@ def bin_ones(shape):
     return np.ones(shape, dtype=bool)
 
 
+def bin_random(shape):
+    return np.random.randint(0, 2, size=shape, dtype=bool)
+
+
 def assert_binary_array(arr):
     assert isinstance(arr, np.ndarray)
     assert arr.dtype == bool
@@ -98,3 +102,15 @@ def solutions_to_dict(sols: List[Tuple[Set[int], float]]) -> Dict[Tuple[int], fl
     """transform a list of solutions (each is a tuple of rule set indices + objective value)
     to a dictionary of rule set (as a tuple of ints) to the objective value"""
     return dict(map(lambda tpl: (tuple(tpl[0]), tpl[1]), sols))
+
+
+def fill_array_until(arr, end_idx, val):
+    """fill the values in arr from index 0 to idx with value `val`"""
+    for i in range(0, end_idx + 1):
+        arr[i] = val
+
+
+def fill_array_from(arr, start_idx, val):
+    """fill the values in arr from index idx until the end with value `val`"""
+    for i in range(start_idx, len(arr)):  # typo in paper |S| -> |S| - 1
+        arr[i] = val

@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 
 from bds.rule import Rule, RuleEntry, RuleSet
-from bds.utils import randints
+from bds.utils import randints, bin_zeros
 
 
 class TestRule:
@@ -11,19 +11,26 @@ class TestRule:
 
         id = 1
         name = "a rule"
-        card = 10
-        supp = 100
-        ids = np.random.permutation(n_samples)[:supp]
-        truthtable = np.zeros(n_samples)
+        card = 100
+        supp = 5
+        ids = np.sort(np.random.permutation(n_samples)[:supp])
+        truthtable = bin_zeros(n_samples)
         truthtable[ids] = 1
-        r = Rule(id, name, card, ids, truthtable)
+        r = Rule(id, name, card, truthtable)
 
         assert r.id == id
         assert r.cardinality == card
         assert r.name == name
         assert r.support == supp
-        np.testing.assert_allclose(r.ids, ids)
+        np.testing.assert_allclose(r.ids, ids)  # r.ids calculated in __post_init__
         np.testing.assert_allclose(truthtable, truthtable)
+
+    @pytest.mark.parametrize("random_seed", randints(5))
+    def test_random(self, random_seed):
+        num_pts = 100
+        r = Rule.random(1, num_pts, random_seed=random_seed)
+        r_copy = Rule.random(1, num_pts, random_seed=random_seed)
+        assert r == r_copy
 
 
 class TestRuleEntry:

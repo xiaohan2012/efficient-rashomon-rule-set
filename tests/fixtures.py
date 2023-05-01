@@ -54,20 +54,20 @@ def rules(y):
             name="rule-1",
             cardinality=1,
             truthtable=np.array([0, 1, 0, 1, 0], dtype=bool),
-            ids=np.array([1, 3]),
+            # ids=np.array([1, 3]),
         ),
         Rule(
             id=2,
             name="rule-2",
             cardinality=1,
             truthtable=np.array([0, 0, 1, 0, 1], dtype=bool),
-            ids=np.array([2, 4]),
+            # ids=np.array([2, 4]),
         ),
         Rule(
             id=3,
             name="rule-3",
             cardinality=1,
             truthtable=np.array([1, 0, 1, 0, 1], dtype=bool),
-            ids=np.array([0, 2, 4]),
+            # ids=np.array([0, 2, 4]),
         ),
     ]

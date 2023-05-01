@@ -126,7 +126,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         parent_lb = parent_node.lower_bound
         for rule in self.rules:
             if rule.id > parent_node.rule_id:
-                logger.debug(f"considering rule {rule.id}")
+                # logger.debug(f"considering rule {rule.id}")
                 sp, zp, not_unsatisfied = check_if_not_unsatisfied(
                     rule.id, self.A, self.t, s, z
                 )
@@ -156,8 +156,8 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                         )
 
                         if obj <= self.ub and check_if_satisfied(sp, zp, self.t):
-                            logger.debug(f"yield rule {rule.id} as a feasible solution")
                             ruleset = child_node.get_ruleset_ids()
+                            logger.debug(f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)")
                             if return_objective:
                                 yield (ruleset, child_node.objective)
                             else:

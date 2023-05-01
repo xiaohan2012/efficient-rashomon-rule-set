@@ -34,8 +34,14 @@ class Test_log_sat_search:
         if big_cell[m] == 0:  # we found one small enough solution
             # check if the adding first m constraints gives |Y| <= threshold
             assert Y_size < thresh
+            # m is at the boundary
+            if m > 0:
+                assert big_cell[m - 1] == 1
         else:
             assert Y_size >= thresh
+            # m is at the boundary            
+            if m < big_cell.shape[0] - 1:
+                assert big_cell[m + 1] == 0
 
     def test_invalid_input(self, solver):
         program, I, T = get_input_program_by_name("toy-1")
@@ -110,6 +116,7 @@ class Test_log_sat_search:
             program, I, T, cst_list, thresh, m_prev, solver, return_full=True, verbose=1
         )
 
+        assert big_cell[m] == 0  # returned m should have a cell size <= threshold
         self.check_output(m, Y_size, big_cell, Y_size_arr, thresh)
 
     @pytest.mark.parametrize("dataset_name", ["random-10", "random-20"])

@@ -50,6 +50,7 @@ def incremental_update_obj(
 
 class BranchAndBoundGeneric:
     """generic class of branch-and-bound algorithm for decision set enumeration"""
+
     def __init__(self, rules: List[Rule], ub: float, y: np.ndarray, lmbd: float):
         """
         rules: a list of candidate rules
@@ -88,13 +89,12 @@ class BranchAndBoundGeneric:
 
         while not self.queue.is_empty:
             queue_item = self.queue.pop()
-            yield from self._loop(
-                *queue_item, return_objective=return_objective
-            )
+            yield from self._loop(*queue_item, return_objective=return_objective)
 
     def _loop(self, *args, **kwargs):
         "the inner loop, corresponding to the evaluation of one item in the queue"
         raise NotImplementedError()
+
 
 class BranchAndBoundNaive(BranchAndBoundGeneric):
     """an implementation of the branch and bound algorithm for enumerating good decision sets.

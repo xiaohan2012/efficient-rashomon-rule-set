@@ -11,25 +11,24 @@ from .bounded_weight_sat import weight_mc_core
 from ..ray_pbar import RayProgressBar
 
 
-
 @ray.remote
 def weight_mc_core_job(*args, **kwargs):
     c, _ = weight_mc_core(*args, **kwargs)
     return c
-        
+
 
 def weight_mc(
-        program: Program,
-        S: CPVarList,
-        make_callback: Callable,
-        epsilon: float,
-        delta: float,
-        r: float,
-        weight_func: Callable,
-        show_progress: bool = False,
-        solver: Solver = None,
-        parallel: bool = False,
-        verbose: bool = False
+    program: Program,
+    S: CPVarList,
+    make_callback: Callable,
+    epsilon: float,
+    delta: float,
+    r: float,
+    weight_func: Callable,
+    show_progress: bool = False,
+    solver: Solver = None,
+    parallel: bool = False,
+    verbose: bool = False,
 ):
     """return an approximate estimate of the total weight of satisfying solutions to a given constrained program"""
     if solver is None:
@@ -51,7 +50,7 @@ def weight_mc(
     if not parallel:
         # sequential run of weight_mc_core, w_max may get updated
         if verbose:
-            logger.info('sequentially call weight_mc_core multiple times')
+            logger.info("sequentially call weight_mc_core multiple times")
         C = []  # list of estimates
         if show_progress:
             iter_obj = tqdm(iter_obj)
@@ -68,7 +67,7 @@ def weight_mc(
                 solver,
                 return_details=False,
                 rand_seed=None,
-                verbose=verbose
+                verbose=verbose,
             )
             if w_max_new != w_max:
                 if verbose:
@@ -80,7 +79,7 @@ def weight_mc(
         # paralell run of weight_mc_core, w_max does not get updated
         # not sure if the probabilistic guarantee still holds
         if verbose:
-            logger.info('parallelly call weight_mc_core multiple times')
+            logger.info("parallelly call weight_mc_core multiple times")
 
         promise = [
             weight_mc_core_job.remote(
@@ -105,7 +104,7 @@ def weight_mc(
 
     C = list(filter(None, C))
     if len(C) == 0:
-        msg = 'the number of valid estimates is zero!'
+        msg = "the number of valid estimates is zero!"
         logger.error(msg)
         raise RuntimeError(msg)
 

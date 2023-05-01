@@ -1,6 +1,7 @@
 import numpy as np
 from typing import Optional, List, Dict, Tuple, Union
 from dataclasses import dataclass
+from .utils import bin_zeros, assert_binary_array
 
 
 @dataclass
@@ -10,12 +11,39 @@ class Rule:
     id: int
     name: str  # string representation of the rule, e.g., attr1 == 0 AND attr2 < 10.
     cardinality: int  # number of conditions in the rule
-    ids: np.ndarray  # the indices of samples that are 1 in the truthtable
     truthtable: np.ndarray  # whether a sample evaluates to true for this rule, 1 bit per sample,
+    ids: np.ndarray = None  # the indices of samples that are 1 in the truthtable
 
+    def __post_init__(self):
+        """if parent is not None, 'bind' self and parent by upting children and depth accordingly"""
+        assert_binary_array(self.truthtable)
+
+        if self.ids is None:
+            self.ids = self.truthtable.nonzero()[0]
+            
     @property
     def support(self):
         return self.ids.shape[0]
+
+    @classmethod
+    def random(cls, id, num_pts: int, random_seed=None) -> "Rule":
+        if random_seed is not None:
+            np.random.seed(random_seed)
+
+        truthtable = np.random.randint(0, 2, num_pts, dtype=bool)
+        return Rule(
+            id=id, name=f"random-rule-{id}", cardinality=1, truthtable=truthtable
+        )
+
+    def __eq__(self, other: "Rule") -> bool:
+        assert isinstance(other, Rule)
+
+        return ((self.id == other.id)
+                and (self.cardinality == other.cardinality)
+                and (self.name == other.name)
+                and (self.truthtable == other.truthtable).all()
+                and (np.sort(self.ids) == np.sort(other.ids)).all()
+                )
 
 
 @dataclass

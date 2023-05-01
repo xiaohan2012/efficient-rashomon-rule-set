@@ -5,7 +5,11 @@ from ortools.sat.python import cp_model
 from typing import Union, Tuple, Optional, List
 from tqdm import tqdm
 
-from .bounded_sat import BoundedPatternSATCallback, add_constraints_to_program, get_xor_constraints
+from .bounded_sat import (
+    BoundedPatternSATCallback,
+    add_constraints_to_program,
+    get_xor_constraints,
+)
 from ..common import Program, CPVarList, ConstraintInfo, Solver
 from ..random_hash import generate_h_and_alpha
 
@@ -25,7 +29,12 @@ def log_sat_search(
     verbose: Optional[int] = 0,
 ) -> Union[Tuple[int, int], Tuple[int, int, np.ndarray, np.ndarray]]:
     """
-    find a good value of m, which determines a good size of the partitionings (= 2^m)
+    for a random XOR constraint system,
+    find the correct number of constraints (m) such that the number of solutions under the constraint sub-system is right below `thresh`
+
+    or m is the smallest number of constraints such that the solution number is below `thresh`]
+
+    note that as m grows, the solution number decreases
 
     program: the pattern mining-based SAT program
     I: the list of feature variables
@@ -62,7 +71,7 @@ def log_sat_search(
     # big_cell[-1] = 0  # = 0 means the corresponding m produces too few solutions
 
     def fill_until(arr, idx, val):
-        """fill the values in arr from index 0 to idx+1 with value `val`"""
+        """fill the values in arr from index 0 to idx with value `val`"""
         for i in range(0, idx + 1):
             arr[i] = val
 
@@ -166,11 +175,18 @@ def approx_mc2_core(
     prev_n_cells: int,
     rand_seed: int,
     verbose: int,
-        use_rref: bool=False
+    use_rref: bool = False,
 ) -> Optional[Tuple[int, int]]:
+    """count the number of solutions in a random cell of the solution space
+
+
+    the "location" of the random cell is determined by random XOR/parity constraints
+    """
     if use_rref:
-        logger.warning('use rref seems to give wrong results and make SAT solving even slower, are you sure?')
-        
+        logger.warning(
+            "use rref seems to give wrong results and make SAT solving even slower, are you sure?"
+        )
+
     n = len(I)
     m = n - 1
     A, b = generate_h_and_alpha(n, m, seed=rand_seed)
@@ -185,16 +201,20 @@ def approx_mc2_core(
     Y_size = cb.solution_count
 
     if verbose > 0:
-        print('adding all XOR constraints: Y_size = {} and thresh = {}'.format(Y_size, thresh))
+        print(
+            "adding all XOR constraints: Y_size = {} and thresh = {}".format(
+                Y_size, thresh
+            )
+        )
 
     if Y_size >= thresh:
         if verbose > 0:
-            print('invalid input, return None')
+            print("invalid input, return None")
         # the cell is too big, producing too many solutions
         return None, None
     else:
         if verbose > 0:
-            print('goto search')        
+            print("goto search")
         m_prev = int(np.log2(prev_n_cells))
         m, Y_size = log_sat_search(
             program,
@@ -211,25 +231,30 @@ def approx_mc2_core(
 
 
 def calculate_thresh(eps):
-    return 1 + 9.84 * (1 + eps / (1 + eps))* np.power(1 + 1 / eps, 2)
+    return 1 + 9.84 * (1 + eps / (1 + eps)) * np.power(1 + 1 / eps, 2)
+
 
 def calculate_t(delta):
     """t is the number of calls to approx_mc2_core"""
     # assert 0 < delta < 1
     return 17 * np.log2(3 / delta)
 
+
 def approx_mc2(
-        program: Program, I: CPVarList, T: CPVarList,
-        eps: float = 0.2, delta: float = 0.5,
-        verbose: int=0,
-        show_progress: bool=True,
+    program: Program,
+    I: CPVarList,
+    T: CPVarList,
+    eps: float = 0.2,
+    delta: float = 0.5,
+    verbose: int = 0,
+    show_progress: bool = True,
 ) -> float:
     """the ApproxMC2 algorithm"""
     solver = construct_solver()
-    
+
     thresh = calculate_thresh(eps)
     if verbose > 0:
-        print(f'eps = {eps} gives thresh = {thresh:.2f}')
+        print(f"eps = {eps} gives thresh = {thresh:.2f}")
 
     prev_n_cells = 2  # m = 1
 
@@ -240,43 +265,47 @@ def approx_mc2(
     solver.Solve(program_cp, cb)
     Y_size = cb.solution_count
     if verbose > 0:
-        print(f'initial solving with such thresh gives |Y|={Y_size}')
+        print(f"initial solving with such thresh gives |Y|={Y_size}")
     if Y_size < thresh:
-        if verbose > 0:        
-            print(f'terminate since Y_size < thresh: {Y_size} < {thresh:.2f}')
-    else:    
+        if verbose > 0:
+            print(f"terminate since Y_size < thresh: {Y_size} < {thresh:.2f}")
+    else:
         max_num_calls = int(math.ceil(calculate_t(delta)))
 
         if verbose > 0:
-            print(f'max. num. of calls to ApproxMC2Core: {max_num_calls}')
+            print(f"max. num. of calls to ApproxMC2Core: {max_num_calls}")
 
         estimates = []
-        
+
         iter_obj = range(max_num_calls)
         if show_progress:
             iter_obj = tqdm(iter_obj)
         for _ in iter_obj:
             # TODO: it can be parallelized
             n_cells, n_sols = approx_mc2_core(
-                program, I, T,
+                program,
+                I,
+                T,
                 thresh,
                 prev_n_cells=prev_n_cells,
-                rand_seed=None, verbose=verbose,
-                use_rref=False
+                rand_seed=None,
+                verbose=verbose,
+                use_rref=False,
             )
-            prev_n_cells = n_cells 
+            prev_n_cells = n_cells
             if n_cells is not None:
                 estimates.append(n_cells * n_sols)
             else:
                 if verbose > 0:
-                    print('failed iteration')
+                    print("failed iteration")
         final_estimate = np.median(estimates)
 
         if verbose > 0:
-            print(f'final estimate: {final_estimate}')
-            
+            print(f"final estimate: {final_estimate}")
+
     return final_estimate
+
 
 def get_theoretical_bounds(ground_truth: int, eps: float) -> Tuple[float, float]:
     """given the true count ground_truth, return the lower bound and upper bound of the estimate assuming \epsilon = eps"""
-    return ground_truth / (1+eps), ground_truth * (1+eps)
+    return ground_truth / (1 + eps), ground_truth * (1 + eps)
