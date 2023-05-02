@@ -1,21 +1,17 @@
-import pytest
 import numpy as np
+import pytest
 
-from bds.gf2 import is_piecewise_linear
-from bds.random_hash import generate_h_and_alpha
-from bds.utils import randints, bin_array, bin_random
-from bds.meel import log_search
 from bds.common import EPSILON
+from bds.gf2 import is_piecewise_linear
+from bds.meel import approx_mc2_core, log_search
+from bds.random_hash import generate_h_and_alpha
+from bds.utils import bin_array, bin_random, bin_zeros, randints
+
 from .fixtures import rules, y
-from .utils import generate_random_rule_list
+from .utils import generate_random_rules_and_y
 
 
 class TestLogSearch:
-    def generate_random_rules_and_y(self, num_pts, num_rules):
-        random_rules = generate_random_rule_list(num_pts, num_rules)
-        random_y = bin_random(num_pts)
-        return random_rules, random_y
-
     def check_output(self, m, Y_size, big_cell, Y_size_arr, thresh):
         # big_cell should look like, 1, 1, ...,1, 0, ..., 0, 0
         assert is_piecewise_linear(big_cell)
@@ -44,8 +40,7 @@ class TestLogSearch:
 
         lmbd = 0.1
         ub = float("inf")
-        A, t = generate_h_and_alpha(n, m, seed=rand_seed)
-        A, t = bin_array(A), bin_array(t)
+        A, t = generate_h_and_alpha(n, m, seed=rand_seed, as_numpy=True)
         # test statements
         m, Y_size, big_cell, Y_size_arr = log_search(
             rules, y, lmbd, ub, A, t, thresh, m_prev, return_full=True
@@ -65,7 +60,7 @@ class TestLogSearch:
     def test_on_random_datasets(self, ub, m_prev, thresh, rand_seed):
         # generate the rules and truth label
         num_pts, num_rules = 50, 10
-        random_rules, random_y = self.generate_random_rules_and_y(num_pts, num_rules)
+        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules)
         m = num_rules - 1
 
         A, t = generate_h_and_alpha(num_rules, m, seed=rand_seed)
@@ -94,7 +89,7 @@ class TestLogSearch:
     def test_consistency_on_m(self, ub, thresh, rand_seed):
         """no matter what m_prev is provided, the same m should be given"""
         num_pts, num_rules = 50, 10
-        random_rules, random_y = self.generate_random_rules_and_y(num_pts, num_rules)
+        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules)
         m = num_rules - 1
 
         A, t = generate_h_and_alpha(num_rules, m, seed=rand_seed)
@@ -136,3 +131,113 @@ class TestLogSearch:
             np.testing.assert_equal(ref_big_cell, actual_big_cell)
             assert ref_m == actual_m
             assert ref_Y_size == actual_Y_size
+
+    @pytest.mark.parametrize("m_prev", [2, 3, 4])
+    def test_too_large_m_prev(self, m_prev):
+        with pytest.raises(ValueError, match="m_prev .* should be smaller than 2"):
+            log_search(
+                # just pass in a list in order to get the number of rules
+                [1, 1],
+                [1, 1],
+                lmbd=0.1,
+                ub=float("inf"),
+                A=bin_zeros((2, 2)),
+                t=bin_zeros(2),
+                thresh=2,
+                m_prev=m_prev,
+            )
+
+    @pytest.mark.parametrize("thresh", [0, 1])
+    def test_too_small_thresh(self, thresh):
+        with pytest.raises(ValueError, match="thresh should be at least 1"):
+            log_search(
+                [1, 1],
+                [1, 1],
+                lmbd=0.1,
+                ub=float("inf"),
+                A=bin_zeros((2, 2)),
+                t=bin_zeros(2),
+                thresh=thresh,
+                m_prev=1,
+            )
+
+
+class TestApproxMC2Core:
+    @pytest.mark.parametrize(
+        "ub",
+        # [.5]
+        [0.5, 0.75],
+    )
+    @pytest.mark.parametrize(
+        "thresh",
+        # [5]
+        [5, 10],
+    )
+    @pytest.mark.parametrize("rand_seed", randints(3))
+    def test_basic(self, ub, thresh, rand_seed):
+        """e.g., the code runs and return data with correct types"""
+        prev_m = 5
+        num_pts, num_rules = 100, 10
+        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules)
+        n_cells, Y_size = approx_mc2_core(
+            random_rules,
+            random_y,
+            lmbd=0.1,
+            ub=ub,
+            thresh=thresh,
+            prev_num_cells=2**prev_m,  # Q: why not just pass in prev_m directly?
+            rand_seed=rand_seed,
+        )
+        assert isinstance(n_cells, int)
+        assert Y_size < thresh
+
+    @pytest.mark.parametrize("ub", [0.5, 0.75])
+    @pytest.mark.parametrize("rand_seed", randints(3))
+    def test_monotonicity(self, ub, rand_seed):
+        """as we increase thresh, Y_size should be non-decreasing and m should be non-increasing"""
+        thresh_list = np.arange(2, 10, 1, dtype=int)
+        prev_m = 1
+
+        random_rules, random_y = generate_random_rules_and_y(100, 10)
+
+        n_cells_list = []
+        Y_size_list = []
+
+        for thresh in thresh_list:
+            n_cells, Y_size = approx_mc2_core(
+                random_rules,
+                random_y,
+                lmbd=0.1,
+                ub=ub,
+                thresh=thresh,
+                prev_num_cells=2**prev_m,
+                rand_seed=rand_seed,
+            )
+            Y_size_list.append(Y_size)
+            n_cells_list.append(n_cells)
+
+        assert np.all(np.diff(Y_size_list) >= 0)  # monotonically non-decreasing
+        assert np.all(np.diff(n_cells_list) <= 0)  # monotonically non-increasing
+
+    @pytest.mark.parametrize("ub", [0.5, 0.6, 0.75])
+    @pytest.mark.parametrize("thresh", [2, 3])
+    def test_return_none(self, ub, thresh):
+        prev_m = 1
+        num_rules = 10
+        random_rules, random_y = generate_random_rules_and_y(100, num_rules)
+        # the constraint system is vacuum
+        # thus using all constraints is equivalent to using no constraint at all
+        A = bin_zeros((num_rules - 1, num_rules))
+        t = bin_zeros((num_rules - 1,))
+        n_cells, Y_size = approx_mc2_core(
+            random_rules,
+            random_y,
+            lmbd=0.01,
+            ub=ub,
+            thresh=thresh,
+            prev_num_cells=2**prev_m,
+            A=A,
+            t=t,
+        )
+        assert Y_size is None
+        assert n_cells is None

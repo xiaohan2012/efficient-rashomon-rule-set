@@ -179,7 +179,6 @@ def approx_mc2_core(
 ) -> Optional[Tuple[int, int]]:
     """count the number of solutions in a random cell of the solution space
 
-
     the "location" of the random cell is determined by random XOR/parity constraints
     """
     if use_rref:

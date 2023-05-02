@@ -1,5 +1,6 @@
 from .gf2 import GF
 from typing import Tuple, Optional
+from .utils import bin_array
 
 
 def generate_h(n: int, m: int, seed: Optional[int] = None) -> GF:
@@ -21,11 +22,13 @@ def generate_alpha(m: int, seed: Optional[int] = None) -> GF:
     return GF.Random((m,), seed=seed)
 
 
-def generate_h_and_alpha(n: int, m: int, seed: Optional[int] = None) -> Tuple[GF, GF]:
+def generate_h_and_alpha(n: int, m: int, seed: Optional[int] = None, as_numpy=False) -> Tuple[GF, GF]:
     """
     generate a random XOR-based hash function, parametrized by a m x n matrix in GF2
 
     and a random m-dimensional partition vector in GF2
+
+    return two np.ndarray if as_numpy is True
     """
     A = generate_h(n, m, seed=seed)
     alpha = generate_alpha(m, seed=seed)
@@ -33,5 +36,8 @@ def generate_h_and_alpha(n: int, m: int, seed: Optional[int] = None) -> Tuple[GF
     A_new = A[:, 1:]  # remove the first column
 
     alpha_new = alpha - A[:, 0]
+
+    if as_numpy:
+        A_new, alpha_new = map(bin_array, [A_new, alpha_new])
 
     return A_new, alpha_new
