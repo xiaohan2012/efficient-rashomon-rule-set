@@ -46,7 +46,7 @@ def find_equivalence_classes(X_trn: pd.DataFrame, y_train: np.ndarray):
 
     if isinstance(X_trn, pd.DataFrame):
         X_trn = X_trn.to_numpy()
-    
+
     # find equivalence classes
     all_classes_ids = set()
     all_classes = dict()
