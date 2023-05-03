@@ -10,7 +10,7 @@ from bounds_utils import *
 Here problem formulation is f(S^*) \leq \alpha, i.e., no  Rashomon set is explictitly considered 
 '''
 
-def rule_set_size_bound_with_default(parent_node: Node, lmbd: float, current_optimal_objective: float, alpha: float): 
+def rule_set_size_bound_with_default(parent_node: Node, lmbd: float, alpha: float): 
     '''
     
     Simple pruning condition according to solely rule-set size. 
@@ -40,7 +40,7 @@ def rule_set_size_bound_with_default(parent_node: Node, lmbd: float, current_opt
 
 
 
-def equivalent_points_bounds(lb: float, lmbd: float, current_optimal_objective: float, alpha: float, 
+def equivalent_points_bounds(lb: float, lmbd: float, alpha: float, 
                              not_captured: np.ndarray, X: np.ndarray, all_classes: dict): 
     '''
     Pruning condition according to hierarchical lower bound in the Rashomon set formulation 
@@ -85,6 +85,6 @@ def equivalent_points_bounds(lb: float, lmbd: float, current_optimal_objective: 
         
     
     
-    return lb + tot_not_captured_error_bound > ¨alpha 
+    return lb + tot_not_captured_error_bound > alpha 
 
 
