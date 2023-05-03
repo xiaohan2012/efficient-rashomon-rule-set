@@ -280,6 +280,7 @@ def get_ground_truth_count(
     ub: float,
     return_sols: Optional[bool] = False,
 ) -> int:
+    """solve the complete enumeration problem and return the number of feasible solutions, and optionally the solutions themselves"""
     bb = BranchAndBoundNaive(rules, ub, y, lmbd)
     sols = list(bb.run())
     if return_sols:
