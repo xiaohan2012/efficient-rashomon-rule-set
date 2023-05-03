@@ -54,7 +54,7 @@ class BranchAndBoundGeneric:
     def __init__(self, rules: List[Rule], ub: float, y: np.ndarray, lmbd: float):
         """
         rules: a list of candidate rules
-        ub: the upper bound on objective value of any ruleset to be returned
+        ub: the parameter of the Rashomon set 
         y: the ground truth label
         lmbd: the parameter that controls regularization strength
         """
@@ -138,7 +138,7 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
 
                 lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
 
-                if lb <= self.ub:
+                if lb <= self.current_optimal_loss + self.ub:
                     fn_fraction, not_captured = incremental_update_obj(
                         parent_not_captured, captured, self.y
                     )
