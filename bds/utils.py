@@ -5,14 +5,20 @@ import pickle as pkl
 import json
 import math
 import tempfile
+import logging
+
 from itertools import chain, combinations
+from logzero import logger, setup_logger
 from typing import Optional, List, Dict, Tuple, Union, Set
 
-from .common import Program
+from .common import loglevel
 
 
-def randints(num, vmin=0, vmax=100000) -> np.ndarray:
-    return np.random.randint(vmin, vmax, num)
+ii32 = np.iinfo(np.int32)
+
+
+def randints(num, vmin=0, vmax=ii32.max - 1) -> np.ndarray:
+    return np.random.randint(vmin, vmax, num, dtype=np.int32)
 
 
 def int_floor(num: float):
@@ -114,3 +120,21 @@ def fill_array_from(arr, start_idx, val):
     """fill the values in arr from index idx until the end with value `val`"""
     for i in range(start_idx, len(arr)):  # typo in paper |S| -> |S| - 1
         arr[i] = val
+
+
+def debug1(msg):
+    logger.log(loglevel.DEBUG1, msg)
+
+
+def debug2(msg):
+    logger.log(loglevel.DEBUG2, msg)
+
+
+def debug3(msg):
+    logger.log(loglevel.DEBUG2, msg)
+
+
+# import logzero
+# log_format = '%(color)s[%(levelname)1.1s %(asctime)s %(module)s:%(lineno)d]%(endcolor)s %(message)s'
+# formatter = logzero.LogFormatter(fmt=log_format)
+# logzero.setup_default_logger(formatter=formatter)

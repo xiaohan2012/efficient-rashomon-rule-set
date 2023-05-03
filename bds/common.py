@@ -1,4 +1,5 @@
 import ortools
+import logging
 from ortools.sat.python import cp_model
 from ortools.sat.python.cp_model import BoundedLinearExpression
 
@@ -28,3 +29,15 @@ CMAP = plt.cm.coolwarm
 PATTERN_LOG_LEVEL = 5
 
 EPSILON = 1e-10
+
+
+class loglevel:
+    # more fine-grained debug levels
+    DEBUG1 = logging.DEBUG - 1
+    DEBUG2 = logging.DEBUG - 2
+    DEBUG3 = logging.DEBUG - 3
+
+    DEBUG = logging.DEBUG
+    INFO = logging.INFO
+    WARNING = logging.WARNING
+    ERROR = logging.ERROR

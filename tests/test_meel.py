@@ -3,9 +3,10 @@ import pytest
 
 from bds.common import EPSILON
 from bds.gf2 import is_piecewise_linear
-from bds.meel import approx_mc2_core, log_search
+from bds.meel import approx_mc2_core, log_search, approx_mc2, get_theoretical_bounds
 from bds.random_hash import generate_h_and_alpha
 from bds.utils import bin_array, bin_random, bin_zeros, randints
+from bds.bb import get_ground_truth_count
 
 from .fixtures import rules, y
 from .utils import generate_random_rules_and_y
@@ -241,3 +242,37 @@ class TestApproxMC2Core:
         )
         assert Y_size is None
         assert n_cells is None
+
+
+class TestApproxMC2:
+    @pytest.mark.parametrize(
+        "ub",
+        [.6, .9, 1.0]
+    )
+    @pytest.mark.parametrize("eps", [.8, .5])
+    @pytest.mark.parametrize("delta", [0.8])
+    @pytest.mark.parametrize('rand_seed', randints(3))
+    def test_if_estimate_within_bounds(self, ub, eps, delta, rand_seed):
+        num_pts, num_rules = 100, 10
+        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules)
+
+        lmbd = 0.1
+
+        true_count = get_ground_truth_count(random_rules, random_y, lmbd, ub)
+
+        est_lb, est_ub = get_theoretical_bounds(true_count, eps)
+
+        estimate = approx_mc2(
+            random_rules,
+            random_y,
+            lmbd=lmbd,
+            ub=ub,
+            delta=delta,
+            eps=eps,
+            rand_seed=rand_seed,
+            show_progress=False,
+        )
+
+        # the test may fail
+        # because it does not consider that the assertion holds with probability at least 1 - delta
+        assert est_lb <= estimate <= est_ub

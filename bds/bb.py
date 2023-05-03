@@ -7,9 +7,9 @@ from logzero import logger
 from .cache_tree import CacheTree, Node
 from .queue import Queue
 from .rule import Rule
-from .utils import bin_ones, assert_binary_array
+from .utils import bin_ones, assert_binary_array, debug2
 
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.INFO)
 
 
 def incremental_update_lb(v: np.ndarray, y: np.ndarray):
@@ -64,6 +64,8 @@ class BranchAndBoundGeneric:
         self.ub = ub
         self.y = y
         self.lmbd = lmbd
+
+        debug2(f"calling branch-and-bound with ub={ub}, lmbd={lmbd}")
 
         self.num_train_pts = y.shape[0]
 
@@ -129,7 +131,7 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         parent_lb = parent_node.lower_bound
         for rule in self.rules:
             if rule.id > parent_node.rule_id:
-                logger.debug(f"considering rule {rule.id}")
+                # logger.debug(f"considering rule {rule.id}")
                 captured = self._captured_by_rule(rule, parent_not_captured)
 
                 lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
@@ -155,9 +157,21 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
                     )
 
                     if obj <= self.ub:
-                        logger.debug(f"yield rule {rule.id} as a feasible solution")
                         ruleset = child_node.get_ruleset_ids()
+                        # logger.debug(
+                        #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
+                        # )
                         if return_objective:
                             yield (ruleset, child_node.objective)
                         else:
                             yield ruleset
+
+
+def get_ground_truth_count(
+    rules: List[Rule],
+    y: np.ndarray,
+    lmbd: float,
+    ub: float,
+) -> int:
+    bb = BranchAndBoundNaive(rules, ub, y, lmbd)
+    return len(list(bb.run()))

@@ -1,13 +1,22 @@
 import itertools
+import logging
+import math
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
-from logzero import logger
 
+from tqdm import tqdm
+
+from .bb import BranchAndBoundNaive
 from .cbb import ConstrainedBranchAndBoundNaive
+from .common import loglevel
 from .random_hash import generate_h_and_alpha
 from .rule import Rule
-from .utils import assert_binary_array, fill_array_from, fill_array_until
+from .utils import (assert_binary_array, fill_array_from, fill_array_until,
+                    randints, logger)
+
+# logger.setLevel(loglevel.DEBUG1)
+logger.setLevel(logging.INFO)
 
 
 def log_search(
@@ -40,6 +49,7 @@ def log_search(
       is True if returning all information relevant to the call,
       otherwise return the m value and the corresponding solution set size
     """
+    logger.debug(f"thresh: {thresh}")
     # TODO: cache the number of solutions and return the one corresponding to the m
     if thresh <= 1:
         raise ValueError("thresh should be at least 1")
@@ -73,6 +83,8 @@ def log_search(
         # logger.debug("big_cell: {}".format(big_cell))
         # solve the problem with all constraints
         A_sub, t_sub = A[:m], t[:m]
+        # logger.debug(f"A_sub.shape:{A_sub.shape}")
+        # logger.debug(f"t_sub.shape:{t_sub.shape}")
         sol_iter = cbb.run(A_sub, t_sub)
 
         # obtain only the first `thresh` solutions in the random cell
@@ -125,10 +137,9 @@ def log_search(
                 m -= 1
             else:
                 m = int((m + lo) / 2)
-        logger.debug("-" * 10)
 
-    logger.debug(f"big_cell: {big_cell}")
-    logger.debug(f"Y_size_arr: {Y_size_arr}")
+    # logger.debug(f"big_cell: {big_cell}")
+    # logger.debug(f"Y_size_arr: {Y_size_arr}")
 
     if return_full:
         return m, Y_size_arr[m], big_cell, Y_size_arr
@@ -160,8 +171,7 @@ def approx_mc2_core(
     prev_num_cells: previous an estimate of the number of partitions
     rand_seed: random seed
 
-    the constraint system (specified by A and t) can be optinally provided
-    they are usually for debugging purpose
+    the constraint system (specified by A and t) can be optinally provided, but usually for debugging purposes
 
     returns:
 
@@ -176,7 +186,8 @@ def approx_mc2_core(
         A, t = generate_h_and_alpha(
             num_vars, num_constraints, seed=rand_seed, as_numpy=True
         )
-
+        # debug2(f"A:\n {A.astype(int)}")
+        # debug2(f"t:\n {t.astype(int)}")
     # try to find at most thresh solutions using all constraints
     cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
     sol_iter = cbb.run(A, t)
@@ -184,16 +195,121 @@ def approx_mc2_core(
     Y_bounded_iter = itertools.islice(sol_iter, thresh)
     Y_bounded = list(Y_bounded_iter)
 
-    if len(Y_bounded) >= thresh:
-        logger.info(
-            f"solving under all constraints generates more than {thresh} (thresh) solutions, return None"
-        )
+    Y_size = len(Y_bounded)
+    if Y_size >= thresh:
+        logger.debug(f"|Y| {Y_size} >= {thresh}: solving under all constraints generates more than {thresh} (thresh) solutions, return None")
         return None, None
     else:
-        logger.info("calling log_search using constraint sub-system")
+        logger.debug(f"|Y| {Y_size} < {thresh}: calling log_search under parity constraints")
         m_prev = int(np.log2(prev_num_cells))
         m, Y_size = log_search(
             rules, y, lmbd, ub, A, t, thresh, m_prev, return_full=False
         )
 
         return (int(np.power(2, m)), Y_size)
+
+
+def get_theoretical_bounds(ground_truth: int, eps: float) -> Tuple[float, float]:
+    """given the true count ground_truth, return the lower bound and upper bound of the estimate based on the accuracy parameter `eps`"""
+    return ground_truth / (1 + eps), ground_truth * (1 + eps)
+
+
+def calculate_thresh(eps: float) -> float:
+    """calculate the cell size threshold using the accuracy parameter `eps`"""
+    return 1 + 9.84 * (1 + eps / (1 + eps)) * np.power(1 + 1 / eps, 2)
+
+
+def calculate_t(delta: float) -> float:
+    """calculate the number of calls to approx_mc2_core using the estimation confidence parameter"""
+    assert 0 < delta < 1
+    return 17 * np.log2(3 / delta)
+
+
+def approx_mc2(
+    rules: List[Rule],
+    y: np.ndarray,
+    *,
+    lmbd: float,
+    ub: float,
+    delta: float,
+    eps: float,
+    rand_seed: Optional[int] = None,
+    show_progress: Optional[bool] = True,
+):
+    """estimate the number of feasible solutions to a decision set learning problem
+
+    the learning problem is encoded by:
+
+    rules: a list of rules
+    y: the label vector
+    lmbd: the model complexity parameter
+    ub: the upper bound on the objective function
+
+    the estimation quality is controlled by:
+
+    delta: the estimation confidence parameter
+    eps: the accuracy parameter
+    """
+    logger.debug(f"calling approx_mc2 with eps = {eps:.2f} and delta={delta:.2f}")
+
+    thresh = calculate_thresh(eps)
+    logger.debug("thresh = {thresh:.2f}")
+
+    prev_num_cells = 2  # m = 1
+
+    bb = BranchAndBoundNaive(rules, ub, y, lmbd)
+
+    sol_iter = bb.run()
+
+    thresh_floor = int(math.floor(thresh))  # round down to integer
+
+    # take at most thresh_floor solutions
+    Y_bounded_iter = itertools.islice(sol_iter, thresh_floor)
+    Y_bounded_size = len(list(Y_bounded_iter))
+
+    logger.debug(
+        f"initial solving with thresh={thresh_floor} gives {Y_bounded_size} solutions"
+    )
+
+    if Y_bounded_size < thresh_floor:
+        logger.debug(
+            f"terminate since number of solutions {Y_bounded_size} < {thresh_floor}"
+        )
+        final_estimate = Y_bounded_size
+    else:
+        max_num_calls = int(math.ceil(calculate_t(delta)))
+
+        logger.debug(f"maximum number of calls to ApproxMC2Core: {max_num_calls}")
+
+        estimates = []
+
+        iter_obj = range(max_num_calls)
+        if show_progress:
+            iter_obj = tqdm(iter_obj)
+
+        np.random.seed(rand_seed)
+        rand_seed_pool = randints(max_num_calls)
+
+        for trial_idx in iter_obj:
+            rand_seed_next = rand_seed_pool[trial_idx]
+            # TODO: it can be parallelized
+            num_cells, num_sols = approx_mc2_core(
+                rules,
+                y,
+                lmbd,
+                ub,
+                thresh_floor,
+                prev_num_cells=prev_num_cells,
+                rand_seed=rand_seed_next,
+            )
+            prev_num_cells = num_cells
+            if num_cells is not None:
+                logger.debug(f"num_cells: {num_cells}, num_sols: {num_sols}")
+                estimates.append(num_cells * num_sols)
+            else:
+                logger.debug("one esimtation failed")
+        final_estimate = np.median(estimates)
+
+        logger.debug(f"final estimate: {final_estimate}")
+
+    return final_estimate

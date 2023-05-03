@@ -82,7 +82,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
     def reset_queue(self, A: np.ndarray, t: np.ndarray):
         self.queue: Queue = Queue()
         not_captured = bin_ones(self.y.shape)  # the dafault rule captures nothing
-        
+
         # assign the parity constraint system
         self.A = A
         self.t = t
@@ -106,13 +106,14 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
     def reset(self, A: np.ndarray, t: np.ndarray):
         self.reset_tree()
         self.reset_queue(A, t)
-        
+
     def _loop(
         self,
-            parent_node: Node, parent_not_captured: np.ndarray,
-            s: np.ndarray,
-            z: np.ndarray,
-            return_objective=False
+        parent_node: Node,
+        parent_not_captured: np.ndarray,
+        s: np.ndarray,
+        z: np.ndarray,
+        return_objective=False,
     ):
         """
         check one node in the search tree, update the queue, and yield feasible solution if exists
@@ -157,7 +158,9 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
                         if obj <= self.ub and check_if_satisfied(sp, zp, self.t):
                             ruleset = child_node.get_ruleset_ids()
-                            logger.debug(f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)")
+                            # logger.debug(
+                            #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
+                            # )
                             if return_objective:
                                 yield (ruleset, child_node.objective)
                             else:
