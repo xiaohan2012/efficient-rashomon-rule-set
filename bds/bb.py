@@ -1,6 +1,5 @@
 import logging
-from typing import Tuple
-from typing import List
+from typing import Tuple, Optional, List
 import numpy as np
 from logzero import logger
 
@@ -172,6 +171,11 @@ def get_ground_truth_count(
     y: np.ndarray,
     lmbd: float,
     ub: float,
+    return_sols: Optional[bool] = False,
 ) -> int:
     bb = BranchAndBoundNaive(rules, ub, y, lmbd)
-    return len(list(bb.run()))
+    sols = list(bb.run())
+    if return_sols:
+        return len(sols), sols
+    else:
+        return len(sols)

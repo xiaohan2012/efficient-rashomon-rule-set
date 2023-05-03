@@ -1,21 +1,27 @@
 import itertools
 import logging
 import math
-from typing import List, Optional, Tuple, Union
+import random
+from typing import List, Optional, Tuple, Union, Set
 
 import numpy as np
-
 from tqdm import tqdm
 
 from .bb import BranchAndBoundNaive
 from .cbb import ConstrainedBranchAndBoundNaive
-from .common import loglevel
 from .random_hash import generate_h_and_alpha
 from .rule import Rule
-from .utils import (assert_binary_array, fill_array_from, fill_array_until,
-                    randints, logger)
+from .utils import (
+    assert_binary_array,
+    fill_array_from,
+    fill_array_until,
+    logger,
+    randints,
+    int_ceil,
+    int_floor,
+)
 
-# logger.setLevel(loglevel.DEBUG1)
+# logger.setLevel(logging.DEBUG)
 logger.setLevel(logging.INFO)
 
 
@@ -197,10 +203,14 @@ def approx_mc2_core(
 
     Y_size = len(Y_bounded)
     if Y_size >= thresh:
-        logger.debug(f"|Y| {Y_size} >= {thresh}: solving under all constraints generates more than {thresh} (thresh) solutions, return None")
+        logger.debug(
+            f"|Y| {Y_size} >= {thresh}: solving under all constraints generates more than {thresh} (thresh) solutions, return None"
+        )
         return None, None
     else:
-        logger.debug(f"|Y| {Y_size} < {thresh}: calling log_search under parity constraints")
+        logger.debug(
+            f"|Y| {Y_size} < {thresh}: calling log_search under parity constraints"
+        )
         m_prev = int(np.log2(prev_num_cells))
         m, Y_size = log_search(
             rules, y, lmbd, ub, A, t, thresh, m_prev, return_full=False
@@ -209,17 +219,19 @@ def approx_mc2_core(
         return (int(np.power(2, m)), Y_size)
 
 
-def get_theoretical_bounds(ground_truth: int, eps: float) -> Tuple[float, float]:
-    """given the true count ground_truth, return the lower bound and upper bound of the estimate based on the accuracy parameter `eps`"""
+def _get_theoretical_bounds(ground_truth: int, eps: float) -> Tuple[float, float]:
+    """given the true count ground_truth, return the lower bound and upper bound of the count estimate based on the accuracy parameter `eps`
+    for debugging and testing purpose
+    """
     return ground_truth / (1 + eps), ground_truth * (1 + eps)
 
 
-def calculate_thresh(eps: float) -> float:
+def _calculate_thresh(eps: float) -> float:
     """calculate the cell size threshold using the accuracy parameter `eps`"""
     return 1 + 9.84 * (1 + eps / (1 + eps)) * np.power(1 + 1 / eps, 2)
 
 
-def calculate_t(delta: float) -> float:
+def _calculate_t(delta: float) -> float:
     """calculate the number of calls to approx_mc2_core using the estimation confidence parameter"""
     assert 0 < delta < 1
     return 17 * np.log2(3 / delta)
@@ -235,8 +247,8 @@ def approx_mc2(
     eps: float,
     rand_seed: Optional[int] = None,
     show_progress: Optional[bool] = True,
-):
-    """estimate the number of feasible solutions to a decision set learning problem
+) -> int:
+    """return an estimate of th number of feasible solutions to a decision set learning problem
 
     the learning problem is encoded by:
 
@@ -252,7 +264,7 @@ def approx_mc2(
     """
     logger.debug(f"calling approx_mc2 with eps = {eps:.2f} and delta={delta:.2f}")
 
-    thresh = calculate_thresh(eps)
+    thresh = _calculate_thresh(eps)
     logger.debug("thresh = {thresh:.2f}")
 
     prev_num_cells = 2  # m = 1
@@ -261,7 +273,7 @@ def approx_mc2(
 
     sol_iter = bb.run()
 
-    thresh_floor = int(math.floor(thresh))  # round down to integer
+    thresh_floor = int_floor(thresh)  # round down to integer
 
     # take at most thresh_floor solutions
     Y_bounded_iter = itertools.islice(sol_iter, thresh_floor)
@@ -277,7 +289,7 @@ def approx_mc2(
         )
         final_estimate = Y_bounded_size
     else:
-        max_num_calls = int(math.ceil(calculate_t(delta)))
+        max_num_calls = int_floor(_calculate_t(delta))
 
         logger.debug(f"maximum number of calls to ApproxMC2Core: {max_num_calls}")
 
@@ -312,4 +324,168 @@ def approx_mc2(
 
         logger.debug(f"final estimate: {final_estimate}")
 
-    return final_estimate
+    return int(final_estimate)
+
+
+class UniGen:
+    """an implementation of the UniGen algorithm for sampling decision sets"""
+
+    def __init__(
+        self,
+        rules: List[Rule],
+        y: np.ndarray,
+        lmbd: float,
+        ub: float,
+        eps: float,
+        rand_seed: Optional[int],
+    ):
+        """
+        rules: the list of candidate rules
+        y: the label of each training point
+        lmbd: model complexity parameter
+        ub: upper bound on the objective value
+        eps: the epsilon parameter that controls the closeness between the sampled distribution and uniform distribution
+            the smaller eps (less error), the higher sampling accuracy and slower sampling speed
+        rand_seed: the random seed
+        """
+        assert_binary_array(y)
+
+        self.rules = rules
+        self.y = y
+        self.lmbd = lmbd
+        self.ub = ub
+        self.eps = eps
+        self.rand_seed = rand_seed
+
+        self.num_vars = len(self.rules)
+
+        self._create_solvers()
+
+    def _create_solvers(self):
+        """create the branch-and-bound solvers for both complete and constrained enumeration"""
+        self.bb = BranchAndBoundNaive(self.rules, self.ub, self.y, self.lmbd)
+        self.cbb = ConstrainedBranchAndBoundNaive(
+            self.rules, self.ub, self.y, self.lmbd
+        )
+
+    def _find_kappa(self, eps: float) -> float:
+        """given eps, find kappa using binary search"""
+        if eps < 1.71:
+            raise ValueError(f"eps must be at least 1.71, but is {eps}")
+
+        def get_eps(kappa) -> float:
+            return (1 + kappa) * (2.23 + 0.48 / np.power((1 - kappa), 2)) - 1
+
+        lo, hi = 0.0, 1.0
+        while True:
+            kappa = np.mean([lo, hi])
+            cur_eps = get_eps(kappa)
+            if np.abs(cur_eps - eps) <= 1e-15:
+                return kappa
+            elif cur_eps > eps:
+                hi = kappa
+            else:
+                lo = kappa
+
+    def _compute_kappa_and_pivot(self, eps: float) -> Tuple[float, float]:
+        def get_pivot(kappa: float) -> float:
+            return math.ceil(3 * np.sqrt(np.e) * np.power(1 + 1 / kappa, 2))
+
+        kappa = self._find_kappa(eps)
+        pivot = get_pivot(kappa)
+        return (kappa, pivot)
+
+    def presolve(self, thresh: float) -> Tuple[int, List[Set[int]]]:
+        """enumerate at most thresh solutions
+        returns the number of found solutions and the found solutions (a list of decision sets)
+        """
+        sol_iter = self.bb.run()
+
+        thresh_floor = int_floor(thresh)  # round down to integer
+
+        # take at most thresh_floor solutions
+        Y_iter = itertools.islice(sol_iter, thresh_floor)
+        Y = list(Y_iter)
+        Y_size = len(Y)
+        return Y_size, Y
+
+    def prepare(self):
+        """
+        presolve the problem with upperbound and estimate the number of feasible solutions if needed
+        """
+        kappa, pivot = self._compute_kappa_and_pivot(self.eps)
+        logger.debug(f"eps = {self.eps} -> pivot = {pivot}, kappa = {kappa:.5f}")
+
+        self.hi_thresh = int_ceil(1 + (1 + kappa) * pivot)
+        self.lo_thresh = int_floor(pivot / (1 + kappa))
+
+        logger.debug(f"(lo_thresh, hi_thresh) = {self.lo_thresh, self.hi_thresh}")
+
+        self.hi_thresh_rounded = int_floor(self.hi_thresh)
+        self.presolve_Y_size, self.presolve_Y = self.presolve(self.hi_thresh)
+
+        self.sample_directly = self.presolve_Y_size < self.hi_thresh
+        if not self.sample_directly:
+            logger.info(
+                f"|Y| {self.presolve_Y_size} >= {self.hi_thresh}, thus calling approx_mc2"
+            )
+            self.C = approx_mc2(
+                self.rules,
+                self.y,
+                lmbd=self.lmbd,
+                ub=self.ub,
+                delta=0.8,
+                eps=0.8,
+                rand_seed=self.rand_seed,
+                show_progress=False,
+            )
+            self.q = int_ceil(np.log2(self.C) + np.log2(1.8) - np.log2(pivot))
+            logger.debug(f"esimated C = {self.C}")
+            logger.debug(f"q = {self.q}")
+
+    def sample_once(self) -> Optional[Set[int]]:
+        """sample one feasible solution from the solution space"""
+        if self.sample_directly:
+            logger.debug(
+                f"sample directly from presolve_Y (of size {self.presolve_Y_size})"
+            )
+            return random.sample(self.presolve_Y, 1)[0]
+        else:
+            m = self.num_vars - 1
+
+            A, t = generate_h_and_alpha(
+                self.num_vars, m,
+                seed=None,  # TODO: set the seed to control randomness
+                as_numpy=True
+            )
+
+            logger.debug(f"searching in the range [{max(0, self.q-4)}, {self.q}]")
+
+            success = False
+            for i in range(max(0, self.q - 4), self.q + 1):
+                logger.debug(f"current i = {i}")
+                A_sub, t_sub = A[:i], t[:i]
+
+                sol_iter = self.cbb.run(A_sub, t_sub)
+
+                # obtain only the first `thresh` solutions in the random cell
+                Y = list(itertools.islice(sol_iter, self.hi_thresh_rounded))
+                Y_size = len(Y)
+
+                if self.lo_thresh <= Y_size <= self.hi_thresh:
+                    logger.debug(
+                        f"i={i} gives lt <= |Y| <= ht: {self.lo_thresh} <= {Y_size} <= {self.hi_thresh}"
+                    )
+                    success = True
+                    break
+            if success:
+                return random.sample(Y, 1)[0]
+            else:
+                return None
+
+    def sample(self, k: int, exclude_none: Optional[bool] = True) -> List[Optional[set]]:
+        """take k samples"""
+        raw_samples = [self.sample_once() for _ in tqdm(range(k))]
+        if exclude_none:
+            return list(filter(None, raw_samples))
+        return raw_samples

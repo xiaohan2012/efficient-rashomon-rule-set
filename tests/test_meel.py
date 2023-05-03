@@ -1,9 +1,16 @@
 import numpy as np
 import pytest
+from collections import Counter
 
 from bds.common import EPSILON
 from bds.gf2 import is_piecewise_linear
-from bds.meel import approx_mc2_core, log_search, approx_mc2, get_theoretical_bounds
+from bds.meel import (
+    approx_mc2_core,
+    log_search,
+    approx_mc2,
+    _get_theoretical_bounds,
+    UniGen,
+)
 from bds.random_hash import generate_h_and_alpha
 from bds.utils import bin_array, bin_random, bin_zeros, randints
 from bds.bb import get_ground_truth_count
@@ -245,13 +252,10 @@ class TestApproxMC2Core:
 
 
 class TestApproxMC2:
-    @pytest.mark.parametrize(
-        "ub",
-        [.6, .9, 1.0]
-    )
-    @pytest.mark.parametrize("eps", [.8, .5])
+    @pytest.mark.parametrize("ub", [0.6, 0.9, 1.0])
+    @pytest.mark.parametrize("eps", [0.8, 0.5])
     @pytest.mark.parametrize("delta", [0.8])
-    @pytest.mark.parametrize('rand_seed', randints(3))
+    @pytest.mark.parametrize("rand_seed", randints(3))
     def test_if_estimate_within_bounds(self, ub, eps, delta, rand_seed):
         num_pts, num_rules = 100, 10
         random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules)
@@ -260,7 +264,7 @@ class TestApproxMC2:
 
         true_count = get_ground_truth_count(random_rules, random_y, lmbd, ub)
 
-        est_lb, est_ub = get_theoretical_bounds(true_count, eps)
+        est_lb, est_ub = _get_theoretical_bounds(true_count, eps)
 
         estimate = approx_mc2(
             random_rules,
@@ -276,3 +280,89 @@ class TestApproxMC2:
         # the test may fail
         # because it does not consider that the assertion holds with probability at least 1 - delta
         assert est_lb <= estimate <= est_ub
+
+
+class TestUniGen:
+    def create_unigen(self, ub: float, eps: float, rand_seed=None) -> UniGen:
+        num_pts, num_rules = 100, 10
+        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules)
+
+        lmbd = 0.1
+        return UniGen(random_rules, random_y, lmbd, ub, eps, rand_seed)
+
+    @pytest.mark.parametrize("eps", [8, 10])
+    @pytest.mark.parametrize("ub, sample_directly", [(0.6, True), (0.9, False)])
+    @pytest.mark.parametrize("rand_seed", randints(3))
+    def test_prepare(self, eps, ub, sample_directly, rand_seed):
+        ug = self.create_unigen(ub, eps, rand_seed)
+
+        ug.prepare()
+        assert isinstance(ug.presolve_Y_size, int)
+        assert isinstance(ug.presolve_Y, list)
+
+        assert ug.sample_directly == sample_directly
+
+        if not sample_directly:
+            assert isinstance(ug.C, int)
+            assert isinstance(ug.q, int)
+        else:
+            assert not hasattr(ug, "C")
+            assert not hasattr(ug, "q")
+
+    @pytest.mark.parametrize("ub", [0.8])
+    @pytest.mark.parametrize("thresh", [10.5, 20.7, 30.0, 40])
+    def test_presolve(self, ub, thresh):
+        ug = self.create_unigen(ub, eps=2.0)
+        Y_size, Y = ug.presolve(thresh)
+        assert Y_size <= thresh
+        assert isinstance(Y, list)
+
+    @pytest.mark.parametrize("ub", [0.6, 0.9])
+    @pytest.mark.parametrize("rand_seed", randints(3))
+    def test_sample_once(self, ub, rand_seed):
+        ug = self.create_unigen(ub, eps=10.0, rand_seed=rand_seed)
+        ug.prepare()
+        ret = ug.sample_once()
+        assert ret is None or isinstance(ret, set)
+
+    @pytest.mark.parametrize("ub", [0.6, 0.9])
+    @pytest.mark.parametrize("rand_seed", randints(3))
+    def test_sample(self, ub, rand_seed):
+        ug = self.create_unigen(ub, eps=10.0, rand_seed=rand_seed)
+        ug.prepare()
+        samples = ug.sample(10, exclude_none=True)
+        assert len(samples) > 0
+        for s in samples:
+            assert isinstance(s, set)
+
+    @pytest.mark.parametrize("rand_seed", randints(3))
+    def test_statistical_property(self, rand_seed):
+        """warning: this is not a very formal test because it ignores variation in probability estimation"""
+        eps = 8  # eps set this way to ensure we go to the else branch
+        ug = self.create_unigen(0.9, eps, rand_seed=rand_seed)
+        ug.prepare()
+        true_count, expected_solutions = get_ground_truth_count(
+            ug.rules, ug.y, ug.lmbd, ug.ub, return_sols=True
+        )
+
+        n_samples = 500
+        samples = ug.sample(n_samples)
+
+        counts = Counter(map(tuple, samples))
+        freq = np.array(list(counts.values()))
+        proba = freq / n_samples
+
+        # all samples should be a member of the true solution set
+        sample_solution_set = set(map(tuple, samples))
+        expected_solution_set = set(map(tuple, expected_solutions))
+
+        assert sample_solution_set.issubset(expected_solution_set)
+
+        # probability checking: they should be bounded from both sides
+        true_proba = 1 / true_count
+        lb, ub = true_proba / (1 + eps), true_proba * (1 + eps)
+
+        # np.testing.assert_allclose(lb <= proba, True)
+        # np.testing.assert_allclose(ub >= proba, True)
+        assert (lb <= proba).all()
+        assert (proba <= ub).all()
