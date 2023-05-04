@@ -12,7 +12,7 @@ from .utils import bin_ones, assert_binary_array, debug2
 from .bounds_utils import *
 from .bounds_v2 import rule_set_size_bound_with_default, equivalent_points_bounds
 
-
+# @profile
 def incremental_update_lb(v: np.ndarray, y: np.ndarray):
     """
     return the incremental false positive fraction for a given rule

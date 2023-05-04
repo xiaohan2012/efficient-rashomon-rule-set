@@ -51,7 +51,8 @@ def check_if_not_unsatisfied(
             if A[i, j - 1]:  # j-1 because we assume rule index is 1-indexed
                 # print(f"rule {j} is active in this constraint")
                 # print(f"parity value from {zp[i]} to {np.invert(zp[i])}")
-                zp[i] = np.invert(zp[i])  # flip the sign
+                # zp[i] = np.invert(zp[i])  # flip the sign
+                zp[i] = (not zp[i])  # flip the sign
 
                 if max_nz_idx_array is None:
                     max_nz_idx = A[i].nonzero()[0].max()
@@ -150,7 +151,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
             if rule.id > parent_node.rule_id:
                 # logger.debug(f"considering rule {rule.id}")
                 sp, zp, not_unsatisfied = check_if_not_unsatisfied(
-                    rule.id, self.A, self.t, s, z
+                    rule.id, self.A, self.t, s, z, self.max_nz_idx_array
                 )
                 if not_unsatisfied:
                     captured = self._captured_by_rule(rule, parent_not_captured)
