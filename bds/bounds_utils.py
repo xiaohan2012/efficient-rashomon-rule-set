@@ -24,7 +24,7 @@ class EquivalentPointClass:
         )  # recall this is to be normalized
 
 
-def find_equivalence_classes(X_trn: pd.DataFrame, y_train: np.ndarray):
+def find_equivalence_classes(X_trn:np.ndarray, y_train: np.ndarray):
     """
     Fimd equivalence classes of points having the same attributes but possibly different labels.
     This function is to be used once prior to branch-and-bound execution to exploit the equivalence-points-based bound.
@@ -44,8 +44,8 @@ def find_equivalence_classes(X_trn: pd.DataFrame, y_train: np.ndarray):
     all equivalnce classes of points all_classes
     """
 
-    if isinstance(X_trn, pd.DataFrame):
-        X_trn = X_trn.to_numpy()
+    #if isinstance(X_trn, pd.DataFrame):
+    #    X_trn = X_trn.to_numpy()
 
     # find equivalence classes
     all_classes_ids = set()
