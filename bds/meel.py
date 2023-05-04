@@ -22,9 +22,9 @@ from .utils import (
 )
 
 # logger.setLevel(logging.DEBUG)
-logger.setLevel(logging.INFO)
+# logger.setLevel(logging.INFO)
 
-
+# @profile
 def log_search(
     rules: List[Rule],
     y: np.ndarray,
@@ -152,7 +152,7 @@ def log_search(
     else:
         return m, Y_size_arr[m]
 
-
+# @profile
 def approx_mc2_core(
     rules: List[Rule],
     y: np.ndarray,
@@ -237,6 +237,11 @@ def _calculate_t(delta: float) -> float:
     return 17 * np.log2(3 / delta)
 
 
+def _check_input(rules: List[Rule], y: np.ndarray):
+    for r in rules:
+        assert r.truthtable.shape == y.shape, "{r.truthtable.shape} != {y.shape}}"
+
+
 def approx_mc2(
     rules: List[Rule],
     y: np.ndarray,
@@ -262,10 +267,12 @@ def approx_mc2(
     delta: the estimation confidence parameter
     eps: the accuracy parameter
     """
+    _check_input(rules, y)
+
     logger.debug(f"calling approx_mc2 with eps = {eps:.2f} and delta={delta:.2f}")
 
     thresh = _calculate_thresh(eps)
-    logger.debug("thresh = {thresh:.2f}")
+    logger.debug(f"thresh = {thresh:.2f}")
 
     prev_num_cells = 2  # m = 1
 
@@ -454,9 +461,10 @@ class UniGen:
             m = self.num_vars - 1
 
             A, t = generate_h_and_alpha(
-                self.num_vars, m,
+                self.num_vars,
+                m,
                 seed=None,  # TODO: set the seed to control randomness
-                as_numpy=True
+                as_numpy=True,
             )
 
             logger.debug(f"searching in the range [{max(0, self.q-4)}, {self.q}]")
@@ -483,7 +491,9 @@ class UniGen:
             else:
                 return None
 
-    def sample(self, k: int, exclude_none: Optional[bool] = True) -> List[Optional[set]]:
+    def sample(
+        self, k: int, exclude_none: Optional[bool] = True
+    ) -> List[Optional[set]]:
         """take k samples"""
         raw_samples = [self.sample_once() for _ in tqdm(range(k))]
         if exclude_none:

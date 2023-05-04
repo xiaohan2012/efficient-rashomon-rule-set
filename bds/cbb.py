@@ -10,8 +10,14 @@ from .rule import Rule
 from .bb import BranchAndBoundNaive, incremental_update_lb, incremental_update_obj
 
 
+# @profile
 def check_if_not_unsatisfied(
-    j: int, A: np.ndarray, t: np.ndarray, s: np.ndarray, z: np.ndarray
+    j: int,
+    A: np.ndarray,
+    t: np.ndarray,
+    s: np.ndarray,
+    z: np.ndarray,
+    max_nz_idx_array: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, np.ndarray, bool]:
     """
     given:
@@ -21,6 +27,8 @@ def check_if_not_unsatisfied(
     t: target parity vector
     s: the satisfication vector of a given prefix, 0 means 'unsatisfied', 1 means 'satisfied', and -1 means "undetermined"
     z: parity states vector of a given preifx, 0 means 'even' and 1 means 'odd'
+    max_nz_idx_array (optinal): the array of largest non-zero idx per constraint
+        provide it for better performance
 
     (note that A and t determines the parity constraint system)
 
@@ -44,7 +52,12 @@ def check_if_not_unsatisfied(
                 # print(f"rule {j} is active in this constraint")
                 # print(f"parity value from {zp[i]} to {np.invert(zp[i])}")
                 zp[i] = np.invert(zp[i])  # flip the sign
-                max_nz_idx = A[i].nonzero()[0].max()  # TODO: cache this information
+
+                if max_nz_idx_array is None:
+                    max_nz_idx = A[i].nonzero()[0].max()
+                else:
+                    max_nz_idx = max_nz_idx_array[i]
+
                 if j == (max_nz_idx + 1):  # we can evaluate this constraint
                     # print(f"we can evaluate this constraint")
                     if zp[i] == t[i]:
@@ -87,6 +100,13 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         self.A = A
         self.t = t
 
+        self.max_nz_idx_array = np.array(
+            [
+                (nz.max() if len((nz := A[i].nonzero()[0])) > 0 else -1)
+                for i in range(self.A.shape[0])
+            ]
+        )
+
         assert (
             self.A.shape[0] == self.t.shape[0]
         ), f"dimension mismatch: {self.A.shape[0]} != {self.t.shape[0]}"
@@ -107,6 +127,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         self.reset_tree()
         self.reset_queue(A, t)
 
+    # @profile
     def _loop(
         self,
         parent_node: Node,
