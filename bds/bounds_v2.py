@@ -87,14 +87,18 @@ def equivalent_points_bounds(
     
     #  comput minimum error in the uncovered/ not captured part due to th equivalence classes
     tot_not_captured_error_bound = 0
+    added = set() 
     for i , not_captured_data_point in enumerate(not_captured):
         if not_captured_data_point:         
             attrs = np.where(X[i] == 1)[0]
             attr_str = "-".join(map(str, attrs))
            # print(attr_str)
-            tot_not_captured_error_bound += all_classes[attr_str].minority_mistakes
-        tot_not_captured_error_bound = (
-            tot_not_captured_error_bound / X.shape[0]
-        )  # normalize as usual for mistakes
+            if attr_str not in added:
+                tot_not_captured_error_bound += all_classes[attr_str].minority_mistakes
+                added.add(attr_str)
+        
+    tot_not_captured_error_bound = (
+        tot_not_captured_error_bound / X.shape[0]
+    )  # normalize as usual for mistakes
 
     return lb + tot_not_captured_error_bound > alpha
