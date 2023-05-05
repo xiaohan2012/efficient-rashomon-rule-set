@@ -7,7 +7,7 @@ from .bounds_utils import *
 #### TODO2: (optionally) add more bounds
 
 """ 
-Here problem formulation is f(S^*) \leq \alpha, i.e., no  Rashomon set is explictitly considered 
+Here problem formulation is f(S^*) < \alpha, i.e., no  Rashomon set is explictitly considered 
 """
 
 
@@ -38,7 +38,8 @@ def rule_set_size_bound_with_default(parent_node: Node, lmbd: float, alpha: floa
     ruleset_size = len(
         parent_node.get_ruleset_ids()
     )  # this should be the number of rules each set contains
-    return ruleset_size > (alpha / lmbd - 1)
+    
+    return ruleset_size > ((alpha/lmbd) - 1) # the -1 is because of the extra rule moving from the parent to its children
 
 
 def equivalent_points_bounds(
@@ -92,8 +93,7 @@ def equivalent_points_bounds(
         if not_captured_data_point:         
             attrs = np.where(X[i] == 1)[0]
             attr_str = "-".join(map(str, attrs))
-           # print(attr_str)
-            if attr_str not in added:
+            if attr_str not in added: # this to make sure that we add only once for each not captured class
                 tot_not_captured_error_bound += all_classes[attr_str].minority_mistakes
                 added.add(attr_str)
         

@@ -6,7 +6,7 @@ from bds.utils import bin_array, randints, solutions_to_dict
 from .fixtures import rules, y, toy_D
 from .utils import assert_dict_allclose
 from bds.bounds_utils import *
-
+from bds.bounds_v2 import * 
 
 
 class TestBranchAndBoundV1:
@@ -120,18 +120,9 @@ class TestBranchAndBoundV1:
         # the order of yielded solutions should be exactly the same
         assert feasible_solutions == all_feasible_solutions_ordered_by_appearance
 
-    @pytest.mark.parametrize(
-        "ub, num_feasible_solutions",
-        [
-            (0.1, 1),
-            (0.3, 2),
-            (0.4, 3),
-            (0.6, 4),
-            (0.8, 5),
-            (0.9, 7),
-        ],
-    )
-    def test_run_with_varying_ub(self, rules, y, toy_D, ub, num_feasible_solutions):
+
+        
+    def test_equivalence_classes(self, rules, y, toy_D):
         """
         assuming the lmbd is 0.1, the rulesets being sorted by the objective values is as follows
 
@@ -145,30 +136,49 @@ class TestBranchAndBoundV1:
         | {0, 1, 2, 3} |        .9 |
         | {0, 1}       |        .9 |
         """
+        
+        
         lmbd = 0.1
-        bb = BranchAndBoundV1(rules, ub=ub + EPSILON, y=y, lmbd=lmbd)
-        feasible_solutions = list(bb.run(X_trn = toy_D))
+        ub = 0.5 
+        bb = BranchAndBoundV1(rules, ub=ub + EPSILON, y=y, lmbd=lmbd)        
+        equivalence_classes = find_equivalence_classes(toy_D, y)
+        
+        
+        assert len(equivalence_classes) == 5
+        
+        assert "1" in equivalence_classes.keys() 
+        
+        assert "0-1" in equivalence_classes.keys() 
+        
+        assert "1-2" not in equivalence_classes.keys() 
+        
+        
+        assert equivalence_classes["0-1"].minority_mistakes == 0 
 
-        feasible_solutions = set(map(tuple, feasible_solutions))
+        assert equivalence_classes["0-1"].total_positives == 0 
+    
+        assert equivalence_classes["0-1"].total_negatives == 1 
+        
+        
+        toy_D_new = np.array([[0, 1, 0], [1, 1, 0], [1, 1, 1], [0, 0, 1], [1, 0, 0], [0, 1, 0]])
+        
+        y_new = np.array([0, 0, 1, 0, 1, 1], dtype=bool)
 
-        all_feasible_solutions_sorted_by_objective = [
-            {0, 2},
-            {0, 3},
-            {0, 2, 3},
-            {0, 1, 2},
-            {0, 1, 3},
-            {0, 1, 2, 3},
-            {0, 1},
-        ]
+        #bb = BranchAndBoundV1(rules, ub=ub + EPSILON, y=y_new, lmbd=lmbd)        
+        equivalence_classes = find_equivalence_classes(toy_D_new, y_new)
+        
+        assert len(equivalence_classes) == 5
+        
+        assert equivalence_classes["1"].minority_mistakes == 1
 
-        # we compare by set not list since the yielding order may not be the same as ordering by objective
-        #assert feasible_solutions == set(
-        #    map(
-        #        tuple,
-        #        all_feasible_solutions_sorted_by_objective[:num_feasible_solutions],
-        #    )
-        #)
-
+        assert equivalence_classes["1"].total_positives == 1 
+    
+        assert equivalence_classes["1"].total_negatives == 1 
+        
+        
+    
+    
+    
     def test_check_objective_calculation(self, rules, y, toy_D):
         lmbd = 0.1
         ub = float("inf")

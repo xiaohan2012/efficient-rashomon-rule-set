@@ -7,6 +7,7 @@ from bds.rule import Rule
 
 # a very small toy dataset
 toy_D_data = np.array([[0, 1, 0], [1, 1, 0], [1, 1, 1], [0, 0, 1], [1, 0, 0]])
+
 # a larger random dataset
 n_examples, n_features = 100, 20
 random_D_data = np.array(GF.Random((n_examples, n_features), seed=1234), dtype=int)
@@ -14,7 +15,6 @@ random_D_data = np.array(GF.Random((n_examples, n_features), seed=1234), dtype=i
 
 @pytest.fixture
 def toy_D():
-    toy_D_data = np.array([[0, 1, 0], [1, 1, 0], [1, 1, 1], [0, 0, 1], [1, 0, 0]])
     return toy_D_data
 
 

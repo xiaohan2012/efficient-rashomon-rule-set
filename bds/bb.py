@@ -201,6 +201,7 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
                 return_objective=return_objective,
             )
 
+
     def _loop(
         self,
         parent_node: Node,

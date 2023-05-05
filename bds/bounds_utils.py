@@ -11,7 +11,7 @@ class EquivalentPointClass:
         self.attrs = attrs
         self.total_positives = 0
         self.total_negatives = 0
-        self.minority_mistakes = 0
+        #self.minority_mistakes = 0
 
     def update(self, label):
         if label == 1:
@@ -56,6 +56,7 @@ def find_equivalence_classes(X_trn:np.ndarray, y_train: np.ndarray):
         if attr_str not in all_classes_ids:  # new equivalence class
             all_classes_ids.add(attr_str)
             all_classes[attr_str] = EquivalentPointClass(attr_str, attrs)
+            all_classes[attr_str].update(y_train[i])
 
         else:  # update existing equivalence class
             all_classes[attr_str].update(y_train[i])
