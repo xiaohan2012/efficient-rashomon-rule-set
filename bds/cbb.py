@@ -166,22 +166,20 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         for rule in self.rules:
             if rule.id > parent_node.rule_id:
                 # logger.debug(f"considering rule {rule.id}")
-                sp, zp, not_unsatisfied = check_if_not_unsatisfied(
-                    rule.id,
-                    self.A,
-                    self.t,
-                    s,
-                    z,
-                    # provide the following data for better performance
-                    rule2cst=self.rule2cst,
-                    max_nz_idx_array=self.max_nz_idx_array,
-                )
-                if not_unsatisfied:
-                    captured = self._captured_by_rule(rule, parent_not_captured)
-
-                    lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
-
-                    if lb <= self.ub:
+                captured = self._captured_by_rule(rule, parent_not_captured)
+                lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
+                if lb <= self.ub:
+                    sp, zp, not_unsatisfied = check_if_not_unsatisfied(
+                        rule.id,
+                        self.A,
+                        self.t,
+                        s,
+                        z,
+                        # provide the following data for better performance
+                        rule2cst=self.rule2cst,
+                        max_nz_idx_array=self.max_nz_idx_array,
+                    )
+                    if not_unsatisfied:
                         fn_fraction, not_captured = incremental_update_obj(
                             parent_not_captured, captured, self.y
                         )
