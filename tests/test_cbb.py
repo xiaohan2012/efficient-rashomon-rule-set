@@ -202,7 +202,7 @@ class TestConstrainedBranchAndBoundNaive:
             (0.01, dict()),
         ],
     )
-    def test_varying_ub_case_(self, rules, y, ub, expected):
+    def test_varying_ub_case_4(self, rules, y, ub, expected):
         lmbd = 0.1
         cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
 

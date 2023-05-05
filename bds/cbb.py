@@ -1,15 +1,16 @@
 # constrained branch-and-bound
+from typing import Dict, List, Optional, Tuple, Union
+
 import numpy as np
-from typing import Optional, List, Dict, Tuple, Union
 from logzero import logger
 
-from .utils import assert_binary_array, bin_ones, bin_zeros
+from .bb import BranchAndBoundNaive, incremental_update_lb, incremental_update_obj
+from .bounds_utils import *
+from .bounds_v2 import equivalent_points_bounds, rule_set_size_bound_with_default
 from .cache_tree import CacheTree, Node
 from .queue import Queue
 from .rule import Rule
-from .bb import BranchAndBoundNaive, incremental_update_lb, incremental_update_obj
-from .bounds_utils import *
-from .bounds_v2 import rule_set_size_bound_with_default, equivalent_points_bounds
+from .utils import assert_binary_array, bin_ones, bin_zeros
 
 
 # @profile
@@ -19,6 +20,8 @@ def check_if_not_unsatisfied(
     t: np.ndarray,
     s: np.ndarray,
     z: np.ndarray,
+    *,
+    rule2cst: Optional[Dict[int, List[int]]] = None,
     max_nz_idx_array: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, np.ndarray, bool]:
     """
@@ -27,9 +30,11 @@ def check_if_not_unsatisfied(
     j: the index of the rule to be inserted (we assume rules are 1-indexed, i.e., the first rule's index is 1)
     A: the constraint matrix
     t: target parity vector
-    s: the satisfication vector of a given prefix, 0 means 'unsatisfied', 1 means 'satisfied', and -1 means "undetermined"
-    z: parity states vector of a given preifx, 0 means 'even' and 1 means 'odd'
-    max_nz_idx_array (optinal): the array of largest non-zero idx per constraint
+    s: the satisfication vector of a given prefix, 0 means 'unsatisfied', 1 means 'satisfied, and -1 means "undetermined"
+    z: 'parity states vector of a given preifx, 0 means 'even' and 1 means 'odd'
+    rule2cst (optional): mapping from rule index to the indices of constraints that the rule is present
+        provide it for better performance
+    max_nz_idx_array (optional): the array of largest non-zero idx per constraint
         provide it for better performance
 
     (note that A and t determines the parity constraint system)
@@ -47,31 +52,35 @@ def check_if_not_unsatisfied(
 
     sp, zp = s.copy(), z.copy()
     num_constraints, num_variables = A.shape
-    for i in range(num_constraints):
+
+    if rule2cst is None:
+        # without caching
+        iter_obj = [i for i in range(num_constraints) if A[i, j - 1]]
+    else:
+        # with caching
+        iter_obj = rule2cst[j]
+
+    for i in iter_obj:
         if s[i] == -1:  # s[i] == ?
-            # print(f"constraint {i+1} is undetermined")
-            if A[i, j - 1]:  # j-1 because we assume rule index is 1-indexed
-                # print(f"rule {j} is active in this constraint")
-                # print(f"parity value from {zp[i]} to {np.invert(zp[i])}")
-                # zp[i] = np.invert(zp[i])  # flip the sign
-                zp[i] = (not zp[i])  # flip the sign
+            # zp[i] = np.invert(zp[i])  # flip the sign
+            zp[i] = not zp[i]  # flip the sign
 
-                if max_nz_idx_array is None:
-                    max_nz_idx = A[i].nonzero()[0].max()
+            if max_nz_idx_array is None:
+                max_nz_idx = A[i].nonzero()[0].max()
+            else:
+                max_nz_idx = max_nz_idx_array[i]
+
+            if j == (max_nz_idx + 1):  # we can evaluate this constraint
+                # print(f"we can evaluate this constraint")
+                if zp[i] == t[i]:
+                    # this constraint evaluates to tue, but we need to consider remaining constraints
+                    # print(f"and it is satisfied")
+                    sp[i] = 1
                 else:
-                    max_nz_idx = max_nz_idx_array[i]
-
-                if j == (max_nz_idx + 1):  # we can evaluate this constraint
-                    # print(f"we can evaluate this constraint")
-                    if zp[i] == t[i]:
-                        # this constraint evaluates to tue, but we need to consider remaining constraints
-                        # print(f"and it is satisfied")
-                        sp[i] = 1
-                    else:
-                        # this constraint evaluates to false, thus the system evaluates to false
-                        # print(f"and it is unsatisfied")
-                        sp[i] = 0
-                        return sp, zp, False
+                    # this constraint evaluates to false, thus the system evaluates to false
+                    # print(f"and it is unsatisfied")
+                    sp[i] = 0
+                    return sp, zp, False
     return sp, zp, True
 
 
@@ -94,7 +103,6 @@ def check_if_satisfied(s: np.ndarray, z: np.ndarray, t: np.ndarray) -> bool:
     return True
 
 
-
 class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
     def reset_queue(self, A: np.ndarray, t: np.ndarray):
         self.queue: Queue = Queue()
@@ -103,13 +111,19 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         # assign the parity constraint system
         self.A = A
         self.t = t
+        num_constraints = self.A.shape[0]
 
+        # auxiliary data structures for caching and better performance
         self.max_nz_idx_array = np.array(
             [
                 (nz.max() if len((nz := A[i].nonzero()[0])) > 0 else -1)
                 for i in range(self.A.shape[0])
             ]
         )
+
+        self.rule2cst = {
+            r.id: list(self.A[:, r.id - 1].nonzero()[0]) for r in self.rules
+        }
 
         assert (
             self.A.shape[0] == self.t.shape[0]
@@ -153,7 +167,14 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
             if rule.id > parent_node.rule_id:
                 # logger.debug(f"considering rule {rule.id}")
                 sp, zp, not_unsatisfied = check_if_not_unsatisfied(
-                    rule.id, self.A, self.t, s, z, self.max_nz_idx_array
+                    rule.id,
+                    self.A,
+                    self.t,
+                    s,
+                    z,
+                    # provide the following data for better performance
+                    rule2cst=self.rule2cst,
+                    max_nz_idx_array=self.max_nz_idx_array,
                 )
                 if not_unsatisfied:
                     captured = self._captured_by_rule(rule, parent_not_captured)
@@ -189,9 +210,6 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                                 yield (ruleset, child_node.objective)
                             else:
                                 yield ruleset
-
-
-
 
 
 class ConstrainedBranchAndBoundV1(BranchAndBoundNaive):
@@ -230,9 +248,8 @@ class ConstrainedBranchAndBoundV1(BranchAndBoundNaive):
         self.reset_tree()
         self.reset_queue(A, t)
 
-
     # override method from the base class so we can compute the equivalence classes before starting the search
-    # i guess we could instead compute self.equivalence_classes upon initialization? 
+    # i guess we could instead compute self.equivalence_classes upon initialization?
     def run(self, *args, X_trn, return_objective=False):
         self.reset(*args)
         equivalence_classes = find_equivalence_classes(X_trn, self.y)
@@ -276,9 +293,9 @@ class ConstrainedBranchAndBoundV1(BranchAndBoundNaive):
                     captured = self._captured_by_rule(rule, parent_not_captured)
 
                     lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
-                    
+
                     flag_rule_set_size = rule_set_size_bound_with_default(
-                    parent_node, self.lmbd, self.ub
+                        parent_node, self.lmbd, self.ub
                     )  # if true, we prune
 
                     flag_equivalent_classes = equivalent_points_bounds(
@@ -288,10 +305,8 @@ class ConstrainedBranchAndBoundV1(BranchAndBoundNaive):
                         parent_not_captured,
                         X_trn,
                         equivalence_classes,
-                    ) # if true, we prune
+                    )  # if true, we prune
 
-                    
-                    
                     if (
                         lb <= self.ub
                         and not flag_rule_set_size
