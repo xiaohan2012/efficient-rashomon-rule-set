@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from bds.bb import  BranchAndBoundV1, incremental_update_lb, incremental_update_obj
+from bds.cbb import  ConstrainedBranchAndBoundV1
 from bds.common import EPSILON
 from bds.utils import bin_array, randints, solutions_to_dict
 from .fixtures import rules, y, toy_D
