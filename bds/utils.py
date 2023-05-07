@@ -5,13 +5,16 @@ import pickle as pkl
 import json
 import math
 import tempfile
+import itertools
 import logging
 import gmpy2 as gmp
 
+
 from gmpy2 import mpz
 from itertools import chain, combinations
+from collections import deque
 from logzero import logger, setup_logger
-from typing import Optional, List, Dict, Tuple, Union, Set
+from typing import Optional, List, Dict, Tuple, Union, Set, Iterable
 
 from .common import loglevel
 
@@ -162,6 +165,16 @@ def debug2(msg):
 
 def debug3(msg):
     logger.log(loglevel.DEBUG2, msg)
+
+
+def count_iter(it: Iterable) -> int:
+    """counter the number of elements in an iterable
+
+    reference: https://stackoverflow.com/a/15112059/557067
+    """
+    counter = itertools.count()
+    deque(zip(it, counter), maxlen=0)
+    return next(counter)
 
 
 # import logzero

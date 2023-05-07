@@ -1,11 +1,13 @@
 # constrained branch-and-bound
-from typing import Dict, List, Optional, Tuple, Union
-
+import itertools
 import gmpy2 as gmp
 
 import numpy as np
+
+from typing import Dict, List, Optional, Tuple, Union, Iterable
 from logzero import logger
 from gmpy2 import mpz, mpfr
+
 
 from .bb import BranchAndBoundNaive, incremental_update_lb, incremental_update_obj
 from .bounds_utils import *
@@ -116,6 +118,29 @@ def check_if_satisfied(u: mpz, s: mpz, z: mpz, t: np.ndarray) -> bool:
 
 
 class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
+    def _bounded_sols_iter(
+        self, A: np.ndarray, t: np.ndarray, threshold: Optional[int] = None
+    ) -> Iterable:
+        """return an iterable of at most `threshold` feasible solutions
+        if threshold is None, return all
+        """
+        Y = self.run(A, t)
+        if threshold is not None:
+            Y = itertools.islice(Y, threshold)
+        return Y
+
+    def bounded_count(
+        self, A: np.ndarray, t: np.ndarray, threshold: Optional[int] = None
+    ) -> int:
+        """return min(|Y|, threshold), where Y is the set of feasible solutions under the constraint system A and t"""
+        return len(list(self._bounded_sols_iter(A, t, threshold)))
+
+    def bounded_sols(
+        self, A: np.ndarray, t: np.ndarray, threshold: Optional[int] = None
+    ) -> List:
+        """return at most threshold feasible solutions under the constraint system A and t"""
+        return list(self._bounded_sols_iter(A, t, threshold))
+
     def reset_queue(self, A: np.ndarray, t: np.ndarray):
         self.queue: Queue = Queue()
         not_captured = self._not_captured_by_default_rule()
@@ -151,8 +176,6 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
         # the undetermined vector:
         # one entry per constraint, 1 means the constraint cannot be evaluated and 0 otherwise
-        print("type(num_constraints): {}".format(type(num_constraints)))
-        print("num_constraints: {}".format(num_constraints))
         u = mpz_all_ones(num_constraints)
         # the satisfication status constraint
         # means unsatisified, 1 means satisfied

@@ -92,17 +92,17 @@ def log_search(
         # logger.debug("big_cell: {}".format(big_cell))
         # solve the problem with all constraints
         A_sub, t_sub = A[:m], t[:m]
-        # logger.debug(f"A_sub.shape:{A_sub.shape}")
-        # logger.debug(f"t_sub.shape:{t_sub.shape}")
-        sol_iter = cbb.run(A_sub, t_sub)
+        # sol_iter = cbb.run(A_sub, t_sub)
 
         # obtain only the first `thresh` solutions in the random cell
-        Y_bounded = itertools.islice(sol_iter, thresh)
-        Y_bounded_size = len(list(Y_bounded))
-        Y_size_arr[m] = Y_bounded_size
+        Y_size = cbb.bounded_count(A_sub, t_sub, thresh)
+        Y_size_arr[m] = cbb.bounded_count(A_sub, t_sub, thresh)
+        # Y_bounded = itertools.islice(sol_iter, thresh)
+        # Y_bounded_size = len(list(Y_bounded))
+        # Y_size_arr[m] = Y_bounded_size
 
-        if Y_bounded_size >= thresh:
-            logger.debug(f"|Y| >= thresh ({Y_bounded_size} >= {thresh})")
+        if Y_size >= thresh:
+            logger.debug(f"|Y| >= thresh ({Y_size} >= {thresh})")
 
             if m == num_vars - 2:
                 # Q: this is a "failure" case by def of the algorithm, why?
@@ -128,7 +128,7 @@ def log_search(
             else:
                 m = int((hi + m) / 2)
         else:
-            logger.debug(f"|Y| < thresh ({Y_bounded_size} < {thresh})")
+            logger.debug(f"|Y| < thresh ({Y_size} < {thresh})")
             if m == 0:
                 big_cell[m] = 0
                 logger.debug(f"m is as small as it can be, thus {m}")
@@ -196,16 +196,12 @@ def approx_mc2_core(
         A, t = generate_h_and_alpha(
             num_vars, num_constraints, seed=rand_seed, as_numpy=True
         )
-        # debug2(f"A:\n {A.astype(int)}")
-        # debug2(f"t:\n {t.astype(int)}")
+
     # try to find at most thresh solutions using all constraints
     cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
-    sol_iter = cbb.run(A, t)
 
-    Y_bounded_iter = itertools.islice(sol_iter, thresh)
-    Y_bounded = list(Y_bounded_iter)
+    Y_size = cbb.bounded_count(A, t, thresh)
 
-    Y_size = len(Y_bounded)
     if Y_size >= thresh:
         logger.debug(
             f"|Y| {Y_size} >= {thresh}: solving under all constraints generates more than {thresh} (thresh) solutions, return None"
@@ -286,13 +282,12 @@ def approx_mc2(
 
     bb = BranchAndBoundNaive(rules, ub, y, lmbd)
 
-    sol_iter = bb.run()
+    # sol_iter = bb.run()
 
     thresh_floor = int_floor(thresh)  # round down to integer
 
     # take at most thresh_floor solutions
-    Y_bounded_iter = itertools.islice(sol_iter, thresh_floor)
-    Y_bounded_size = len(list(Y_bounded_iter))
+    Y_bounded_size = bb.bounded_count(thresh_floor)
 
     logger.debug(
         f"initial solving with thresh={thresh_floor} gives {Y_bounded_size} solutions"
@@ -414,13 +409,10 @@ class UniGen:
         """enumerate at most thresh solutions
         returns the number of found solutions and the found solutions (a list of decision sets)
         """
-        sol_iter = self.bb.run()
-
         thresh_floor = int_floor(thresh)  # round down to integer
 
         # take at most thresh_floor solutions
-        Y_iter = itertools.islice(sol_iter, thresh_floor)
-        Y = list(Y_iter)
+        Y = self.bb.bounded_sols(thresh_floor)
         Y_size = len(Y)
         return Y_size, Y
 
@@ -482,10 +474,10 @@ class UniGen:
                 logger.debug(f"current i = {i}")
                 A_sub, t_sub = A[:i], t[:i]
 
-                sol_iter = self.cbb.run(A_sub, t_sub)
+                # sol_iter = self.cbb.run(A_sub, t_sub)
 
                 # obtain only the first `thresh` solutions in the random cell
-                Y = list(itertools.islice(sol_iter, self.hi_thresh_rounded))
+                Y = self.cbb.bounded_sols(A_sub, t_sub, self.hi_thresh_rounded)
                 Y_size = len(Y)
 
                 if self.lo_thresh <= Y_size <= self.hi_thresh:

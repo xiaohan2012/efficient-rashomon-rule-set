@@ -226,3 +226,31 @@ class TestConstrainedBranchAndBoundNaive:
 
         actual = solutions_to_dict(sols)
         assert_dict_allclose(actual, expected)
+
+    @pytest.mark.parametrize(
+        "thresh, count", [(None, 2), (1, 1), (2, 2), (3, 2)]  # total count is returned
+    )
+    def test_bounded_count(self, rules, y, thresh, count):
+        ub = float("inf")
+        lmbd = 0.1
+        cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
+
+        A = bin_array([[1, 0, 1], [1, 1, 0]])
+        t = bin_array([0, 1])
+
+        assert cbb.bounded_count(A, t, thresh) == count
+
+    @pytest.mark.parametrize(
+        "thresh, count", [(None, 2), (1, 1), (2, 2), (3, 2)]  # total count is returned
+    )
+    def test_bounded_sols(self, rules, y, thresh, count):
+        ub = float("inf")
+        lmbd = 0.1
+        cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
+
+        A = bin_array([[1, 0, 1], [1, 1, 0]])  # 0  # 1
+        t = bin_array([0, 1])
+
+        sols = cbb.bounded_sols(A, t, thresh)
+        assert isinstance(sols, list)
+        assert len(sols) == count

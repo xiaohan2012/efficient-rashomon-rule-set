@@ -1,5 +1,6 @@
 import numpy as np
 import gmpy2 as gmp
+import itertools
 
 from logzero import logger
 from gmpy2 import mpz, mpfr
@@ -96,6 +97,7 @@ class BranchAndBoundGeneric:
         """return the captured array for the rule in the context of parent"""
         return parent_not_captured & rule.truthtable
 
+    # @profile
     def run(self, *args, return_objective=False):
         self.reset(*args)
 
@@ -106,6 +108,23 @@ class BranchAndBoundGeneric:
     def _loop(self, *args, **kwargs):
         "the inner loop, corresponding to the evaluation of one item in the queue"
         raise NotImplementedError()
+
+    def _bounded_sols_iter(self, threshold: Optional[int] = None) -> int:
+        """return an iterable of at most `threshold` feasible solutions
+        if threshold is None, return all
+        """
+        Y = self.run()
+        if threshold is not None:
+            Y = itertools.islice(Y, threshold)
+        return Y
+
+    def bounded_count(self, threshold: Optional[int] = None) -> int:
+        """return min(|Y|, threshold), where Y is the set of feasible solutions"""
+        return len(list(self._bounded_sols_iter(threshold)))
+
+    def bounded_sols(self, threshold: Optional[int] = None) -> int:
+        """return at most threshold feasible solutions"""
+        return list(self._bounded_sols_iter(threshold))
 
 
 class BranchAndBoundNaive(BranchAndBoundGeneric):
