@@ -4,7 +4,7 @@ import itertools
 
 from logzero import logger
 from gmpy2 import mpz, mpfr
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Iterable
 
 from .cache_tree import CacheTree, Node
 from .queue import Queue
@@ -109,22 +109,22 @@ class BranchAndBoundGeneric:
         "the inner loop, corresponding to the evaluation of one item in the queue"
         raise NotImplementedError()
 
-    def _bounded_sols_iter(self, threshold: Optional[int] = None) -> int:
+    def _bounded_sols_iter(self, threshold: Optional[int] = None, *args) -> Iterable:
         """return an iterable of at most `threshold` feasible solutions
         if threshold is None, return all
         """
-        Y = self.run()
+        Y = self.run(*args)
         if threshold is not None:
             Y = itertools.islice(Y, threshold)
         return Y
 
-    def bounded_count(self, threshold: Optional[int] = None) -> int:
+    def bounded_count(self, threshold: Optional[int] = None, *args) -> int:
         """return min(|Y|, threshold), where Y is the set of feasible solutions"""
-        return len(list(self._bounded_sols_iter(threshold)))
+        return len(list(self._bounded_sols_iter(threshold, *args)))
 
-    def bounded_sols(self, threshold: Optional[int] = None) -> int:
+    def bounded_sols(self, threshold: Optional[int] = None, *args) -> List:
         """return at most threshold feasible solutions"""
-        return list(self._bounded_sols_iter(threshold))
+        return list(self._bounded_sols_iter(threshold, *args))
 
 
 class BranchAndBoundNaive(BranchAndBoundGeneric):

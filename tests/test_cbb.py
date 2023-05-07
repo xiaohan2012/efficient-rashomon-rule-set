@@ -238,7 +238,7 @@ class TestConstrainedBranchAndBoundNaive:
         A = bin_array([[1, 0, 1], [1, 1, 0]])
         t = bin_array([0, 1])
 
-        assert cbb.bounded_count(A, t, thresh) == count
+        assert cbb.bounded_count(thresh, A, t) == count
 
     @pytest.mark.parametrize(
         "thresh, count", [(None, 2), (1, 1), (2, 2), (3, 2)]  # total count is returned
@@ -251,6 +251,6 @@ class TestConstrainedBranchAndBoundNaive:
         A = bin_array([[1, 0, 1], [1, 1, 0]])  # 0  # 1
         t = bin_array([0, 1])
 
-        sols = cbb.bounded_sols(A, t, thresh)
+        sols = cbb.bounded_sols(thresh, A, t)
         assert isinstance(sols, list)
         assert len(sols) == count

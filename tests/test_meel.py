@@ -68,7 +68,7 @@ class TestLogSearch:
     def test_on_random_datasets(self, ub, m_prev, thresh, rand_seed):
         # generate the rules and truth label
         num_pts, num_rules = 50, 10
-        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules)
+        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules, rand_seed=1234)
         m = num_rules - 1
 
         A, t = generate_h_and_alpha(num_rules, m, seed=rand_seed)
@@ -97,7 +97,7 @@ class TestLogSearch:
     def test_consistency_on_m(self, ub, thresh, rand_seed):
         """no matter what m_prev is provided, the same m should be given"""
         num_pts, num_rules = 50, 10
-        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules)
+        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules, rand_seed=1234)
         m = num_rules - 1
 
         A, t = generate_h_and_alpha(num_rules, m, seed=rand_seed)
@@ -186,7 +186,7 @@ class TestApproxMC2Core:
         """e.g., the code runs and return data with correct types"""
         prev_m = 5
         num_pts, num_rules = 100, 10
-        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules)
+        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules, rand_seed=1234)
         n_cells, Y_size = approx_mc2_core(
             random_rules,
             random_y,
@@ -206,7 +206,7 @@ class TestApproxMC2Core:
         thresh_list = np.arange(2, 10, 1, dtype=int)
         prev_m = 1
 
-        random_rules, random_y = generate_random_rules_and_y(100, 10)
+        random_rules, random_y = generate_random_rules_and_y(100, 10, rand_seed=1234)
 
         n_cells_list = []
         Y_size_list = []
@@ -232,7 +232,7 @@ class TestApproxMC2Core:
     def test_return_none(self, ub, thresh):
         prev_m = 1
         num_rules = 10
-        random_rules, random_y = generate_random_rules_and_y(100, num_rules)
+        random_rules, random_y = generate_random_rules_and_y(100, num_rules, rand_seed=1234)
         # the constraint system is vacuum
         # thus using all constraints is equivalent to using no constraint at all
         A = bin_zeros((num_rules - 1, num_rules))
@@ -258,7 +258,7 @@ class TestApproxMC2:
     @pytest.mark.parametrize("rand_seed", randints(3))
     def test_if_estimate_within_bounds(self, ub, eps, delta, rand_seed):
         num_pts, num_rules = 100, 10
-        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules)
+        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules, rand_seed=1234)
 
         lmbd = 0.1
 
@@ -285,7 +285,7 @@ class TestApproxMC2:
 class TestUniGen:
     def create_unigen(self, ub: float, eps: float, rand_seed=None) -> UniGen:
         num_pts, num_rules = 100, 10
-        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules)
+        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules, rand_seed=1234)
 
         lmbd = 0.1
         return UniGen(random_rules, random_y, lmbd, ub, eps, rand_seed)

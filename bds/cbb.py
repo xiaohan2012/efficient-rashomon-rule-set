@@ -118,29 +118,6 @@ def check_if_satisfied(u: mpz, s: mpz, z: mpz, t: np.ndarray) -> bool:
 
 
 class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
-    def _bounded_sols_iter(
-        self, A: np.ndarray, t: np.ndarray, threshold: Optional[int] = None
-    ) -> Iterable:
-        """return an iterable of at most `threshold` feasible solutions
-        if threshold is None, return all
-        """
-        Y = self.run(A, t)
-        if threshold is not None:
-            Y = itertools.islice(Y, threshold)
-        return Y
-
-    def bounded_count(
-        self, A: np.ndarray, t: np.ndarray, threshold: Optional[int] = None
-    ) -> int:
-        """return min(|Y|, threshold), where Y is the set of feasible solutions under the constraint system A and t"""
-        return len(list(self._bounded_sols_iter(A, t, threshold)))
-
-    def bounded_sols(
-        self, A: np.ndarray, t: np.ndarray, threshold: Optional[int] = None
-    ) -> List:
-        """return at most threshold feasible solutions under the constraint system A and t"""
-        return list(self._bounded_sols_iter(A, t, threshold))
-
     def reset_queue(self, A: np.ndarray, t: np.ndarray):
         self.queue: Queue = Queue()
         not_captured = self._not_captured_by_default_rule()

@@ -95,8 +95,8 @@ def log_search(
         # sol_iter = cbb.run(A_sub, t_sub)
 
         # obtain only the first `thresh` solutions in the random cell
-        Y_size = cbb.bounded_count(A_sub, t_sub, thresh)
-        Y_size_arr[m] = cbb.bounded_count(A_sub, t_sub, thresh)
+        Y_size = cbb.bounded_count(thresh, A_sub, t_sub)
+        Y_size_arr[m] = Y_size
         # Y_bounded = itertools.islice(sol_iter, thresh)
         # Y_bounded_size = len(list(Y_bounded))
         # Y_size_arr[m] = Y_bounded_size
@@ -200,7 +200,7 @@ def approx_mc2_core(
     # try to find at most thresh solutions using all constraints
     cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
 
-    Y_size = cbb.bounded_count(A, t, thresh)
+    Y_size = cbb.bounded_count(thresh, A, t)
 
     if Y_size >= thresh:
         logger.debug(
@@ -477,7 +477,7 @@ class UniGen:
                 # sol_iter = self.cbb.run(A_sub, t_sub)
 
                 # obtain only the first `thresh` solutions in the random cell
-                Y = self.cbb.bounded_sols(A_sub, t_sub, self.hi_thresh_rounded)
+                Y = self.cbb.bounded_sols(self.hi_thresh_rounded, A_sub, t_sub)
                 Y_size = len(Y)
 
                 if self.lo_thresh <= Y_size <= self.hi_thresh:
