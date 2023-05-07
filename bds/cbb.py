@@ -1,8 +1,11 @@
 # constrained branch-and-bound
 from typing import Dict, List, Optional, Tuple, Union
 
+import gmpy2 as gmp
+
 import numpy as np
 from logzero import logger
+from gmpy2 import mpz, mpfr
 
 from .bb import BranchAndBoundNaive, incremental_update_lb, incremental_update_obj
 from .bounds_utils import *
@@ -18,20 +21,22 @@ def check_if_not_unsatisfied(
     j: int,
     A: np.ndarray,
     t: np.ndarray,
-    s: np.ndarray,
-    z: np.ndarray,
+    u: mpz,
+    s: mpz,
+    z: mpz,
     *,
     rule2cst: Optional[Dict[int, List[int]]] = None,
     max_nz_idx_array: Optional[np.ndarray] = None,
-) -> Tuple[np.ndarray, np.ndarray, bool]:
+) -> Tuple[mpz, mpz, mpz, bool]:
     """
     given:
 
     j: the index of the rule to be inserted (we assume rules are 1-indexed, i.e., the first rule's index is 1)
     A: the constraint matrix
     t: target parity vector
-    s: the satisfication vector of a given prefix, 0 means 'unsatisfied', 1 means 'satisfied, and -1 means "undetermined"
-    z: 'parity states vector of a given preifx, 0 means 'even' and 1 means 'odd'
+    u: the 'undetermined' vector for the constraints of a given prefix, 1 means "undecided" and 0 means "decided"
+    s: the satisfication vector for the constraints of a given prefix, 1 means 'satisfied and 0 means 'unsatisfied'
+    z: 'parity states vector for the constraints of a given preifx, 0 means 'even' and 1 means 'odd'
     rule2cst (optional): mapping from rule index to the indices of constraints that the rule is present
         provide it for better performance
     max_nz_idx_array (optional): the array of largest non-zero idx per constraint
@@ -41,16 +46,18 @@ def check_if_not_unsatisfied(
 
     return:
 
+    - the updated undetermined vector after inserting the jth rule into the prefix
     - the updated satisfaction vector after inserting the jth rule into the prefix
     - the updated parity constraint
     - whether the constraint system is still not unsatisfied
     """
     # print(f"==== checking the parity system ===== ")
-    assert_binary_array(z)
+    # assert_binary_array(z)
     assert_binary_array(t)
-    assert s.shape == z.shape == t.shape
+    # assert s.shape == z.shape == t.shape
 
-    sp, zp = s.copy(), z.copy()
+    up, sp, zp = mpz(u), mpz(s), mpz(z)
+    # s.copy(), z.copy()
     num_constraints, num_variables = A.shape
 
     if rule2cst is None:
@@ -61,45 +68,66 @@ def check_if_not_unsatisfied(
         iter_obj = rule2cst[j]
 
     for i in iter_obj:
-        if s[i] == -1:  # s[i] == ?
-            # zp[i] = np.invert(zp[i])  # flip the sign
-            zp[i] = not zp[i]  # flip the sign
+        # if s[i] == -1:  # s[i] == ?
+        #     # zp[i] = np.invert(zp[i])  # flip the sign
+        #     zp[i] = not zp[i]  # flip the sign
+        #     if max_nz_idx_array is None:
+        #         max_nz_idx = A[i].nonzero()[0].max()
+        #     else:
+        #         max_nz_idx = max_nz_idx_array[i]
 
+        #     if j == (max_nz_idx + 1):  # we can evaluate this constraint
+        #         # print(f"we can evaluate this constraint")
+        #         if zp[i] == t[i]:
+        #             # this constraint evaluates to tue, but we need to consider remaining constraints
+        #             # print(f"and it is satisfied")
+        #             sp[i] = 1
+        #         else:
+        #             # this constraint evaluates to false, thus the system evaluates to false
+        #             # print(f"and it is unsatisfied")
+        #             sp[i] = 0
+        #             return sp, zp, False
+        # return up, sp, zp, True
+        if gmp.bit_test(up, i) == 1:  # the ith constraint is undetermined
+            zp = gmp.bit_flip(zp, i)  # flip the parity value
+
+            # obtain the maximum non-zero index for the current constraint
+            # either from cache or caculation from scratch
             if max_nz_idx_array is None:
                 max_nz_idx = A[i].nonzero()[0].max()
             else:
                 max_nz_idx = max_nz_idx_array[i]
 
             if j == (max_nz_idx + 1):  # we can evaluate this constraint
-                # print(f"we can evaluate this constraint")
-                if zp[i] == t[i]:
-                    # this constraint evaluates to tue, but we need to consider remaining constraints
+                up = gmp.bit_clear(up, i)  # the ith constraint is determined
+                if gmp.bit_test(zp, i) == t[i]:
+                    # this constraint evaluates to true
+                    # we do not return because we might need to consider remaining constraints
                     # print(f"and it is satisfied")
-                    sp[i] = 1
+                    sp = gmp.bit_set(sp, i)
                 else:
                     # this constraint evaluates to false, thus the system evaluates to false
                     # print(f"and it is unsatisfied")
-                    sp[i] = 0
-                    return sp, zp, False
-    return sp, zp, True
+                    sp = gmp.bit_clear(sp, i)
+                    return up, sp, zp, False
+    return up, sp, zp, True
 
 
-def check_if_satisfied(s: np.ndarray, z: np.ndarray, t: np.ndarray) -> bool:
+def check_if_satisfied(u: mpz, s: mpz, z: mpz, t: np.ndarray) -> bool:
     """check if yielding the current prefix as solution satisfies the parity constraint
 
     the calculation is based on incremental results from previous parity constraint checks
     """
-    assert_binary_array(z)
     assert_binary_array(t)
 
-    assert s.shape == z.shape == t.shape
-
-    num_constraints = z.shape[0]
+    num_constraints = t.shape[0]
     for i in range(num_constraints):
-        if s[i] == 0:  # failed this constraint
+        if (gmp.bit_test(u, i) == 0) and (gmp.bit_test(s, i) == 0):  # constraint is determiend but failed
             return False
-        elif (s[i] == -1) and (z[i] != t[i]):  # undecided
+        elif (gmp.bit_test(u, i) == 1) and (gmp.bit_test(z, i) != t[i]):  # constraint is undetermiend
             return False
+        # elif (s[i] == -1) and (z[i] != t[i]):  # undecided
+        #     return False
     return True
 
 
