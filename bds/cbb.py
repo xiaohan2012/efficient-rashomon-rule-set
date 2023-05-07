@@ -13,7 +13,7 @@ from .bounds_v2 import equivalent_points_bounds, rule_set_size_bound_with_defaul
 from .cache_tree import CacheTree, Node
 from .queue import Queue
 from .rule import Rule
-from .utils import assert_binary_array, bin_ones, bin_zeros
+from .utils import assert_binary_array, bin_ones, bin_zeros, mpz_all_ones
 
 
 # @profile
@@ -68,26 +68,6 @@ def check_if_not_unsatisfied(
         iter_obj = rule2cst[j]
 
     for i in iter_obj:
-        # if s[i] == -1:  # s[i] == ?
-        #     # zp[i] = np.invert(zp[i])  # flip the sign
-        #     zp[i] = not zp[i]  # flip the sign
-        #     if max_nz_idx_array is None:
-        #         max_nz_idx = A[i].nonzero()[0].max()
-        #     else:
-        #         max_nz_idx = max_nz_idx_array[i]
-
-        #     if j == (max_nz_idx + 1):  # we can evaluate this constraint
-        #         # print(f"we can evaluate this constraint")
-        #         if zp[i] == t[i]:
-        #             # this constraint evaluates to tue, but we need to consider remaining constraints
-        #             # print(f"and it is satisfied")
-        #             sp[i] = 1
-        #         else:
-        #             # this constraint evaluates to false, thus the system evaluates to false
-        #             # print(f"and it is unsatisfied")
-        #             sp[i] = 0
-        #             return sp, zp, False
-        # return up, sp, zp, True
         if gmp.bit_test(up, i) == 1:  # the ith constraint is undetermined
             zp = gmp.bit_flip(zp, i)  # flip the parity value
 
@@ -122,9 +102,13 @@ def check_if_satisfied(u: mpz, s: mpz, z: mpz, t: np.ndarray) -> bool:
 
     num_constraints = t.shape[0]
     for i in range(num_constraints):
-        if (gmp.bit_test(u, i) == 0) and (gmp.bit_test(s, i) == 0):  # constraint is determiend but failed
+        if (gmp.bit_test(u, i) == 0) and (
+            gmp.bit_test(s, i) == 0
+        ):  # constraint is determiend but failed
             return False
-        elif (gmp.bit_test(u, i) == 1) and (gmp.bit_test(z, i) != t[i]):  # constraint is undetermiend
+        elif (gmp.bit_test(u, i) == 1) and (
+            gmp.bit_test(z, i) != t[i]
+        ):  # constraint is undetermiend
             return False
         # elif (s[i] == -1) and (z[i] != t[i]):  # undecided
         #     return False
@@ -134,7 +118,7 @@ def check_if_satisfied(u: mpz, s: mpz, z: mpz, t: np.ndarray) -> bool:
 class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
     def reset_queue(self, A: np.ndarray, t: np.ndarray):
         self.queue: Queue = Queue()
-        not_captured = bin_ones(self.y.shape)  # the dafault rule captures nothing
+        not_captured = self._not_captured_by_default_rule()
 
         # assign the parity constraint system
         self.A = A
@@ -150,7 +134,13 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         )
 
         self.rule2cst = {
-            r.id: list(self.A[:, r.id - 1].nonzero()[0]) for r in self.rules
+            r.id: list(
+                map(
+                    int,  # convert to int for mpz.bit_test campatibility
+                    self.A[:, r.id - 1].nonzero()[0],
+                )
+            )
+            for r in self.rules
         }
 
         assert (
@@ -158,15 +148,19 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         ), f"dimension mismatch: {self.A.shape[0]} != {self.t.shape[0]}"
 
         num_constraints = self.A.shape[0]
+
+        # the undetermined vector:
+        # one entry per constraint, 1 means the constraint cannot be evaluated and 0 otherwise
+        u = mpz_all_ones(num_constraints)
         # the satisfication status constraint
-        # -1 means ?, 0 means unsatisified, 1 means satisfied
-        s = np.ones(num_constraints, dtype=int) * -1
+        # means unsatisified, 1 means satisfied
+        s = mpz()
         # the parity status constraint
         # 0 mean an even number of rules are selected
         # 1 mean an odd number of rules are selected
-        z = bin_zeros(num_constraints)
+        z = mpz()
 
-        item = (self.tree.root, not_captured, s, z)
+        item = (self.tree.root, not_captured, u, s, z)
         self.queue.push(item, key=0)
 
     def reset(self, A: np.ndarray, t: np.ndarray):
@@ -177,15 +171,17 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
     def _loop(
         self,
         parent_node: Node,
-        parent_not_captured: np.ndarray,
-        s: np.ndarray,
-        z: np.ndarray,
+        parent_not_captured: mpz,
+        u: mpz,
+        s: mpz,
+        z: mpz,
         return_objective=False,
     ):
         """
         check one node in the search tree, update the queue, and yield feasible solution if exists
         parent_node: the current node/prefix to check
         parent_not_captured: postives not captured by the current prefix
+        u: the undetermined vector
         s: the satisfifaction state vector
         z: the parity state vector
         return_objective: True if return the objective of the evaluated node
@@ -195,21 +191,26 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
             if rule.id > parent_node.rule_id:
                 # logger.debug(f"considering rule {rule.id}")
                 captured = self._captured_by_rule(rule, parent_not_captured)
-                lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
+                lb = (
+                    parent_lb
+                    + self._incremental_update_lb(captured, self.y)
+                    + self.lmbd
+                )
                 if lb <= self.ub:
-                    sp, zp, not_unsatisfied = check_if_not_unsatisfied(
+                    up, sp, zp, not_unsatisfied = check_if_not_unsatisfied(
                         rule.id,
                         self.A,
                         self.t,
+                        u,
                         s,
                         z,
-                        # provide the following data for better performance
+                        # provide the following cache data for better performance
                         rule2cst=self.rule2cst,
                         max_nz_idx_array=self.max_nz_idx_array,
                     )
                     if not_unsatisfied:
-                        fn_fraction, not_captured = incremental_update_obj(
-                            parent_not_captured, captured, self.y
+                        fn_fraction, not_captured = self._incremental_update_obj(
+                            parent_not_captured, captured
                         )
                         obj = lb + fn_fraction
 
@@ -217,17 +218,17 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                             rule_id=rule.id,
                             lower_bound=lb,
                             objective=obj,
-                            num_captured=captured.sum(),
+                            num_captured=gmp.popcount(captured),
                         )
 
                         self.tree.add_node(child_node, parent_node)
 
                         self.queue.push(
-                            (child_node, not_captured, sp, zp),
-                            key=child_node.lower_bound,  # TODO: consider other types of prioritization
+                            (child_node, not_captured, up, sp, zp),
+                            key=child_node.lower_bound,  # TODO: consider other types of prioritization, does the prioritization method count for enumeration problem?
                         )
 
-                        if obj <= self.ub and check_if_satisfied(sp, zp, self.t):
+                        if obj <= self.ub and check_if_satisfied(up, sp, zp, self.t):
                             ruleset = child_node.get_ruleset_ids()
                             # logger.debug(
                             #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"

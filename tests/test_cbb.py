@@ -8,7 +8,7 @@ from bds.cbb import (
     check_if_not_unsatisfied,
     check_if_satisfied,
 )
-from bds.utils import bin_array, solutions_to_dict
+from bds.utils import bin_array, solutions_to_dict, mpz_all_ones
 
 from .fixtures import rules, y
 from .utils import assert_dict_allclose
@@ -107,7 +107,7 @@ class TestCheckIfSatisfied:
             (mpz("0b10"), mpz("0b01"), mpz("0b11"), False),
             (mpz("0b11"), mpz("0b00"), mpz("0b10"), False),
             (mpz("0b00"), mpz("0b11"), mpz("0b01"), True),
-            (mpz("0b01"), mpz("0b10"), mpz("0b00"), False)
+            (mpz("0b01"), mpz("0b10"), mpz("0b00"), False),
         ],
     )
     def test_case(self, u, s, z, expected_result):
@@ -128,17 +128,21 @@ class TestConstrainedBranchAndBoundNaive:
 
         assert cbb.queue.size == 1
         item = cbb.queue.front()
-        s, z = item[2:]
-        np.testing.assert_allclose(s, -1)
-        np.testing.assert_allclose(z, 0)
+        u, s, z = item[2:]
+        for value in [u, s, z]:
+            assert isinstance(value, mpz)
+
+        assert u == mpz_all_ones(2)
+        assert s == mpz()
+        assert z == mpz()
 
     @pytest.mark.parametrize(
         "ub, expected",
         [
-            (
+            (  # case 1: all satisfied solutions are returned
                 float("inf"),
                 {(0, 2): 0.1, (0, 1, 2, 3): 0.9},
-            ),  # all satisfied solutions are returned
+            ),
             (0.5, {(0, 2): 0.1}),
             (0.01, dict()),
         ],

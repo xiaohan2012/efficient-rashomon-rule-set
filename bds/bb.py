@@ -28,10 +28,6 @@ def incremental_update_lb(v: mpz, y: mpz, num_pts: mpz) -> mpfr:
     w = v & y  # true positives
 
     t = gmp.popcount(w)
-    print("number of predicited positives: {}".format(n))
-    print("true positives: {}".format(t))
-    print("num_pts: {}".format(num_pts))
-    print("fp rate: {}".format((n - t) / num_pts))
     return (n - t) / num_pts
 
 
@@ -125,13 +121,25 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         # add the root
         self.tree.add_node(root)
 
+    def _not_captured_by_default_rule(self):
+        """return the vector of not captured by default rule
+        the dafault rule captures nothing
+        """
+        return mpz_all_ones(self.num_train_pts)
+
     def reset_queue(self):
         self.queue: Queue = Queue()
-        # not_captured = bin_ones(self.y.shape)  # the dafault rule captures nothing
-        not_captured = mpz_all_ones(self.num_train_pts)  # the dafault rule captures nothing
+
+        not_captured = self._not_captured_by_default_rule()
 
         item = (self.tree.root, not_captured)
         self.queue.push(item, key=0)
+
+    def _incremental_update_lb(self, v: mpz, y: np.ndarray) -> mpfr:
+        return incremental_update_lb(v, y, self.num_train_pts)
+
+    def _incremental_update_obj(self, u: mpz, v: mpz) -> Tuple[mpfr, mpz]:
+        return incremental_update_obj(u, v, self.y, self.num_train_pts)
 
     def _loop(
         self, parent_node: Node, parent_not_captured: np.ndarray, return_objective=False
@@ -146,19 +154,15 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         parent_lb = parent_node.lower_bound
         for rule in self.rules:
             if rule.id > parent_node.rule_id:
-                print(f"considering rule {rule.id}")
                 captured = self._captured_by_rule(rule, parent_not_captured)
-                print("captured: {}".format(bin(captured)))
-                print("self.y: {}".format(bin(self.y)))
                 lb = (
                     parent_lb
-                    + incremental_update_lb(captured, self.y, self.num_train_pts)
+                    + self._incremental_update_lb(captured, self.y)
                     + self.lmbd
                 )
-                print("lb: {}".format(lb))
                 if lb <= self.ub:
-                    fn_fraction, not_captured = incremental_update_obj(
-                        parent_not_captured, captured, self.y, self.num_train_pts
+                    fn_fraction, not_captured = self._incremental_update_obj(
+                        parent_not_captured, captured
                     )
                     obj = lb + fn_fraction
 
@@ -175,12 +179,8 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
                         (child_node, not_captured),
                         key=child_node.lower_bound,  # TODO: consider other types of prioritization
                     )
-                    print("obj: {}".format(obj))
                     if obj <= self.ub:
                         ruleset = child_node.get_ruleset_ids()
-                        print(
-                            f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
-                        )
                         # logger.debug(
                         #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
                         # )
