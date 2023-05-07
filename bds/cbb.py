@@ -189,56 +189,55 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         return_objective: True if return the objective of the evaluated node
         """
         parent_lb = parent_node.lower_bound
-        for rule in self.rules:
-            if rule.id > parent_node.rule_id:
-                # logger.debug(f"considering rule {rule.id}")
-                captured = self._captured_by_rule(rule, parent_not_captured)
-                lb = (
-                    parent_lb
-                    + self._incremental_update_lb(captured, self.y)
-                    + self.lmbd
+
+        # here we assume the rule ids are consecutive integers
+        # we consider
+        for rule in self.rules[parent_node.rule_id :]:
+            # if rule.id > parent_node.rule_id:
+            # logger.debug(f"considering rule {rule.id}")
+            captured = self._captured_by_rule(rule, parent_not_captured)
+            lb = parent_lb + self._incremental_update_lb(captured, self.y) + self.lmbd
+            if lb <= self.ub:
+                up, sp, zp, not_unsatisfied = check_if_not_unsatisfied(
+                    rule.id,
+                    self.A,
+                    self.t,
+                    u,
+                    s,
+                    z,
+                    # provide the following cache data for better performance
+                    rule2cst=self.rule2cst,
+                    max_nz_idx_array=self.max_nz_idx_array,
                 )
-                if lb <= self.ub:
-                    up, sp, zp, not_unsatisfied = check_if_not_unsatisfied(
-                        rule.id,
-                        self.A,
-                        self.t,
-                        u,
-                        s,
-                        z,
-                        # provide the following cache data for better performance
-                        rule2cst=self.rule2cst,
-                        max_nz_idx_array=self.max_nz_idx_array,
+                if not_unsatisfied:
+                    fn_fraction, not_captured = self._incremental_update_obj(
+                        parent_not_captured, captured
                     )
-                    if not_unsatisfied:
-                        fn_fraction, not_captured = self._incremental_update_obj(
-                            parent_not_captured, captured
-                        )
-                        obj = lb + fn_fraction
+                    obj = lb + fn_fraction
 
-                        child_node = Node(
-                            rule_id=rule.id,
-                            lower_bound=lb,
-                            objective=obj,
-                            num_captured=gmp.popcount(captured),
-                        )
+                    child_node = Node(
+                        rule_id=rule.id,
+                        lower_bound=lb,
+                        objective=obj,
+                        num_captured=gmp.popcount(captured),
+                    )
 
-                        self.tree.add_node(child_node, parent_node)
+                    self.tree.add_node(child_node, parent_node)
 
-                        self.queue.push(
-                            (child_node, not_captured, up, sp, zp),
-                            key=child_node.lower_bound,  # TODO: consider other types of prioritization, does the prioritization method count for enumeration problem?
-                        )
+                    self.queue.push(
+                        (child_node, not_captured, up, sp, zp),
+                        key=child_node.lower_bound,  # TODO: consider other types of prioritization, does the prioritization method count for enumeration problem?
+                    )
 
-                        if obj <= self.ub and check_if_satisfied(up, sp, zp, self.t):
-                            ruleset = child_node.get_ruleset_ids()
-                            # logger.debug(
-                            #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
-                            # )
-                            if return_objective:
-                                yield (ruleset, child_node.objective)
-                            else:
-                                yield ruleset
+                    if obj <= self.ub and check_if_satisfied(up, sp, zp, self.t):
+                        ruleset = child_node.get_ruleset_ids()
+                        # logger.debug(
+                        #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
+                        # )
+                        if return_objective:
+                            yield (ruleset, child_node.objective)
+                        else:
+                            yield ruleset
 
 
 class ConstrainedBranchAndBoundV1(BranchAndBoundNaive):

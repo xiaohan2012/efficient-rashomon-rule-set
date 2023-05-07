@@ -4,9 +4,11 @@ import gmpy2 as gmp
 from gmpy2 import mpz, mpfr
 
 from bds.bb import BranchAndBoundNaive, incremental_update_lb, incremental_update_obj
+from bds.rule import Rule
 from bds.common import EPSILON
 from bds.utils import (
     bin_array,
+    bin_random,
     mpz_all_ones,
     mpz_clear_bits,
     mpz_set_bits,
@@ -52,6 +54,18 @@ def test_incremental_update_lb():
 class TestBranchAndBoundNaive:
     def create_bb_object(self, rules, y, lmbd=0.1):
         return BranchAndBoundNaive(rules, ub=10, y=y, lmbd=lmbd)
+
+    @pytest.mark.parametrize(
+        "invalid_rules",
+        [
+            [Rule.random(2, 10), Rule.random(1, 10)],  # wrong ordering of rule ids
+            [Rule.random(2, 10), Rule.random(3, 10)],  # invalid start index
+        ],
+    )
+    def test_bb_init_invalid_rule_ids(self, invalid_rules):
+        with pytest.raises(AssertionError):
+            rand_y = bin_random(10)
+            self.create_bb_object(invalid_rules, rand_y)
 
     def test_bb_init(self, rules, y):
         bb = self.create_bb_object(rules, y)

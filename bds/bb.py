@@ -9,7 +9,14 @@ from typing import Tuple, Optional, List, Iterable
 from .cache_tree import CacheTree, Node
 from .queue import Queue
 from .rule import Rule
-from .utils import bin_ones, assert_binary_array, debug2, mpz_set_bits, mpz_all_ones
+from .utils import (
+    bin_ones,
+    assert_binary_array,
+    debug2,
+    mpz_set_bits,
+    mpz_all_ones,
+    count_iter,
+)
 
 # logger.setLevel(logging.INFO)
 from .bounds_utils import *
@@ -79,6 +86,13 @@ class BranchAndBoundGeneric:
         # false negative rate of the default rule = fraction of positives
         self.default_rule_fnr = mpz(gmp.popcount(self.y)) / self.num_train_pts
 
+        self._check_rule_ids()
+
+    def _check_rule_ids(self):
+        """check the rule ids are consecutive integers starting from 1"""
+        rule_ids = np.array([r.id for r in self.rules])
+        np.testing.assert_allclose(rule_ids, np.arange(1, 1 + len(rule_ids)))
+
     def reset_tree(self):
         raise NotImplementedError()
 
@@ -118,9 +132,12 @@ class BranchAndBoundGeneric:
             Y = itertools.islice(Y, threshold)
         return Y
 
+    # @profile
     def bounded_count(self, threshold: Optional[int] = None, *args) -> int:
         """return min(|Y|, threshold), where Y is the set of feasible solutions"""
-        return len(list(self._bounded_sols_iter(threshold, *args)))
+        # lst = list(self._bounded_sols_iter(threshold, *args))
+        # return len(lst)
+        return count_iter(self._bounded_sols_iter(threshold, *args))
 
     def bounded_sols(self, threshold: Optional[int] = None, *args) -> List:
         """return at most threshold feasible solutions"""
@@ -161,7 +178,7 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         return incremental_update_obj(u, v, self.y, self.num_train_pts)
 
     def _loop(
-        self, parent_node: Node, parent_not_captured: np.ndarray, return_objective=False
+        self, parent_node: Node, parent_not_captured: mpz, return_objective=False
     ):
         """
         check one node in the search tree, update the queue, and yield feasible solution if exists
@@ -171,42 +188,41 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         return_objective: True if return the objective of the evaluated node
         """
         parent_lb = parent_node.lower_bound
-        for rule in self.rules:
-            if rule.id > parent_node.rule_id:
-                captured = self._captured_by_rule(rule, parent_not_captured)
-                lb = (
-                    parent_lb
-                    + self._incremental_update_lb(captured, self.y)
-                    + self.lmbd
+        for rule in self.rules[parent_node.rule_id:]:
+            captured = self._captured_by_rule(rule, parent_not_captured)
+            lb = (
+                parent_lb
+                + self._incremental_update_lb(captured, self.y)
+                + self.lmbd
+            )
+            if lb <= self.ub:
+                fn_fraction, not_captured = self._incremental_update_obj(
+                    parent_not_captured, captured
                 )
-                if lb <= self.ub:
-                    fn_fraction, not_captured = self._incremental_update_obj(
-                        parent_not_captured, captured
-                    )
-                    obj = lb + fn_fraction
+                obj = lb + fn_fraction
 
-                    child_node = Node(
-                        rule_id=rule.id,
-                        lower_bound=lb,
-                        objective=obj,
-                        num_captured=gmp.popcount(captured),
-                    )
+                child_node = Node(
+                    rule_id=rule.id,
+                    lower_bound=lb,
+                    objective=obj,
+                    num_captured=gmp.popcount(captured),
+                )
 
-                    self.tree.add_node(child_node, parent_node)
+                self.tree.add_node(child_node, parent_node)
 
-                    self.queue.push(
-                        (child_node, not_captured),
-                        key=child_node.lower_bound,  # TODO: consider other types of prioritization
-                    )
-                    if obj <= self.ub:
-                        ruleset = child_node.get_ruleset_ids()
-                        # logger.debug(
-                        #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
-                        # )
-                        if return_objective:
-                            yield (ruleset, child_node.objective)
-                        else:
-                            yield ruleset
+                self.queue.push(
+                    (child_node, not_captured),
+                    key=child_node.lower_bound,  # TODO: consider other types of prioritization
+                )
+                if obj <= self.ub:
+                    ruleset = child_node.get_ruleset_ids()
+                    # logger.debug(
+                    #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
+                    # )
+                    if return_objective:
+                        yield (ruleset, child_node.objective)
+                    else:
+                        yield ruleset
 
 
 class BranchAndBoundV1(BranchAndBoundGeneric):
