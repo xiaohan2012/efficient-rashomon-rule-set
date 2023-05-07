@@ -145,7 +145,11 @@ def mpz_clear_bits(n: mpz, bits: np.ndarray) -> mpz:
 
 def mpz_all_ones(n: int) -> mpz:
     """make a number of value 0b111..111, where the number of 1 equals n"""
-    return mpz("0b" + "1" * n)
+    assert n >= 0
+    if n > 0:
+        return mpz("0b" + "1" * n)
+    else:
+        return mpz()
 
 
 def debug1(msg):

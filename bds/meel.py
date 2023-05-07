@@ -1,5 +1,7 @@
 import itertools
 import logging
+import gmpy2 as gmp
+
 import math
 import random
 from typing import List, Optional, Tuple, Union, Set
@@ -23,6 +25,7 @@ from .utils import (
 
 # logger.setLevel(logging.DEBUG)
 # logger.setLevel(logging.INFO)
+
 
 # @profile
 def log_search(
@@ -152,6 +155,7 @@ def log_search(
     else:
         return m, Y_size_arr[m]
 
+
 # @profile
 def approx_mc2_core(
     rules: List[Rule],
@@ -239,7 +243,11 @@ def _calculate_t(delta: float) -> float:
 
 def _check_input(rules: List[Rule], y: np.ndarray):
     for r in rules:
-        assert r.truthtable.shape == y.shape, "{r.truthtable.shape} != {y.shape}}"
+        assert (
+            gmp.popcount(r.truthtable) <= y.shape[0]
+        ), "number of captured points should be at most total number of points, however {} > {}".format(
+            gmp.popcount(r.truthtable), y.shape[0]
+        )
 
 
 def approx_mc2(

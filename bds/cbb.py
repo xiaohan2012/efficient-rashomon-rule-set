@@ -147,10 +147,12 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
             self.A.shape[0] == self.t.shape[0]
         ), f"dimension mismatch: {self.A.shape[0]} != {self.t.shape[0]}"
 
-        num_constraints = self.A.shape[0]
+        num_constraints = int(self.A.shape[0])
 
         # the undetermined vector:
         # one entry per constraint, 1 means the constraint cannot be evaluated and 0 otherwise
+        print("type(num_constraints): {}".format(type(num_constraints)))
+        print("num_constraints: {}".format(num_constraints))
         u = mpz_all_ones(num_constraints)
         # the satisfication status constraint
         # means unsatisified, 1 means satisfied
