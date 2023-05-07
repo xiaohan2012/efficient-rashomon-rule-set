@@ -10,7 +10,7 @@ def assert_dict_allclose(actual: Dict[Any, Number], expected: [Any, Number]):
     assert set(actual.keys()) == (expected.keys())
 
     for k in actual.keys():
-        np.testing.assert_allclose(actual[k], expected[k])
+        np.testing.assert_allclose(float(actual[k]), float(expected[k]))
 
 
 def generate_random_rule_list(num_pts: int, num_rules: int):
@@ -23,3 +23,7 @@ def generate_random_rules_and_y(num_pts, num_rules):
     random_rules = generate_random_rule_list(num_pts, num_rules)
     random_y = bin_random(num_pts)
     return random_rules, random_y
+
+
+def assert_close_mpfr(v1, v2):
+    np.testing.assert_allclose(float(v1), float(v2))

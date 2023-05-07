@@ -1,36 +1,41 @@
-import logging
-from typing import Tuple, Optional, List
 import numpy as np
+import gmpy2 as gmp
+
 from logzero import logger
+from gmpy2 import mpz, mpfr
+from typing import Tuple, Optional, List
 
 from .cache_tree import CacheTree, Node
 from .queue import Queue
 from .rule import Rule
-from .utils import bin_ones, assert_binary_array, debug2
+from .utils import bin_ones, assert_binary_array, debug2, mpz_set_bits, mpz_all_ones
 
 # logger.setLevel(logging.INFO)
 from .bounds_utils import *
 from .bounds_v2 import rule_set_size_bound_with_default, equivalent_points_bounds
 
+
 # @profile
-def incremental_update_lb(v: np.ndarray, y: np.ndarray):
+def incremental_update_lb(v: mpz, y: mpz, num_pts: mpz) -> mpfr:
     """
     return the incremental false positive fraction for a given rule
 
-    v: points captured by the rule
-    y: true labels
+    v: a bit vector indicating which points are captured
+    y: a bit vector of the true labels
+    num_pts: length of the bit vectors, which is the total number of points
     """
-    assert_binary_array(v)
-    assert_binary_array(y)
-    n = v.sum()  # number of predicted positive
-    w = np.logical_and(v, y)  # true positives
-    t = w.sum()
-    return (n - t) / v.shape[0]  # fraction of false positive
+    n = gmp.popcount(v)  # number of predicted positive
+    w = v & y  # true positives
+
+    t = gmp.popcount(w)
+    print("number of predicited positives: {}".format(n))
+    print("true positives: {}".format(t))
+    print("num_pts: {}".format(num_pts))
+    print("fp rate: {}".format((n - t) / num_pts))
+    return (n - t) / num_pts
 
 
-def incremental_update_obj(
-    u: np.ndarray, v: np.ndarray, y: np.ndarray
-) -> Tuple[float, np.ndarray]:
+def incremental_update_obj(u: mpz, v: mpz, y: mpz, num_pts: mpz) -> Tuple[mpfr, mpz]:
     """
     return the incremental false negative fraction for a rule set (prefix + current rule)
     and the indicator vector of false negatives
@@ -38,15 +43,19 @@ def incremental_update_obj(
     u: points not captured by the prefix
     v: points captured by the current rule (in the context of the prefix)
     y: true labels
+    num_pts: the total number
     """
-    assert_binary_array(u)
-    assert_binary_array(y)
-    assert_binary_array(v)
-    f = np.logical_and(
-        u, np.bitwise_not(v)
-    )  # points not captured by both prefix and the rule
-    g = np.logical_and(f, y)  # false negatives
-    return g.sum() / y.shape[0], f
+    # assert_binary_array(u)
+    # assert_binary_array(y)
+    # assert_binary_array(v)
+    # f = np.logical_and(
+    #     u, np.bitwise_not(v)
+    # )  # points not captured by both prefix and the rule
+    # g = np.logical_and(f, y)  # false negatives
+    # return g.sum() / y.shape[0], f
+    f = u & (~v)  # points not captured by both prefix and the rule
+    g = f & y  # false negatives
+    return gmp.popcount(g) / num_pts, f
 
 
 class BranchAndBoundGeneric:
@@ -56,22 +65,22 @@ class BranchAndBoundGeneric:
         """
         rules: a list of candidate rules
         ub: the upper bound on objective value of any ruleset to be returned
-        y: the ground truth label
+        y: the ground truth label represented as a numpy.ndarray
         lmbd: the parameter that controls regularization strength
         """
         assert_binary_array(y)
 
         self.rules = rules
         self.ub = ub
-        self.y = y
-        self.lmbd = lmbd
+        self.y = mpz_set_bits(mpz(), y.nonzero()[0])  # convert y from np.array to mpz
+        self.lmbd = mpfr(lmbd)
 
-        debug2(f"calling branch-and-bound with ub={ub}, lmbd={lmbd}")
+        logger.debug(f"calling branch-and-bound with ub={ub}, lmbd={lmbd}")
 
-        self.num_train_pts = y.shape[0]
+        self.num_train_pts = mpz(y.shape[0])
 
         # false negative rate of the default rule = fraction of positives
-        self.default_rule_fnr = y.sum() / self.num_train_pts
+        self.default_rule_fnr = mpz(gmp.popcount(self.y)) / self.num_train_pts
 
     def reset_tree(self):
         raise NotImplementedError()
@@ -83,9 +92,13 @@ class BranchAndBoundGeneric:
         self.reset_tree()
         self.reset_queue()
 
-    def _captured_by_rule(self, rule: Rule, parent_not_captured: np.ndarray):
+    # def _captured_by_rule(self, rule: Rule, parent_not_captured: np.ndarray):
+    #     """return the captured array for the rule in the context of parent"""
+    #     return np.logical_and(parent_not_captured, rule.truthtable)
+
+    def _captured_by_rule(self, rule: Rule, parent_not_captured: mpz):
         """return the captured array for the rule in the context of parent"""
-        return np.logical_and(parent_not_captured, rule.truthtable)
+        return parent_not_captured & rule.truthtable
 
     def run(self, *args, return_objective=False):
         self.reset(*args)
@@ -114,7 +127,8 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
 
     def reset_queue(self):
         self.queue: Queue = Queue()
-        not_captured = bin_ones(self.y.shape)  # the dafault rule captures nothing
+        # not_captured = bin_ones(self.y.shape)  # the dafault rule captures nothing
+        not_captured = mpz_all_ones(self.num_train_pts)  # the dafault rule captures nothing
 
         item = (self.tree.root, not_captured)
         self.queue.push(item, key=0)
@@ -132,14 +146,19 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         parent_lb = parent_node.lower_bound
         for rule in self.rules:
             if rule.id > parent_node.rule_id:
-                # logger.debug(f"considering rule {rule.id}")
+                print(f"considering rule {rule.id}")
                 captured = self._captured_by_rule(rule, parent_not_captured)
-
-                lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
-
+                print("captured: {}".format(bin(captured)))
+                print("self.y: {}".format(bin(self.y)))
+                lb = (
+                    parent_lb
+                    + incremental_update_lb(captured, self.y, self.num_train_pts)
+                    + self.lmbd
+                )
+                print("lb: {}".format(lb))
                 if lb <= self.ub:
                     fn_fraction, not_captured = incremental_update_obj(
-                        parent_not_captured, captured, self.y
+                        parent_not_captured, captured, self.y, self.num_train_pts
                     )
                     obj = lb + fn_fraction
 
@@ -147,7 +166,7 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
                         rule_id=rule.id,
                         lower_bound=lb,
                         objective=obj,
-                        num_captured=captured.sum(),
+                        num_captured=gmp.popcount(captured),
                     )
 
                     self.tree.add_node(child_node, parent_node)
@@ -156,9 +175,12 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
                         (child_node, not_captured),
                         key=child_node.lower_bound,  # TODO: consider other types of prioritization
                     )
-
+                    print("obj: {}".format(obj))
                     if obj <= self.ub:
                         ruleset = child_node.get_ruleset_ids()
+                        print(
+                            f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
+                        )
                         # logger.debug(
                         #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
                         # )
@@ -200,7 +222,6 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
                 equivalence_classes,
                 return_objective=return_objective,
             )
-
 
     def _loop(
         self,
@@ -272,10 +293,6 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
                             yield (ruleset, child_node.objective)
                         else:
                             yield ruleset
-
-
-
-
 
 
 def get_ground_truth_count(

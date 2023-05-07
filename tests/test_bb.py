@@ -1,11 +1,21 @@
 import numpy as np
 import pytest
+import gmpy2 as gmp
+from gmpy2 import mpz, mpfr
 
 from bds.bb import BranchAndBoundNaive, incremental_update_lb, incremental_update_obj
 from bds.common import EPSILON
-from bds.utils import bin_array, randints, solutions_to_dict
+from bds.utils import (
+    bin_array,
+    mpz_all_ones,
+    mpz_clear_bits,
+    mpz_set_bits,
+    randints,
+    solutions_to_dict,
+)
+
 from .fixtures import rules, y
-from .utils import assert_dict_allclose
+from .utils import assert_dict_allclose, assert_close_mpfr
 
 
 @pytest.mark.parametrize("seed", randints(5))
@@ -13,31 +23,30 @@ from .utils import assert_dict_allclose
 def test_incremental_update_obj(seed, num_fp):
     np.random.seed(seed)
 
-    arr_len = 10
+    num_pts = 10
 
     # say we capture half of the points
-    captured_idx = np.random.permutation(arr_len)[: int(arr_len / 2)]
-    v = np.zeros(arr_len, dtype=bool)  # captured array
-    v[captured_idx] = 1
+    captured_idx = np.random.permutation(num_pts)[: int(num_pts / 2)]
+    v = mpz_set_bits(mpz(), captured_idx)
 
-    y = v.copy()  # the true labels
-    y[captured_idx[:num_fp]] = 0  # make `num_fp` mistakes
-    true_inc_fp = num_fp / arr_len
-    assert incremental_update_lb(v, y) == true_inc_fp
+    y = mpz_clear_bits(v, captured_idx[:num_fp])  # make `num_fp` mistakes
+    true_inc_fp = num_fp / mpz(num_pts)
+    actual = incremental_update_lb(v, y, mpz(num_pts))
+    assert actual == true_inc_fp
+    assert isinstance(actual, mpfr)
 
 
 def test_incremental_update_lb():
-    u = np.array([0, 1, 1, 0, 0, 1, 0], dtype=bool)  # points not captured by prefix
-    v = np.array([0, 1, 0, 0, 1, 0, 0], dtype=bool)  # captured by rule
-    f = np.array(
-        [0, 0, 1, 0, 0, 1, 0], dtype=bool
-    )  # not captured by the rule and prefix
-    y = np.array([0, 1, 1, 0, 1, 1, 0], dtype=bool)  # the true labels
-    fn, actual_f = incremental_update_obj(u, v, y)
+    u = mpz_set_bits(mpz(), [1, 2, 5])  # points not captured by prefix
+    v = mpz_set_bits(mpz(), [1, 4])  # captured by rule
+    f = mpz_set_bits(mpz(), [2, 5])  # not captured by the rule and prefix
+    y = mpz_set_bits(mpz(), [1, 2, 4, 5])  # the true labels
+    num_pts = mpz(7)
+    fn, actual_f = incremental_update_obj(u, v, y, num_pts)
 
-    assert fn == 2 / 7
-    np.testing.assert_allclose(f, actual_f)
-    assert actual_f.dtype == bool
+    assert f == actual_f
+    assert fn == (mpz(2) / 7)
+    assert isinstance(fn, mpfr)
 
 
 class TestBranchAndBoundNaive:
@@ -47,8 +56,10 @@ class TestBranchAndBoundNaive:
     def test_bb_init(self, rules, y):
         bb = self.create_bb_object(rules, y)
 
-        assert bb.num_train_pts == 5
-        np.testing.assert_allclose(bb.default_rule_fnr, 0.4)
+        assert bb.num_train_pts == mpz(5)
+        assert isinstance(bb.y, mpz)
+
+        assert bb.default_rule_fnr == 0.4
         assert bb.rules == rules
 
     def test_prepare(self, rules, y):
@@ -59,7 +70,8 @@ class TestBranchAndBoundNaive:
         # and refer to the same node
         node, not_captured = bb.queue.front()
         assert node == bb.tree.root
-        assert (not_captured == 1).all()
+        assert not_captured == mpz_all_ones(y.shape[0])
+        assert gmp.popcount(not_captured) == bb.num_train_pts
 
     @pytest.mark.parametrize("lmbd", np.random.random(10))
     def test_loop_1st_infinite_ub(self, rules, y, lmbd):
@@ -67,6 +79,7 @@ class TestBranchAndBoundNaive:
         # thus, all singleton rulesets should be enumerated
         ub = float("inf")
 
+        lmbd = mpfr(lmbd)
         # the first iteration of the branch and bound
         bb = BranchAndBoundNaive(rules, ub=ub, y=y, lmbd=lmbd)
         bb.reset()
@@ -83,21 +96,25 @@ class TestBranchAndBoundNaive:
         node_2, not_captured_2 = bb.queue.pop()
         node_3, not_captured_3 = bb.queue.pop()
 
+        for n in [node_1, node_2, node_3]:
+            assert isinstance(n.objective, mpfr)
+            assert isinstance(n.lower_bound, mpfr)
+
         assert node_1.rule_id == 2
         assert node_2.rule_id == 3
         assert node_3.rule_id == 1
 
-        np.testing.assert_allclose(node_1.lower_bound, lmbd)
-        np.testing.assert_allclose(node_2.lower_bound, 1 / 5 + lmbd)
-        np.testing.assert_allclose(node_3.lower_bound, 2 / 5 + lmbd)
+        assert node_1.lower_bound == lmbd
+        assert node_2.lower_bound == (mpfr(1) / 5 + lmbd)
+        assert node_3.lower_bound == (mpfr(2) / 5 + lmbd)
 
-        np.testing.assert_allclose(node_1.objective, lmbd)
-        np.testing.assert_allclose(node_2.objective, 1 / 5 + lmbd)
-        np.testing.assert_allclose(node_3.objective, 4 / 5 + lmbd)
+        assert_close_mpfr(node_1.objective, lmbd)
+        assert_close_mpfr(node_2.objective, (mpfr(1) / 5 + lmbd))
+        assert_close_mpfr(node_3.objective, (mpfr(4) / 5 + lmbd))
 
-        np.testing.assert_allclose(not_captured_1, bin_array([1, 1, 0, 1, 0]))
-        np.testing.assert_allclose(not_captured_2, bin_array([0, 1, 0, 1, 0]))
-        np.testing.assert_allclose(not_captured_3, bin_array([1, 0, 1, 0, 1]))
+        assert not_captured_1 == mpz("0b01011")
+        assert not_captured_2 == mpz("0b01010")
+        assert not_captured_3 == mpz("0b10101")
 
     @pytest.mark.parametrize(
         "ub, num_feasible_solutions, queue_size",

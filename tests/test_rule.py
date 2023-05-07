@@ -1,8 +1,10 @@
 import pytest
+import gmpy2 as gmp
+from gmpy2 import mpz
 import numpy as np
 
 from bds.rule import Rule, RuleEntry, RuleSet
-from bds.utils import randints, bin_zeros
+from bds.utils import randints, mpz_set_bits
 
 
 class TestRule:
@@ -14,16 +16,16 @@ class TestRule:
         card = 100
         supp = 5
         ids = np.sort(np.random.permutation(n_samples)[:supp])
-        truthtable = bin_zeros(n_samples)
-        truthtable[ids] = 1
+
+        truthtable = mpz_set_bits(mpz(), ids)
+
         r = Rule(id, name, card, truthtable)
 
         assert r.id == id
         assert r.cardinality == card
         assert r.name == name
         assert r.support == supp
-        np.testing.assert_allclose(r.ids, ids)  # r.ids calculated in __post_init__
-        np.testing.assert_allclose(truthtable, truthtable)
+        assert r.truthtable == truthtable
 
     @pytest.mark.parametrize("random_seed", randints(5))
     def test_random(self, random_seed):

@@ -6,7 +6,9 @@ import json
 import math
 import tempfile
 import logging
+import gmpy2 as gmp
 
+from gmpy2 import mpz
 from itertools import chain, combinations
 from logzero import logger, setup_logger
 from typing import Optional, List, Dict, Tuple, Union, Set
@@ -91,6 +93,11 @@ def bin_zeros(shape):
     return np.zeros(shape, dtype=bool)
 
 
+def bin_zeros_mpz(n: int):
+    """create a binary vector, where n is the number of bits"""
+    raise NotImplementedError()
+
+
 def bin_ones(shape):
     return np.ones(shape, dtype=bool)
 
@@ -120,6 +127,25 @@ def fill_array_from(arr, start_idx, val):
     """fill the values in arr from index idx until the end with value `val`"""
     for i in range(start_idx, len(arr)):  # typo in paper |S| -> |S| - 1
         arr[i] = val
+
+
+def mpz_set_bits(n: mpz, bits: np.ndarray) -> mpz:
+    """returna  copy of n and set `bits` to 1 in `n`"""
+    for i in bits:
+        n = gmp.bit_set(n, int(i))
+    return n
+
+
+def mpz_clear_bits(n: mpz, bits: np.ndarray) -> mpz:
+    """return a copy of n and set `bits` to 0 in `n`"""
+    for i in bits:
+        n = gmp.bit_clear(n, int(i))
+    return n
+
+
+def mpz_all_ones(n: int) -> mpz:
+    """make a number of value 0b111..111, where the number of 1 equals n"""
+    return mpz("0b" + "1" * n)
 
 
 def debug1(msg):
