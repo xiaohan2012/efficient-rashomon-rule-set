@@ -195,10 +195,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         parent_lb = parent_node.lower_bound
 
         # here we assume the rule ids are consecutive integers
-        # we consider
         for rule in self.rules[parent_node.rule_id :]:
-            # if rule.id > parent_node.rule_id:
-            # logger.debug(f"considering rule {rule.id}")
             captured = self._captured_by_rule(rule, parent_not_captured)
             lb = parent_lb + self._incremental_update_lb(captured, self.y) + self.lmbd
             if lb <= self.ub:
