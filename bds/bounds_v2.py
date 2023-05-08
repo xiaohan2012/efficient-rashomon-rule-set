@@ -46,9 +46,10 @@ def equivalent_points_bounds(
     lb: float,
     lmbd: float,
     alpha: float,
-    not_captured: np.ndarray,
-    X: np.ndarray,
-    all_classes: dict,
+    not_captured: mpz,
+    X: np.array,
+    data_points2rules: dict,
+    all_classes: dict
 ):
     """
     Pruning condition according to hierarchical lower bound in the Rashomon set formulation
@@ -76,6 +77,7 @@ def equivalent_points_bounds(
     all_classes: dict
           all classes of euqivalent points / should be computed prior to b&b execution
 
+    data_points2rules : dict 
 
     Returns
     -------
@@ -89,13 +91,13 @@ def equivalent_points_bounds(
     #  comput minimum error in the uncovered/ not captured part due to th equivalence classes
     tot_not_captured_error_bound = 0
     added = set() 
-    for i , not_captured_data_point in enumerate(not_captured):
-        if not_captured_data_point:         
-            attrs = np.where(X[i] == 1)[0]
-            attr_str = "-".join(map(str, attrs))
-            if attr_str not in added: # this to make sure that we add only once for each not captured class
-                tot_not_captured_error_bound += all_classes[attr_str].minority_mistakes
-                added.add(attr_str)
+    not_captured_points = not_captured.nonzero()[0]
+    for not_captured_data_point in not_captured_points: 
+       
+            n = mpz_set_bits(gmp.mpz(), data_points2rules[not_captured_data_point]) 
+            if n not in added: # this to make sure that we add only once for each not captured class
+                tot_not_captured_error_bound += all_classes[n].minority_mistakes
+                added.add(n)
         
     tot_not_captured_error_bound = (
         tot_not_captured_error_bound / X.shape[0]

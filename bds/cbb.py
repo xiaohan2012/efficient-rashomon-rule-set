@@ -281,12 +281,13 @@ class ConstrainedBranchAndBoundV1(BranchAndBoundNaive):
     # i guess we could instead compute self.equivalence_classes upon initialization?
     def run(self, *args, X_trn, return_objective=False):
         self.reset(*args)
-        equivalence_classes = find_equivalence_classes(X_trn, self.y)
+        data_points2rules, equivalence_classes = find_equivalence_classes(X_trn, self.y, self.rules)
         while not self.queue.is_empty:
             queue_item = self.queue.pop()
             yield from self._loop(
                 *queue_item,
                 X_trn,
+                data_points2rules,
                 equivalence_classes,
                 return_objective=return_objective,
             )
@@ -299,6 +300,7 @@ class ConstrainedBranchAndBoundV1(BranchAndBoundNaive):
         s: np.ndarray,
         z: np.ndarray,
         X_trn: np.array,
+        data_points2rules: dict,
         equivalence_classes: dict,
         return_objective=False,
     ):
@@ -323,49 +325,50 @@ class ConstrainedBranchAndBoundV1(BranchAndBoundNaive):
 
                     lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
 
+                    
                     flag_rule_set_size = rule_set_size_bound_with_default(
-                        parent_node, self.lmbd, self.ub
-                    )  # if true, we prune
+                        parent_node, self.lmbd, self.ub)
 
-                    flag_equivalent_classes = equivalent_points_bounds(
-                        lb,
-                        self.lmbd,
-                        self.ub,
-                        parent_not_captured,
-                        X_trn,
-                        equivalence_classes,
-                    )  # if true, we prune
-
-                    if (
-                        lb <= self.ub
-                        and not flag_rule_set_size
-                        and not flag_equivalent_classes
-                    ):
-                        fn_fraction, not_captured = incremental_update_obj(
-                            parent_not_captured, captured, self.y
-                        )
-                        obj = lb + fn_fraction
-
-                        child_node = Node(
-                            rule_id=rule.id,
-                            lower_bound=lb,
-                            objective=obj,
-                            num_captured=captured.sum(),
-                        )
-
-                        self.tree.add_node(child_node, parent_node)
-
-                        self.queue.push(
-                            (child_node, not_captured, sp, zp),
-                            key=child_node.lower_bound,  # TODO: consider other types of prioritization
-                        )
-
-                        if obj <= self.ub and check_if_satisfied(sp, zp, self.t):
-                            ruleset = child_node.get_ruleset_ids()
-                            # logger.debug(
-                            #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
-                            # )
-                            if return_objective:
-                                yield (ruleset, child_node.objective)
-                            else:
-                                yield ruleset
+                    if not flag_rule_set_size:
+                        
+                        flag_equivalent_classes = equivalent_points_bounds(
+                            lb,
+                            self.lmbd,
+                            self.ub,
+                            parent_not_captured,
+                            X_trn,
+                            data_points2rules,
+                            equivalence_classes,
+                        )  # if true, we prune
+                        
+                        
+                        if not flag_equivalent_classes: 
+                
+                            fn_fraction, not_captured = incremental_update_obj(
+                                parent_not_captured, captured, self.y
+                            )
+                            obj = lb + fn_fraction
+    
+                            child_node = Node(
+                                rule_id=rule.id,
+                                lower_bound=lb,
+                                objective=obj,
+                                num_captured=captured.sum(),
+                            )
+    
+                            self.tree.add_node(child_node, parent_node)
+    
+                            self.queue.push(
+                                (child_node, not_captured, sp, zp),
+                                key=child_node.lower_bound,  # TODO: consider other types of prioritization
+                            )
+    
+                            if obj <= self.ub and check_if_satisfied(sp, zp, self.t):
+                                ruleset = child_node.get_ruleset_ids()
+                                # logger.debug(
+                                #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
+                                # )
+                                if return_objective:
+                                    yield (ruleset, child_node.objective)
+                                else:
+                                    yield ruleset

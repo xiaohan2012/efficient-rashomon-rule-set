@@ -248,12 +248,13 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
     # override method from the base class
     def run(self, *args, X_trn, return_objective=False):
         self.reset(*args)
-        equivalence_classes = find_equivalence_classes(X_trn, self.y)
+        data_points2rules, equivalence_classes = find_equivalence_classes(X_trn, self.y, self.rules)
         while not self.queue.is_empty:
             queue_item = self.queue.pop()
             yield from self._loop(
                 *queue_item,
                 X_trn,
+                data_points2rules,
                 equivalence_classes,
                 return_objective=return_objective,
             )
@@ -263,8 +264,9 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
         parent_node: Node,
         parent_not_captured: np.ndarray,
         X_trn: np.array,
+        data_points2rules: dict,
         equivalence_classes: dict,
-        return_objective=False,
+        return_objective=False
     ):
         """
         check one node in the search tree, update the queue, and yield feasible solution if exists
@@ -292,42 +294,54 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
                     self.ub,
                     parent_not_captured,
                     X_trn,
-                    equivalence_classes,
+                    data_points2rules,
+                    equivalence_classes
                 )  # if true, we prune
 
-                if (
-                    lb <= self.ub
-                    and not flag_rule_set_size
-                    and not flag_equivalent_classes
-                ):
-                    fn_fraction, not_captured = incremental_update_obj(
-                        parent_not_captured, captured, self.y
-                    )
-                    obj = lb + fn_fraction
-
-                    child_node = Node(
-                        rule_id=rule.id,
-                        lower_bound=lb,
-                        objective=obj,
-                        num_captured=captured.sum(),
-                    )
-
-                    self.tree.add_node(child_node, parent_node)
-
-                    self.queue.push(
-                        (child_node, not_captured),
-                        key=child_node.lower_bound,  # TODO: consider other types of prioritization
-                    )
-
-                    if obj <= self.ub:
-                        ruleset = child_node.get_ruleset_ids()
-                        # logger.debug(
-                        #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
-                        # )
-                        if return_objective:
-                            yield (ruleset, child_node.objective)
-                        else:
-                            yield ruleset
+                #if lb <= self.ub:
+                flag_rule_set_size = rule_set_size_bound_with_default(
+                    parent_node, self.lmbd, self.ub
+                )  # i
+                if not flag_rule_set_size:
+                    flag_equivalent_classes = equivalent_points_bounds(
+                        lb,
+                        self.lmbd,
+                        self.ub,
+                        parent_not_captured,
+                        X_trn,
+                        equivalence_classes,
+                    )  # if true, we prune
+                    if not flag_equivalent_classes: 
+                
+                            
+                        fn_fraction, not_captured = incremental_update_obj(
+                            parent_not_captured, captured, self.y
+                        )
+                        obj = lb + fn_fraction
+    
+                        child_node = Node(
+                            rule_id=rule.id,
+                            lower_bound=lb,
+                            objective=obj,
+                            num_captured=captured.sum(),
+                        )
+    
+                        self.tree.add_node(child_node, parent_node)
+    
+                        self.queue.push(
+                            (child_node, not_captured),
+                            key=child_node.lower_bound,  # TODO: consider other types of prioritization
+                        )
+    
+                        if obj <= self.ub:
+                            ruleset = child_node.get_ruleset_ids()
+                            # logger.debug(
+                            #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
+                            # )
+                            if return_objective:
+                                yield (ruleset, child_node.objective)
+                            else:
+                                yield ruleset
 
 
 def get_ground_truth_count(

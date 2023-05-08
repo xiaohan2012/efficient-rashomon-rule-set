@@ -1,19 +1,23 @@
 import numpy as np
 import pandas as pd
 from .cache_tree import CacheTree, Node
+from gmpy2 import mpz, mpfr
+import gmpy2 as gmp 
+from utils import mpz_set_bits
+
 
 
 class EquivalentPointClass:
     """a single class of points all having the same attributes"""
 
-    def __init__(self, this_id, attrs):
+    def __init__(self, this_id):
         self.id = this_id
-        self.attrs = attrs
         self.total_positives = 0
         self.total_negatives = 0
-        #self.minority_mistakes = 0
+        self.data_points = set()  # we also keep track of the points so we do not need to access rules anymore
 
-    def update(self, label):
+    def update(self, idx, label):
+        self.data_points.add(idx) 
         if label == 1:
             self.total_positives += 1
         else:
@@ -24,8 +28,8 @@ class EquivalentPointClass:
         )  # recall this is to be normalized
 
 
-def find_equivalence_classes(X_trn:np.ndarray, y_train: np.ndarray):
-    """
+def find_equivalence_classes(X_trn:np.ndarray, y_train: np.ndarray, rules):
+    """ 
     Fimd equivalence classes of points having the same attributes but possibly different labels.
     This function is to be used once prior to branch-and-bound execution to exploit the equivalence-points-based bound.
 
@@ -38,27 +42,28 @@ def find_equivalence_classes(X_trn:np.ndarray, y_train: np.ndarray):
     y_train :  np.ndarray
         labels
 
+    rules: all rules 
 
     Returns
     -------
     all equivalnce classes of points all_classes
     """
 
-    #if isinstance(X_trn, pd.DataFrame):
-    #    X_trn = X_trn.to_numpy()
-
-    # find equivalence classes
-    all_classes_ids = set()
     all_classes = dict()
-    for i, point in enumerate(X_trn):
-        attrs = np.where(point == 1)[0]
-        attr_str = "-".join(map(str, attrs))
-        if attr_str not in all_classes_ids:  # new equivalence class
-            all_classes_ids.add(attr_str)
-            all_classes[attr_str] = EquivalentPointClass(attr_str, attrs)
-            all_classes[attr_str].update(y_train[i])
-
-        else:  # update existing equivalence class
-            all_classes[attr_str].update(y_train[i])
-
-    return all_classes
+    
+    # find equivalence classes
+    data_points2rules = [[] for _ in range(X_trn.shape[0])] 
+    
+    for rule in rules: 
+        covered = rule.truthtable.nonzero()[0] 
+        for cov in covered: 
+            data_points2rules[cov].append(rule.id)            
+            
+    for i in range(X_trn.shape[0]): 
+        n = mpz_set_bits(gmp.mpz(), data_points2rules[i]) 
+        if n not in all_classes: 
+            all_classes[n] = EquivalentPointClass(n)
+        
+        all_classes[n].update(i,y_train[i])
+        
+    return data_points2rules, all_classes

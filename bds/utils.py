@@ -188,6 +188,28 @@ def get_max_nz_idx_per_row(m: np.ndarray) -> np.ndarray:
     )
 
 
+def reconstruct_array(n: gmp.mpz) -> np.ndarray:
+    # Count the number of bits in `n`
+    bit_count = gmp.bit_length(n)
+    
+    # Calculate the number of bytes needed to store the bits
+    byte_count = (bit_count + 7) // 8
+    
+    # Extract the bits of `n` into a bit string
+    bit_str = ""
+    for i in range(bit_count - 1, -1, -1):
+        bit_str += "1" if gmp.bit_test(n, i) else "0"
+    
+    # Reverse the bit string and pad it with zeros to a multiple of 8
+    bit_str = bit_str[::-1].ljust(byte_count * 8, "0")
+    
+    # Convert the bit string to a byte string and then to a numpy array
+    byte_str = int(bit_str, 2).to_bytes(byte_count, byteorder="little")
+    return np.frombuffer(byte_str, dtype=np.uint8)[:len(bit_str) // 8]
+
+
+
+
 # import logzero
 # log_format = '%(color)s[%(levelname)1.1s %(asctime)s %(module)s:%(lineno)d]%(endcolor)s %(message)s'
 # formatter = logzero.LogFormatter(fmt=log_format)
