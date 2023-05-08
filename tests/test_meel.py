@@ -20,6 +20,16 @@ from .utils import generate_random_rules_and_y
 
 
 class TestLogSearch:
+    def generate_random_input(self, num_rules: int, num_pts: int, rand_seed: int):
+        random_rules, random_y = generate_random_rules_and_y(
+            num_pts, num_rules, rand_seed=rand_seed
+        )
+        m = num_rules - 1
+
+        A, t = generate_h_and_alpha(num_rules, m, seed=rand_seed, as_numpy=True)
+
+        return random_rules, random_y, A, t
+
     def check_output(self, m, Y_size, big_cell, Y_size_arr, thresh):
         # big_cell should look like, 1, 1, ...,1, 0, ..., 0, 0
         assert is_piecewise_linear(big_cell)
@@ -50,7 +60,7 @@ class TestLogSearch:
         ub = float("inf")
         A, t = generate_h_and_alpha(n, m, seed=rand_seed, as_numpy=True)
         # test statements
-        m, Y_size, big_cell, Y_size_arr = log_search(
+        m, Y_size, big_cell, Y_size_arr, _ = log_search(
             rules, y, lmbd, ub, A, t, thresh, m_prev, return_full=True
         )
 
@@ -67,15 +77,10 @@ class TestLogSearch:
     @pytest.mark.parametrize("rand_seed", randints(3))
     def test_on_random_datasets(self, ub, m_prev, thresh, rand_seed):
         # generate the rules and truth label
-        num_pts, num_rules = 50, 10
-        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules, rand_seed=1234)
-        m = num_rules - 1
-
-        A, t = generate_h_and_alpha(num_rules, m, seed=rand_seed)
-        A, t = bin_array(A), bin_array(t)
+        random_rules, random_y, A, t = self.generate_random_input(10, 50, 1234)
 
         lmbd = 0.1
-        m, Y_size, big_cell, Y_size_arr = log_search(
+        m, Y_size, big_cell, Y_size_arr, _ = log_search(
             random_rules,
             random_y,
             lmbd,
@@ -89,6 +94,56 @@ class TestLogSearch:
 
         self.check_output(m, Y_size, big_cell, Y_size_arr, thresh)
 
+    @pytest.mark.parametrize("ub", [.8])
+    @pytest.mark.parametrize("thresh", [25])
+    @pytest.mark.parametrize("rand_seed", randints(3))
+    def test_on_search_trajectory(self, ub, thresh, rand_seed):
+        m_prev = 1
+        random_rules, random_y, A, t = self.generate_random_input(20, 50, 1234)
+
+        lmbd = 0.1
+        m, Y_size, big_cell, Y_size_arr, search_trajectory = log_search(
+            random_rules,
+            random_y,
+            lmbd,
+            ub + EPSILON,
+            A,
+            t,
+            thresh,
+            m_prev,
+            return_full=True,
+        )
+
+        # check format of the search trajectory
+        for tpl in search_trajectory:
+            assert len(tpl) == 3
+            m, Y_size, t = tpl
+            assert isinstance(m, int)
+            assert isinstance(Y_size, int)
+            assert isinstance(t, int)
+
+        # check the trajectory is logical, meaning the following cases:
+        # 1. for a certain m which gives |Y| >= t, (m is too small)
+        # all m' > m should not be tried in later search
+        # and similarly
+        # 2. for a certain m which gives |Y| < t, (m is too large)
+        # all m' < m should not be tried in later search
+        # in other words, only values
+        def extract_later_ms(i: int) -> np.ndarray:
+            """extract m values that are searched after the ith iteration"""
+            return np.array(list(map(lambda tpl: tpl[0], search_trajectory[i + 1 :])))
+
+        print("search_trajectory: {}".format(search_trajectory))
+        for i, (m, ys, t) in enumerate(search_trajectory):
+            print("i: {}".format(i))
+            print("(m, ys, t): {}".format((m, ys, t)))
+            if ys < t:  # not enough solutions, m is large, we try smaller m later
+                later_ms = extract_later_ms(i)
+                np.testing.assert_allclose(later_ms < m, True)
+            else:  # m is small, we try larger m later
+                later_ms = extract_later_ms(i)
+                np.testing.assert_allclose(later_ms > m, True)
+
     @pytest.mark.parametrize(
         "ub", [0.6, 0.75]  # using larger ub, e.g., 1.0 tends to run slower
     )
@@ -96,17 +151,13 @@ class TestLogSearch:
     @pytest.mark.parametrize("rand_seed", randints(3))
     def test_consistency_on_m(self, ub, thresh, rand_seed):
         """no matter what m_prev is provided, the same m should be given"""
-        num_pts, num_rules = 50, 10
-        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules, rand_seed=1234)
-        m = num_rules - 1
+        random_rules, random_y, A, t = self.generate_random_input(10, 50, 1234)
 
-        A, t = generate_h_and_alpha(num_rules, m, seed=rand_seed)
-        A, t = bin_array(A), bin_array(t)
-
+        m = A.shape[0]
         initial_m = int(m / 2)
 
         lmbd = 0.1
-        ref_m, ref_Y_size, ref_big_cell, ref_Y_size_arr = log_search(
+        ref_m, ref_Y_size, ref_big_cell, ref_Y_size_arr, _ = log_search(
             random_rules,
             random_y,
             lmbd,
@@ -125,6 +176,7 @@ class TestLogSearch:
                 actual_Y_size,
                 actual_big_cell,
                 actual_Y_size_arr,
+                _,
             ) = log_search(
                 random_rules,
                 random_y,
@@ -186,7 +238,9 @@ class TestApproxMC2Core:
         """e.g., the code runs and return data with correct types"""
         prev_m = 5
         num_pts, num_rules = 100, 10
-        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules, rand_seed=1234)
+        random_rules, random_y = generate_random_rules_and_y(
+            num_pts, num_rules, rand_seed=1234
+        )
         n_cells, Y_size = approx_mc2_core(
             random_rules,
             random_y,
@@ -232,7 +286,9 @@ class TestApproxMC2Core:
     def test_return_none(self, ub, thresh):
         prev_m = 1
         num_rules = 10
-        random_rules, random_y = generate_random_rules_and_y(100, num_rules, rand_seed=1234)
+        random_rules, random_y = generate_random_rules_and_y(
+            100, num_rules, rand_seed=1234
+        )
         # the constraint system is vacuum
         # thus using all constraints is equivalent to using no constraint at all
         A = bin_zeros((num_rules - 1, num_rules))
@@ -258,7 +314,9 @@ class TestApproxMC2:
     @pytest.mark.parametrize("rand_seed", randints(3))
     def test_if_estimate_within_bounds(self, ub, eps, delta, rand_seed):
         num_pts, num_rules = 100, 10
-        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules, rand_seed=1234)
+        random_rules, random_y = generate_random_rules_and_y(
+            num_pts, num_rules, rand_seed=1234
+        )
 
         lmbd = 0.1
 
@@ -285,7 +343,9 @@ class TestApproxMC2:
 class TestUniGen:
     def create_unigen(self, ub: float, eps: float, rand_seed=None) -> UniGen:
         num_pts, num_rules = 100, 10
-        random_rules, random_y = generate_random_rules_and_y(num_pts, num_rules, rand_seed=1234)
+        random_rules, random_y = generate_random_rules_and_y(
+            num_pts, num_rules, rand_seed=1234
+        )
 
         lmbd = 0.1
         return UniGen(random_rules, random_y, lmbd, ub, eps, rand_seed)

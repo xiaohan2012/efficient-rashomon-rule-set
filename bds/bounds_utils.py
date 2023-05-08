@@ -3,7 +3,7 @@ import pandas as pd
 from .cache_tree import CacheTree, Node
 from gmpy2 import mpz, mpfr
 import gmpy2 as gmp 
-from utils import mpz_set_bits
+from .utils import mpz_set_bits
 
 
 

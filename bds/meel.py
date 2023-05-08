@@ -87,6 +87,10 @@ def log_search(
 
     cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
 
+    # we store the list of m values that are tried
+    # as well as the solution size and threshold
+    search_trajectory = []
+
     while True:
         logger.debug(f"current m = {m}")
         # solve the problem with all constraints
@@ -95,6 +99,8 @@ def log_search(
         # obtain only the first `thresh` solutions in the random cell
         Y_size = cbb.bounded_count(thresh, A_sub, t_sub)
         Y_size_arr[m] = Y_size
+
+        search_trajectory.append((m, Y_size, thresh))
 
         if Y_size >= thresh:
             logger.debug(f"|Y| >= thresh ({Y_size} >= {thresh})")
@@ -118,7 +124,7 @@ def log_search(
             lo = m
             if np.abs(m - m_prev) < 3:
                 m += 1
-            elif 2 * m < num_vars:
+            elif (2 * m < num_vars) and big_cell[2 * m] == -1:  # 2 * m must be unexplored
                 m *= 2
             else:
                 m = int((hi + m) / 2)
@@ -142,11 +148,16 @@ def log_search(
             else:
                 m = int((m + lo) / 2)
 
+        # logger.debug("big_cell: {}".format(big_cell))
+        # logger.debug("Y_size_arr: {}".format(Y_size_arr))
+        # logger.debug(f"lo: {lo}")
+        # logger.debug(f"hi: {hi}")
+        # logger.debug("\n")
     # logger.debug(f"big_cell: {big_cell}")
     # logger.debug(f"Y_size_arr: {Y_size_arr}")
 
     if return_full:
-        return m, Y_size_arr[m], big_cell, Y_size_arr
+        return m, Y_size_arr[m], big_cell, Y_size_arr, search_trajectory
     else:
         return m, Y_size_arr[m]
 
