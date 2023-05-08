@@ -15,7 +15,13 @@ from .bounds_v2 import equivalent_points_bounds, rule_set_size_bound_with_defaul
 from .cache_tree import CacheTree, Node
 from .queue import Queue
 from .rule import Rule
-from .utils import assert_binary_array, bin_ones, bin_zeros, mpz_all_ones
+from .utils import (
+    assert_binary_array,
+    bin_ones,
+    bin_zeros,
+    mpz_all_ones,
+    get_max_nz_idx_per_row,
+)
 
 
 # @profile
@@ -55,8 +61,12 @@ def check_if_not_unsatisfied(
     """
     # print(f"==== checking the parity system ===== ")
     # assert_binary_array(z)
-    assert_binary_array(t)
+    # assert_binary_array(t)
     # assert s.shape == z.shape == t.shape
+
+    # compute max_nz_idx_array from scratch if not given
+    if max_nz_idx_array is None:
+        max_nz_idx_array = get_max_nz_idx_per_row(A)
 
     up, sp, zp = mpz(u), mpz(s), mpz(z)
     # s.copy(), z.copy()
@@ -70,15 +80,12 @@ def check_if_not_unsatisfied(
         iter_obj = rule2cst[j]
 
     for i in iter_obj:
-        if gmp.bit_test(up, i) == 1:  # the ith constraint is undetermined
+        if gmp.bit_test(up, i):  # the ith constraint is undetermined
             zp = gmp.bit_flip(zp, i)  # flip the parity value
 
             # obtain the maximum non-zero index for the current constraint
             # either from cache or caculation from scratch
-            if max_nz_idx_array is None:
-                max_nz_idx = A[i].nonzero()[0].max()
-            else:
-                max_nz_idx = max_nz_idx_array[i]
+            max_nz_idx = max_nz_idx_array[i]
 
             if j == (max_nz_idx + 1):  # we can evaluate this constraint
                 up = gmp.bit_clear(up, i)  # the ith constraint is determined
@@ -119,6 +126,8 @@ def check_if_satisfied(u: mpz, s: mpz, z: mpz, t: np.ndarray) -> bool:
 
 class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
     def reset_queue(self, A: np.ndarray, t: np.ndarray):
+        assert_binary_array(t)
+
         self.queue: Queue = Queue()
         not_captured = self._not_captured_by_default_rule()
 
@@ -128,12 +137,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         num_constraints = self.A.shape[0]
 
         # auxiliary data structures for caching and better performance
-        self.max_nz_idx_array = np.array(
-            [
-                (nz.max() if len((nz := A[i].nonzero()[0])) > 0 else -1)
-                for i in range(self.A.shape[0])
-            ]
-        )
+        self.max_nz_idx_array = get_max_nz_idx_per_row(self.A)
 
         self.rule2cst = {
             r.id: list(

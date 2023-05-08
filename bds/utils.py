@@ -177,6 +177,17 @@ def count_iter(it: Iterable) -> int:
     return next(counter)
 
 
+def get_max_nz_idx_per_row(m: np.ndarray) -> np.ndarray:
+    """for a 2D matrix m, compute the maximum non-zero index per row"""
+    assert m.ndim == 2
+    return np.array(
+        [
+            (nz.max() if len((nz := m[i].nonzero()[0])) > 0 else -1)
+            for i in range(m.shape[0])
+        ]
+    )
+
+
 # import logzero
 # log_format = '%(color)s[%(levelname)1.1s %(asctime)s %(module)s:%(lineno)d]%(endcolor)s %(message)s'
 # formatter = logzero.LogFormatter(fmt=log_format)
