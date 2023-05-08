@@ -128,15 +128,11 @@ class TestLogSearch:
         # and similarly
         # 2. for a certain m which gives |Y| < t, (m is too large)
         # all m' < m should not be tried in later search
-        # in other words, only values
         def extract_later_ms(i: int) -> np.ndarray:
             """extract m values that are searched after the ith iteration"""
             return np.array(list(map(lambda tpl: tpl[0], search_trajectory[i + 1 :])))
 
-        print("search_trajectory: {}".format(search_trajectory))
         for i, (m, ys, t) in enumerate(search_trajectory):
-            print("i: {}".format(i))
-            print("(m, ys, t): {}".format((m, ys, t)))
             if ys < t:  # not enough solutions, m is large, we try smaller m later
                 later_ms = extract_later_ms(i)
                 np.testing.assert_allclose(later_ms < m, True)

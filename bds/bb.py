@@ -55,7 +55,7 @@ def incremental_update_obj(u: mpz, v: mpz, y: mpz, num_pts: mpz) -> Tuple[mpfr, 
 
 
 class BranchAndBoundGeneric:
-    """generic class of branch-and-bound algorithm for decision set enumeration"""
+    """a generic class of branch-and-bound algorithm for decision set enumeration"""
 
     def __init__(self, rules: List[Rule], ub: float, y: np.ndarray, lmbd: float):
         """
@@ -94,10 +94,6 @@ class BranchAndBoundGeneric:
     def reset(self):
         self.reset_tree()
         self.reset_queue()
-
-    # def _captured_by_rule(self, rule: Rule, parent_not_captured: np.ndarray):
-    #     """return the captured array for the rule in the context of parent"""
-    #     return np.logical_and(parent_not_captured, rule.truthtable)
 
     def _captured_by_rule(self, rule: Rule, parent_not_captured: mpz):
         """return the captured array for the rule in the context of parent"""

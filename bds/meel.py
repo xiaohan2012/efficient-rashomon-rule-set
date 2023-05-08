@@ -27,6 +27,37 @@ from .utils import (
 # logger.setLevel(logging.INFO)
 
 
+def _check_log_search_trajectory(search_trajectory: List[Tuple[int, int, int]]):
+    """check if the search trajectory of the log_search procedure is logical
+    raise an error if it is not
+
+    a trajectory consists of:
+
+    - m: num. of constraints considered
+    - |Y|: number of feasible solutions under m constraints
+    - t: the threshold on the number of solutions
+
+    the trajectory is logical is
+
+    1. for each m which gives |Y| >= t, (m is too small)
+      - all m' > m should not be tried in later search
+    2. for each m which gives |Y| < t, (m is too large)
+      - all m' < m should not be tried in later search
+    """
+
+    def _extract_later_ms(i: int) -> np.ndarray:
+        """extract m values that are searched after the ith iteration"""
+        return np.array(list(map(lambda tpl: tpl[0], search_trajectory[i + 1 :])))
+
+    for i, (m, ys, t) in enumerate(search_trajectory):
+        if ys < t:  # not enough solutions, m is large, we try smaller m later
+            later_ms = _extract_later_ms(i)
+            np.testing.assert_allclose(later_ms < m, True)
+        else:  # m is small, we try larger m later
+            later_ms = _extract_later_ms(i)
+            np.testing.assert_allclose(later_ms > m, True)
+
+
 # @profile
 def log_search(
     rules: List[Rule],
@@ -124,7 +155,9 @@ def log_search(
             lo = m
             if np.abs(m - m_prev) < 3:
                 m += 1
-            elif (2 * m < num_vars) and big_cell[2 * m] == -1:  # 2 * m must be unexplored
+            elif (2 * m < num_vars) and big_cell[
+                2 * m
+            ] == -1:  # 2 * m must be unexplored
                 m *= 2
             else:
                 m = int((hi + m) / 2)
@@ -155,6 +188,9 @@ def log_search(
         # logger.debug("\n")
     # logger.debug(f"big_cell: {big_cell}")
     # logger.debug(f"Y_size_arr: {Y_size_arr}")
+
+    # to make sure that the search trajectory is logical
+    _check_log_search_trajectory(search_trajectory)
 
     if return_full:
         return m, Y_size_arr[m], big_cell, Y_size_arr, search_trajectory
@@ -205,17 +241,17 @@ def approx_mc2_core(
 
     # try to find at most thresh solutions using all constraints
     cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
-
+    logger.debug(f"initial solving under {A.shape[0]} constraints")
     Y_size = cbb.bounded_count(thresh, A, t)
 
     if Y_size >= thresh:
         logger.debug(
-            f"|Y| {Y_size} >= {thresh}: solving under all constraints generates more than {thresh} (thresh) solutions, return None"
+            f"with |Y| {Y_size} >= {thresh}, therefore return None"
         )
         return None, None
     else:
         logger.debug(
-            f"|Y| {Y_size} < {thresh}: calling log_search under parity constraints"
+            f"with |Y| {Y_size} < {thresh}, therefore call log_search to find the appropriate number of constraints"
         )
         m_prev = int(np.log2(prev_num_cells))
         m, Y_size = log_search(
