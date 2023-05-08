@@ -3,11 +3,11 @@ import itertools
 from bds.utils import powerset
 from bds.fpgrowth import (
     FPTree,
-    add_frequency_to_transaction_list,
-    extract_frequent_items,
-    filter_and_reorder_transaction_list,
+    _add_frequency_to_transaction_list,
+    _extract_frequent_items_and_order,
+    _filter_and_reorder_transaction_list,
     squash_path_by_leaf_frequency,
-    insert_tree,
+    insert_node,
     build_fptree,
     fpgrowth_on_tree,
     preprocess_transaction_list,
@@ -87,22 +87,22 @@ class Test_add_frequency_to_transaction_list:
     def test_simple(self):
         input_data = [{"a", "c", "d"}, {"a", "b", "c"}]
         expected = [{"a": 1, "c": 1, "d": 1}, {"a": 1, "b": 1, "c": 1}]
-        actual = add_frequency_to_transaction_list(input_data)
+        actual = _add_frequency_to_transaction_list(input_data)
         assert expected == actual
 
 
 class Test_extract_frequent_items:
     def test_simple(self):
         input_data = [{"a": 2, "c": 1, "d": 1}, {"a": 2, "b": 2, "c": 2}]
-        actual = extract_frequent_items(input_data, 3)
+        actual = _extract_frequent_items_and_order(input_data, 3)
         expected = ["a", "c"]
         assert actual == expected
 
-        actual = extract_frequent_items(input_data, 2)
+        actual = _extract_frequent_items_and_order(input_data, 2)
         expected = ["a", "c", "b"]
         assert actual == expected
 
-        actual = extract_frequent_items(input_data, 10)
+        actual = _extract_frequent_items_and_order(input_data, 10)
         expected = []
         assert actual == expected
 
@@ -111,17 +111,17 @@ class Test_filter_and_reorder_transaction_list:
     def test_simple(self):
         input_data = [{"a": 2, "c": 1, "d": 1}, {"a": 2, "b": 2, "c": 2}]
         frequent_items = ["a", "c"]
-        actual = filter_and_reorder_transaction_list(input_data, frequent_items)
+        actual = _filter_and_reorder_transaction_list(input_data, frequent_items)
         expected = [[("a", 2), ("c", 1)], [("a", 2), ("c", 2)]]
         assert actual == expected
 
         frequent_items = ["a", "c", "b"]
-        actual = filter_and_reorder_transaction_list(input_data, frequent_items)
+        actual = _filter_and_reorder_transaction_list(input_data, frequent_items)
         expected = [[("a", 2), ("c", 1)], [("a", 2), ("c", 2), ("b", 2)]]
         assert actual == expected
 
         frequent_items = []
-        actual = filter_and_reorder_transaction_list(input_data, frequent_items)
+        actual = _filter_and_reorder_transaction_list(input_data, frequent_items)
         expected = [[], []]
         assert actual == expected
 
@@ -141,7 +141,7 @@ class Test_insert_tree:
         head, tail = itemset[0], itemset[1:]
 
         # no new node is created, we simply increment the count
-        insert_tree(head, tail, a_path)
+        insert_node(head, tail, a_path)
 
         actual = a_path.as_nested_tuple()
         expected = ((0, 3), [((1, 3), [((2, 2), [])])])
@@ -152,7 +152,7 @@ class Test_insert_tree:
         head, tail = itemset[0], itemset[1:]
 
         # two new nodes are created
-        insert_tree(head, tail, a_path)
+        insert_node(head, tail, a_path)
 
         actual = a_path.as_nested_tuple()
         expected = (

@@ -1,7 +1,10 @@
+import numpy as np
+
 from dataclasses import dataclass
 from importlib import import_module
 
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelBinarizer
 from aix360.algorithms.rbm import FeatureBinarizer
 
 from ..utils import convert_numerical_columns_to_bool
@@ -22,18 +25,14 @@ class Dataset:
 
     def load(self):
         # load the data
-        dataset = import_module(f'bds.data.{self.name}')
+        dataset = import_module(f"bds.data.{self.name}")
         X, y = dataset.load()
 
         # split into train and test
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-            X,
-            y,
-            test_size=1 - self.train_ratio,
-            random_state=self.random_state
+            X, y, test_size=1 - self.train_ratio, random_state=self.random_state
         )
 
-        
         if self.split_train:
             (
                 self.X_train,
@@ -47,24 +46,22 @@ class Dataset:
                 random_state=self.random_state,
             )
 
+            self.y_validation = self.y_validation.to_numpy()
+
         # convert the pd.Series to np.ndarray
         self.y_train = self.y_train.to_numpy()
         self.y_test = self.y_test.to_numpy()
-        if self.split_train:
-            self.y_validation = self.y_validation.to_numpy()
-
 
 class BinaryDataset(Dataset):
     def load(self):
         super(BinaryDataset, self).load()
         fb = FeatureBinarizer(negations=True)
-        
+
         self.X_train_b = fb.fit_transform(self.X_train)
         self.X_test_b = fb.transform(self.X_test)
         # convert the data types to bool
-        list(
-            map(convert_numerical_columns_to_bool, [self.X_train_b, self.X_test_b])
-        )
+        for X in [self.X_train_b, self.X_test_b]:
+            convert_numerical_columns_to_bool(X)
 
         if self.split_train:
             self.X_validation_b = fb.transform(self.X_validation)
@@ -75,11 +72,12 @@ class BinaryDataset(Dataset):
         num_raw_features = self.X_train.shape[1]
         num_binary_features = self.X_train_b.shape[1]
 
-        summ = f'name: {self.name}\n'
-        summ += f'train_size: {train_size}, '
+        summ = f"name: {self.name}\n"
+        summ += f"train_size: {train_size}, "
         if self.split_train:
-            summ += f'validation_size: {self.X_validation_b.shape[0]}, '
-        summ += f'test_size: {test_size}\n'
-        summ += f'num. of raw features: {num_raw_features}\n'
-        summ += f'num. of binary features: {num_binary_features}\n'
+            summ += f"validation_size: {self.X_validation_b.shape[0]}, "
+        summ += f"test_size: {test_size}\n"
+        summ += f"num. of raw features: {num_raw_features}\n"
+        summ += f"num. of binary features: {num_binary_features}\n"
+        summ += f"num. of classes: {len(np.unique(self.y_test))}"
         return summ

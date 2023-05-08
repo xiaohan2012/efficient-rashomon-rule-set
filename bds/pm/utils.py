@@ -100,17 +100,24 @@ def reduce_pattern_by_numerical_containment(
     return tuple(reduced_pattern)
 
 
-def dichotomize_dataset(X: pd.DataFrame, y: np.ndarray) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def dichotomize_dataset(
+    X: pd.DataFrame, y: np.ndarray
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """split the feature dataframe X into two sub dataframes using the label information provided in y"""
     pos_idx, neg_idx = (y == 1).nonzero()[0], (y == 0).nonzero()[0]
 
     return (X.iloc[pos_idx], X.iloc[neg_idx])
 
 
-def get_contrastive_patterns(pos_df, neg_df, min_pos_frequency, max_neg_frequency):
+def get_contrastive_patterns(
+    pos_df: pd.DataFrame,
+    neg_df: pd.DataFrame,
+    min_pos_frequency: float,
+    max_neg_frequency: float,
+):
     """get the list of contrastive patterns, such that each pattern P satisfies the following:
 
-    1. freq(P, pos_df) >= min_pos_frequency
+    1. freq(P, pos_df) >= min_pos_frequency (a ratio)
     2. supp(P, neg_df) <= supp(P, pos_df) x max_neg_frequency
     """
     # 1. obtain the frequent itemsets w.r.t. the positive data points

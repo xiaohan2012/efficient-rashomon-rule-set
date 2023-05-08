@@ -1,3 +1,19 @@
+"""
+an implementation of the FPGrowth algorithm
+
+example usage:
+
+```python
+    input_transactions = [{0, 1, 2}, {0, 1, 3}]  # the input transactions, represented as a list of sets
+    min_support = 1
+    ordered_input_data = preprocess_transaction_list(
+        input_transactions, min_support
+    )
+
+    tree = build_fptree(ordered_input_data)
+    frequent_itemsets = set(fpgrowth_on_tree(tree, set(), min_support))
+```
+"""
 from dataclasses import dataclass
 from collections import OrderedDict, defaultdict, Counter
 
@@ -40,16 +56,12 @@ class FPTree:
     @property
     def is_root(self):
         return self.parent is None
-    
+
     def all_names(self, exclude_root=False):
         if self.is_leaf:
             return {self.name}
         else:
-            ret = (
-                set()
-                if self.is_root and exclude_root
-                else {self.name}
-            )
+            ret = set() if self.is_root and exclude_root else {self.name}
             for c in self.children:
                 ret |= c.all_names(exclude_root=exclude_root)
             return ret
@@ -116,7 +128,7 @@ class FPTree:
         return ret
 
 
-def insert_tree(head: Tuple[Item, int], remain, tree):
+def insert_node(head: Tuple[Item, int], remain, tree):
     """insert an itemset (head + remain) into the tree
 
     head is the first item in the itemset, together with its frequency
@@ -134,26 +146,31 @@ def insert_tree(head: Tuple[Item, int], remain, tree):
 
     if len(remain) > 0:
         # recurse on
-        insert_tree(remain[0], remain[1:], child)
+        insert_node(remain[0], remain[1:], child)
 
 
 # build the FPtree
 def build_fptree(preprocessed_trans_list: List[OrderedTransaction]) -> FPTree:
-    """the input transaction list should already filter out infrequent items
+    """
+    build a FPtree for a list of preprocessed transactions
+
+    the input transaction list should already filter out infrequent items
     and items in each transaction should be ordered by their frequency in descending order
     """
     root = FPTree(name="ROOT")
 
     for trans in preprocessed_trans_list:
-        print("trans: ", trans)
+        # print("trans: ", trans)
         if len(trans) > 0:
-            insert_tree(trans[0], trans[1:], root)
+            insert_node(trans[0], trans[1:], root)
 
     return root
 
 
 def build_header_table(tree):
     """
+    build the header table for a tree,
+
     a header table is a dict of item name to the list of nodes with the same item name
     """
     header_table = defaultdict(list)
@@ -167,7 +184,9 @@ def build_header_table(tree):
     return header_table
 
 
-def add_frequency_to_transaction_list(trans_list: TransactionList) -> TransactionDictList:
+def _add_frequency_to_transaction_list(
+    trans_list: TransactionList,
+) -> TransactionDictList:
     """
     add frequency information to each item in each transaction
 
@@ -180,10 +199,12 @@ def add_frequency_to_transaction_list(trans_list: TransactionList) -> Transactio
     return trans_list_with_freq
 
 
-def extract_frequent_items(trans_list_with_freq: List[TransactionDict], min_support: int) -> List[Item]:
-    """extract items whose frequency to at least min_support
+def _extract_frequent_items_and_order(
+    trans_list_with_freq: List[TransactionDict], min_support: int
+) -> List[Item]:
+    """for each transaction, extract items whose frequency to at least min_support
 
-    return the frequent items ordered by their frequency in descending order
+    and order them by their frequency in descending order
     """
     # extract frequent items
     item_counts = Counter()
@@ -200,7 +221,7 @@ def extract_frequent_items(trans_list_with_freq: List[TransactionDict], min_supp
     return ordered_frequent_items
 
 
-def filter_and_reorder_transaction_list(
+def _filter_and_reorder_transaction_list(
     trans_list_with_freq: List[TransactionDict], ordered_frequent_items: List[Item]
 ) -> List[OrderedTransaction]:
     """
@@ -218,19 +239,26 @@ def filter_and_reorder_transaction_list(
     return preprocessed_trans_list
 
 
-def preprocess_transaction_list(trans_list: List[Transaction], min_support: int) -> List[OrderedTransaction]:
+def preprocess_transaction_list(
+    trans_list: List[Transaction], min_support: int
+) -> List[OrderedTransaction]:
     """given a list of "raw" transactions and minimum support,
 
     convert each transaction into an ordered form, where only the frequent items are included
     and they are furthered ordered by their frequency
     """
-    transactions_with_freq = add_frequency_to_transaction_list(trans_list)
+    transactions_with_freq = _add_frequency_to_transaction_list(trans_list)
 
-    frequent_items = extract_frequent_items(transactions_with_freq, min_support)
+    frequent_items = _extract_frequent_items_and_order(
+        transactions_with_freq, min_support
+    )
 
-    ordered_input_data = filter_and_reorder_transaction_list(transactions_with_freq, frequent_items)
+    ordered_input_data = _filter_and_reorder_transaction_list(
+        transactions_with_freq, frequent_items
+    )
 
     return ordered_input_data
+
 
 def squash_path_by_leaf_frequency(path: List[ItemFreq]) -> List[ItemFreq]:
     """
@@ -247,6 +275,7 @@ def squash_path_by_leaf_frequency(path: List[ItemFreq]) -> List[ItemFreq]:
 
 
 def fpgrowth_on_tree(tree: FPTree, prefix: set, min_support: int):
+    """run fpgrowth on a FPTree and return the frequent itemsets"""
     if tree.is_path:
         # enumerate all combinations
         all_names = set(prefix) | tree.all_names(exclude_root=True)
@@ -267,17 +296,17 @@ def fpgrowth_on_tree(tree: FPTree, prefix: set, min_support: int):
 
             cond_trans_list = list(map(dict, cond_trans_list))  # turn to dict
 
-            cond_frequent_items = extract_frequent_items(
+            cond_frequent_items = _extract_frequent_items_and_order(
                 cond_trans_list, min_support=min_support
             )
 
-            cond_preprocessed_trans_list = filter_and_reorder_transaction_list(
+            cond_preprocessed_trans_list = _filter_and_reorder_transaction_list(
                 cond_trans_list, cond_frequent_items
             )
 
             # print("prefix: ", prefix)
-            # print("cond_preprocessed_trans_list: ", cond_preprocessed_trans_list)            
+            # print("cond_preprocessed_trans_list: ", cond_preprocessed_trans_list)
             cond_tree = build_fptree(cond_preprocessed_trans_list)
-            
+
             # cond_header_table = build_header_table(tree)
             yield from fpgrowth_on_tree(cond_tree, prefix | {item}, min_support)

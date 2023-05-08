@@ -89,17 +89,12 @@ def log_search(
 
     while True:
         logger.debug(f"current m = {m}")
-        # logger.debug("big_cell: {}".format(big_cell))
         # solve the problem with all constraints
         A_sub, t_sub = A[:m], t[:m]
-        # sol_iter = cbb.run(A_sub, t_sub)
 
         # obtain only the first `thresh` solutions in the random cell
         Y_size = cbb.bounded_count(thresh, A_sub, t_sub)
         Y_size_arr[m] = Y_size
-        # Y_bounded = itertools.islice(sol_iter, thresh)
-        # Y_bounded_size = len(list(Y_bounded))
-        # Y_size_arr[m] = Y_bounded_size
 
         if Y_size >= thresh:
             logger.debug(f"|Y| >= thresh ({Y_size} >= {thresh})")
