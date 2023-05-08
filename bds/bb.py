@@ -49,14 +49,6 @@ def incremental_update_obj(u: mpz, v: mpz, y: mpz, num_pts: mpz) -> Tuple[mpfr, 
     y: true labels
     num_pts: the total number
     """
-    # assert_binary_array(u)
-    # assert_binary_array(y)
-    # assert_binary_array(v)
-    # f = np.logical_and(
-    #     u, np.bitwise_not(v)
-    # )  # points not captured by both prefix and the rule
-    # g = np.logical_and(f, y)  # false negatives
-    # return g.sum() / y.shape[0], f
     f = u & (~v)  # points not captured by both prefix and the rule
     g = f & y  # false negatives
     return gmp.popcount(g) / num_pts, f
@@ -79,7 +71,7 @@ class BranchAndBoundGeneric:
         self.y = mpz_set_bits(mpz(), y.nonzero()[0])  # convert y from np.array to mpz
         self.lmbd = mpfr(lmbd)
 
-        logger.debug(f"calling branch-and-bound with ub={ub}, lmbd={lmbd}")
+        logger.debug(f"calling {self.__class__.__name__} with ub={ub}, lmbd={lmbd}")
 
         self.num_train_pts = mpz(y.shape[0])
 
