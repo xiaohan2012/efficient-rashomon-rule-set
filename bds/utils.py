@@ -155,6 +155,20 @@ def mpz_all_ones(n: int) -> mpz:
         return mpz()
 
 
+def mpz2bag(n: mpz): 
+    """ given a mpz() this function returns the original array it is retrieved from """
+    i = 0
+    bag = set()
+    thisBit = gmp.bit_scan1(n,i)
+    while thisBit!=None: 
+        bag.add(thisBit)
+        i+=1 
+        thisBit = gmp.bit_scan1(n,i)
+        
+    return bag
+    
+
+
 def debug1(msg):
     logger.log(loglevel.DEBUG1, msg)
 

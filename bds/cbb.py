@@ -322,14 +322,14 @@ class ConstrainedBranchAndBoundV1(BranchAndBoundNaive):
                 )
                 if not_unsatisfied:
                     captured = self._captured_by_rule(rule, parent_not_captured)
-
-                    lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
-
                     
                     flag_rule_set_size = rule_set_size_bound_with_default(
                         parent_node, self.lmbd, self.ub)
 
                     if not flag_rule_set_size:
+                        
+                        lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
+
                         
                         flag_equivalent_classes = equivalent_points_bounds(
                             lb,

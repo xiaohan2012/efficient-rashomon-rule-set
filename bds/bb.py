@@ -270,37 +270,33 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
                 # logger.debug(f"considering rule {rule.id}")
                 captured = self._captured_by_rule(rule, parent_not_captured)
 
-                lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
+                
 
                 flag_rule_set_size = rule_set_size_bound_with_default(
                     parent_node, self.lmbd, self.ub
                 )  # if true, we prune
 
-                flag_equivalent_classes = equivalent_points_bounds(
-                    lb,
-                    self.lmbd,
-                    self.ub,
-                    parent_not_captured,
-                    X_trn,
-                    data_points2rules,
-                    equivalence_classes
-                )  # if true, we prune
+                
 
                 #if lb <= self.ub:
                 flag_rule_set_size = rule_set_size_bound_with_default(
                     parent_node, self.lmbd, self.ub
                 )  # i
-                if not flag_rule_set_size:
+                if not flag_rule_set_size: # this is super fast to compute so we check it first 
+                    
+                    lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
+                    
                     flag_equivalent_classes = equivalent_points_bounds(
                         lb,
                         self.lmbd,
                         self.ub,
                         parent_not_captured,
                         X_trn,
+                        data_points2rules, 
                         equivalence_classes,
                     )  # if true, we prune
+                    
                     if not flag_equivalent_classes: 
-                
                             
                         fn_fraction, not_captured = incremental_update_obj(
                             parent_not_captured, captured, self.y

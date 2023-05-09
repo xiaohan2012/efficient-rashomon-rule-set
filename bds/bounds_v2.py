@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from .cache_tree import CacheTree, Node
 from .bounds_utils import *
+from .utils import mpz2bag
 
 #### TODO: test and eventually integrate within the bb.py loop() calling the function below
 #### TODO2: (optionally) add more bounds
@@ -91,13 +92,13 @@ def equivalent_points_bounds(
     #  comput minimum error in the uncovered/ not captured part due to th equivalence classes
     tot_not_captured_error_bound = 0
     added = set() 
-    not_captured_points = not_captured.nonzero()[0]
+    not_captured_points = mpz2bag(not_captured) 
     for not_captured_data_point in not_captured_points: 
        
             n = mpz_set_bits(gmp.mpz(), data_points2rules[not_captured_data_point]) 
-            if n not in added: # this to make sure that we add only once for each not captured class
+            if n not in added: # this to make sure that we add only once for each not captured class and not for every not captured point 
                 tot_not_captured_error_bound += all_classes[n].minority_mistakes
-                added.add(n)
+                added.add(n) 
         
     tot_not_captured_error_bound = (
         tot_not_captured_error_bound / X.shape[0]
