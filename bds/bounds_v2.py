@@ -43,15 +43,42 @@ def rule_set_size_bound_with_default(parent_node: Node, lmbd: float, alpha: floa
     return ruleset_size > ((alpha/lmbd) - 1) # the -1 is because of the extra rule moving from the parent to its children
 
 
+
+
+
+def update_equivalent_lower_bound(captured:mpz,  data_points2rules: dict, all_classes: dict): 
+    
+    '''
+    captured: points captured by a rule and not by its parents 
+    data_points2rules: pre-computed dictionary (essentially inverted index for rule truthtables) 
+    all_classses: pre-computed equivalence classes 
+
+    '''
+    
+    tot_update_bound = 0
+    added = set() 
+    newly_captured_points = mpz2bag(captured)  # newly captured 
+    for cap in newly_captured_points:
+        n = mpz_set_bits(gmp.mpz(), data_points2rules[cap]) 
+        if n not in added: 
+            tot_update_bound += all_classes[n].minority_mistakes
+            added.add(n) 
+            
+    tot_update_bound = (
+        tot_update_bound / len(data_points2rules)
+    )  # normalize as usual for mistakes
+    
+    return tot_update_bound
+    
+
+
+
+
 def equivalent_points_bounds(
     lb: float,
-    lmbd: float,
-    alpha: float,
-    not_captured: mpz,
-    X: np.array,
-    data_points2rules: dict,
-    all_classes: dict
-):
+    equivalent_lower_bound:float, 
+    alpha: float
+    ):
     """
     Pruning condition according to hierarchical lower bound in the Rashomon set formulation
 
@@ -85,23 +112,6 @@ def equivalent_points_bounds(
     bool
         true: prune all the children of parent_node , false: do not prune
     """
-
-
-
     
-    #  comput minimum error in the uncovered/ not captured part due to th equivalence classes
-    tot_not_captured_error_bound = 0
-    added = set() 
-    not_captured_points = mpz2bag(not_captured) 
-    for not_captured_data_point in not_captured_points: 
-       
-            n = mpz_set_bits(gmp.mpz(), data_points2rules[not_captured_data_point]) 
-            if n not in added: # this to make sure that we add only once for each not captured class and not for every not captured point 
-                tot_not_captured_error_bound += all_classes[n].minority_mistakes
-                added.add(n) 
-        
-    tot_not_captured_error_bound = (
-        tot_not_captured_error_bound / X.shape[0]
-    )  # normalize as usual for mistakes
-
-    return lb + tot_not_captured_error_bound > alpha
+    
+    return lb + equivalent_lower_bound > alpha

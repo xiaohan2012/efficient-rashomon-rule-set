@@ -30,7 +30,7 @@ class EquivalentPointClass:
         )  # recall this is to be normalized
 
 
-def find_equivalence_classes(X_trn:np.ndarray, y_train: np.ndarray, rules: List[Rule]):
+def find_equivalence_classes(y_train: np.ndarray, rules: List[Rule]):
     """ 
     Fimd equivalence classes of points having the same attributes but possibly different labels.
     This function is to be used once prior to branch-and-bound execution to exploit the equivalence-points-based bound.
@@ -51,10 +51,17 @@ def find_equivalence_classes(X_trn:np.ndarray, y_train: np.ndarray, rules: List[
     all equivalnce classes of points all_classes
     """
 
+    
+    
+
     all_classes = dict()
     
+    nPnt = len(y_train)
+    
+    print(nPnt)
+    
     # find equivalence classes
-    data_points2rules = [[] for _ in range(X_trn.shape[0])] 
+    data_points2rules = [[] for _ in range(nPnt)] 
     
    
     for rule in rules: 
@@ -63,11 +70,21 @@ def find_equivalence_classes(X_trn:np.ndarray, y_train: np.ndarray, rules: List[
             data_points2rules[cov].append(rule.id)            
             
             
-    for i in range(X_trn.shape[0]): 
+    for i in range(nPnt): 
         n = mpz_set_bits(gmp.mpz(), data_points2rules[i]) 
         if n not in all_classes: 
             all_classes[n] = EquivalentPointClass(n)
         all_classes[n].update(i,y_train[i])
         
         
-    return data_points2rules, all_classes
+        
+    # also compute the equivalent lower bound for the root node 
+    tot_not_captured_error_bound_init = 0
+    for equi_class in all_classes.keys():     
+        tot_not_captured_error_bound_init += all_classes[equi_class].minority_mistakes
+        
+    tot_not_captured_error_bound_init = (
+         tot_not_captured_error_bound_init / nPnt
+    )  # normalize as usual for mistakes
+
+    return tot_not_captured_error_bound_init, data_points2rules, all_classes
