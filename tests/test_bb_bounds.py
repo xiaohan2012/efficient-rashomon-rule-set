@@ -4,7 +4,7 @@ from bds.bb import  BranchAndBoundV1, BranchAndBoundV0, incremental_update_lb, i
 from bds.cbb import  ConstrainedBranchAndBoundV1
 from bds.common import EPSILON
 from bds.utils import bin_array, randints, solutions_to_dict
-from .fixtures import rules, y , rulesForBounds1, yForBounds1
+from .fixtures import rules, y , rulesForBounds1, yForBounds1 ,  rulesForBounds2, yForBounds2
 from .utils import assert_dict_allclose, assert_close_mpfr
 from bds.bounds_utils import *
 from bds.bounds_v2 import * 
@@ -238,6 +238,24 @@ class TestBranchAndBoundV1:
      
 
          
+    
+    def test_V1(self, rulesForBounds2, yForBounds2):
+        
+        
+        lmbd = 0.1
+        ub = 0.7
+        bb = BranchAndBoundV1(rulesForBounds2, ub=ub, y=yForBounds2, lmbd=lmbd)
+        feasible_solutions = list(bb.run(return_objective=True))
+        actual = solutions_to_dict(feasible_solutions)
+
+
+        expected =  {(0, 1): mpfr('0.6833333'),
+                     (0, 2): mpfr('0.6833333'),
+                     (0, 3): mpfr('0.6833333'),
+                     (0, 4): mpfr('0.6833333'),
+                     (0, 3, 4): mpfr('0.7')}
+        assert_dict_allclose(actual, expected)
+    
     
         
         
