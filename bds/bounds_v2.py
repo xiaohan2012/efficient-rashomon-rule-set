@@ -40,7 +40,7 @@ def rule_set_size_bound_with_default(parent_node: Node, lmbd: float, alpha: floa
         parent_node.get_ruleset_ids()
     )  # this should be the number of rules each set contains
     
-    return ruleset_size > ((alpha/lmbd) - 1) # the -1 is because of the extra rule moving from the parent to its children
+    return ruleset_size > ((alpha/lmbd)) # the -1 is because of the extra rule moving from the parent to its children
 
 
 
