@@ -57,9 +57,7 @@ def find_equivalence_classes(y_train: np.ndarray, rules: List[Rule]):
     all_classes = dict()
     
     nPnt = len(y_train)
-    
-    print(nPnt)
-    
+        
     # find equivalence classes
     data_points2rules = [[] for _ in range(nPnt)] 
     
