@@ -76,3 +76,88 @@ def rules():
             truthtable=mpz_set_bits(mpz(), [0, 2, 4])
         ),
     ]
+
+
+@pytest.fixture
+def rulesForBounds1():
+    return [
+        Rule(
+            id=1,
+            name="rule-1",
+            cardinality=1,
+            # truthtable=np.array([0, 1, 0, 1, 0], dtype=bool),
+            truthtable=mpz_set_bits(mpz(), [1, 3])
+        ),
+        Rule(
+            id=2,
+            name="rule-2",
+            cardinality=1,
+            # truthtable=np.array([0, 0, 1, 0, 1], dtype=bool),
+            truthtable=mpz_set_bits(mpz(), [2, 4])
+        ),
+        Rule(
+            id=3,
+            name="rule-3",
+            cardinality=1,
+            # truthtable=np.array([1, 0, 1, 0, 1], dtype=bool),
+            truthtable=mpz_set_bits(mpz(), [0, 2, 4])
+        ),
+    
+        Rule(
+            id=4,
+            name="rule-4",
+            cardinality=1,
+            # truthtable=np.array([1, 0, 1, 0, 1], dtype=bool),
+            truthtable=mpz_set_bits(mpz(), [0, 2, 4])
+        ),
+    
+    
+    ]
+
+
+
+@pytest.fixture
+def yForBounds1():
+    return np.array([0, 1, 0, 0, 0], dtype=bool)
+
+
+@pytest.fixture
+def rulesForBounds2():
+    return  [
+            Rule(
+                id=1,
+                name="rule-1",
+                cardinality=1,
+                # truthtable=np.array([0, 1, 0, 1, 0], dtype=bool),
+                truthtable=mpz_set_bits(mpz(), [1, 3, 5, 7])
+            ),
+            Rule(
+                id=2,
+                name="rule-2",
+                cardinality=1,
+                # truthtable=np.array([0, 0, 1, 0, 1], dtype=bool),
+                truthtable=mpz_set_bits(mpz(), [2, 4,8,9])
+            ),
+            Rule(
+                id=3,
+                name="rule-3",
+                cardinality=1,
+                # truthtable=np.array([1, 0, 1, 0, 1], dtype=bool),
+                truthtable=mpz_set_bits(mpz(), [0, 2, 4,10])
+            ),
+        
+            Rule(
+                id=4,
+                name="rule-4",
+                cardinality=1,
+                # truthtable=np.array([1, 0, 1, 0, 1], dtype=bool),
+                truthtable=mpz_set_bits(mpz(), [0, 2, 4, 11])
+            )
+          
+        ]
+
+
+@pytest.fixture
+def yForBounds2(): 
+    return np.array([0, 1, 0, 0, 1, 0 ,1, 1, 1, 0, 1, 1 ], dtype=bool)
+

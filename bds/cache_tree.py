@@ -14,6 +14,7 @@ class Node:
     children: Dict[int, "Node"] = field(default_factory=dict)
     depth: int = 0
     parent: Optional["Node"] = None
+    equivalent_lower_bound: Optional[float] = None # it should default to none if not given 
 
     def __post_init__(self):
         """if parent is not None, 'bind' self and parent by upting children and depth accordingly"""

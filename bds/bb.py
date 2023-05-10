@@ -20,7 +20,7 @@ from .utils import (
 
 # logger.setLevel(logging.INFO)
 from .bounds_utils import *
-from .bounds_v2 import rule_set_size_bound_with_default, equivalent_points_bounds
+from .bounds_v2 import rule_set_size_bound_with_default, equivalent_points_bounds, update_equivalent_lower_bound
 
 
 # @profile
@@ -65,7 +65,7 @@ class BranchAndBoundGeneric:
         lmbd: the parameter that controls regularization strength
         """
         assert_binary_array(y)
-
+        self.y_bool = y
         self.rules = rules
         self.ub = ub
         self.y = mpz_set_bits(mpz(), y.nonzero()[0])  # convert y from np.array to mpz
@@ -218,30 +218,49 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
 
     bounds used: hierarchical lower bound, bounds on the total number of rules, bounds on equivalent points
     """
+    
+    def reset(self, first_equivalent_lower_bound):
+        self.reset_tree(first_equivalent_lower_bound)
+        self.reset_queue()
 
-    def reset_tree(self):
+    def reset_tree(self, first_equivalent_lower_bound):
         self.tree = CacheTree()
         root = Node.make_root(self.default_rule_fnr, self.num_train_pts)
+        root.equivalent_lower_bound = first_equivalent_lower_bound
 
         # add the root
         self.tree.add_node(root)
 
+    def _not_captured_by_default_rule(self):
+        """return the vector of not captured by default rule
+        the dafault rule captures nothing
+        """
+        return mpz_all_ones(self.num_train_pts)
+
     def reset_queue(self):
         self.queue: Queue = Queue()
-        not_captured = bin_ones(self.y.shape)  # the dafault rule captures nothing
+
+        not_captured = self._not_captured_by_default_rule()
 
         item = (self.tree.root, not_captured)
         self.queue.push(item, key=0)
 
+    def _incremental_update_lb(self, v: mpz, y: np.ndarray) -> mpfr:
+        return incremental_update_lb(v, y, self.num_train_pts)
+
+    def _incremental_update_obj(self, u: mpz, v: mpz) -> Tuple[mpfr, mpz]:
+        return incremental_update_obj(u, v, self.y, self.num_train_pts)
+
+
+
     # override method from the base class
-    def run(self, *args, X_trn, return_objective=False):
-        self.reset(*args)
-        data_points2rules, equivalence_classes = find_equivalence_classes(X_trn, self.y, self.rules)
+    def run(self, *args, return_objective=False):
+        tot_not_captured_error_bound_init, data_points2rules, equivalence_classes = find_equivalence_classes(self.y_bool, self.rules)
+        self.reset(*args, first_equivalent_lower_bound = tot_not_captured_error_bound_init)
         while not self.queue.is_empty:
             queue_item = self.queue.pop()
             yield from self._loop(
                 *queue_item,
-                X_trn,
                 data_points2rules,
                 equivalence_classes,
                 return_objective=return_objective,
@@ -250,12 +269,11 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
     def _loop(
         self,
         parent_node: Node,
-        parent_not_captured: np.ndarray,
-        X_trn: np.array,
+        parent_not_captured: mpz,
         data_points2rules: dict,
         equivalence_classes: dict,
         return_objective=False
-    ):
+        ):
         """
         check one node in the search tree, update the queue, and yield feasible solution if exists
 
@@ -265,71 +283,201 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
         """
         parent_lb = parent_node.lower_bound
 
-        for rule in self.rules:
-            if rule.id > parent_node.rule_id:
-                # logger.debug(f"considering rule {rule.id}")
-                captured = self._captured_by_rule(rule, parent_not_captured)
+        for rule in self.rules[parent_node.rule_id:]:
+            # logger.debug(f"considering rule {rule.id}")
+            captured = self._captured_by_rule(rule, parent_not_captured)
 
-                lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
+            
+            #if lb <= self.ub:
+            flag_rule_set_size = rule_set_size_bound_with_default(
+                parent_node, self.lmbd, self.ub
+            )  # i
+            if not flag_rule_set_size: # this is fast to compute so we check it first 
+                
+                lb = (
+                    parent_lb
+                    + self._incremental_update_lb(captured, self.y)
+                    + self.lmbd
+                )
+                
+                parent_equivalent_lower_bound = parent_node.equivalent_lower_bound
 
-                flag_rule_set_size = rule_set_size_bound_with_default(
-                    parent_node, self.lmbd, self.ub
-                )  # if true, we prune
-
+                equivalent_lower_bound = parent_equivalent_lower_bound - update_equivalent_lower_bound(captured, data_points2rules, equivalence_classes) 
+                
+                #print("rule " + str(rule)) 
+                
+                #print("parent rules " + str(parent_node.get_ruleset_ids())) 
+                
+                #print("parent_equivalent_lower_bound " + str(parent_equivalent_lower_bound)) 
+                
+                #print("equivalent lower bound after update " + str(equivalent_lower_bound))
+                
+                #print("lower bound " + str(lb))
+                
+                #print("parent lower bound " + str(parent_lb)) 
+                
+                
                 flag_equivalent_classes = equivalent_points_bounds(
                     lb,
-                    self.lmbd,
-                    self.ub,
-                    parent_not_captured,
-                    X_trn,
-                    data_points2rules,
-                    equivalence_classes
+                    equivalent_lower_bound, 
+                    self.ub
                 )  # if true, we prune
-
-                #if lb <= self.ub:
-                flag_rule_set_size = rule_set_size_bound_with_default(
-                    parent_node, self.lmbd, self.ub
-                )  # i
-                if not flag_rule_set_size:
-                    flag_equivalent_classes = equivalent_points_bounds(
-                        lb,
-                        self.lmbd,
-                        self.ub,
-                        parent_not_captured,
-                        X_trn,
-                        equivalence_classes,
-                    )  # if true, we prune
-                    if not flag_equivalent_classes: 
                 
+                if not flag_equivalent_classes: 
+                        
+                    fn_fraction, not_captured = self._incremental_update_obj(
+                        parent_not_captured, captured
+                    )
+                    obj = lb + fn_fraction
+
+                    child_node = Node(
+                        rule_id=rule.id,
+                        lower_bound=lb,
+                        equivalent_lower_bound=equivalent_lower_bound,
+                        objective=obj,
+                        num_captured=gmp.popcount(captured),
+                    )
+
+                    self.tree.add_node(child_node, parent_node)
+
+                    self.queue.push(
+                        (child_node, not_captured),
+                        key=child_node.lower_bound,  # TODO: consider other types of prioritization
+                    )
+                    if obj <= self.ub:
+                        ruleset = child_node.get_ruleset_ids()
+                        # logger.debug(
+                        #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
+                        # )
+                        if return_objective:
+                            yield (ruleset, child_node.objective)
+                        else:
+                            yield ruleset
                             
-                        fn_fraction, not_captured = incremental_update_obj(
-                            parent_not_captured, captured, self.y
-                        )
-                        obj = lb + fn_fraction
+                            
+                            
+
+
+class BranchAndBoundV0(BranchAndBoundGeneric):
     
-                        child_node = Node(
-                            rule_id=rule.id,
-                            lower_bound=lb,
-                            objective=obj,
-                            num_captured=captured.sum(),
-                        )
     
-                        self.tree.add_node(child_node, parent_node)
+    """
+    V0 only uses the bound on rule set size , probably mostly for testing 
     
-                        self.queue.push(
-                            (child_node, not_captured),
-                            key=child_node.lower_bound,  # TODO: consider other types of prioritization
-                        )
-    
-                        if obj <= self.ub:
-                            ruleset = child_node.get_ruleset_ids()
-                            # logger.debug(
-                            #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
-                            # )
-                            if return_objective:
-                                yield (ruleset, child_node.objective)
-                            else:
-                                yield ruleset
+    an implementation of the branch and bound algorithm for enumerating good decision sets.
+
+    bounds used: hierarchical lower bound, bounds on the total number of rules, bounds on equivalent points
+    """
+
+    def reset_tree(self):
+        self.tree = CacheTree()
+        root = Node.make_root(self.default_rule_fnr, self.num_train_pts)
+
+        # add the root
+        self.tree.add_node(root)
+
+    def _not_captured_by_default_rule(self):
+        """return the vector of not captured by default rule
+        the dafault rule captures nothing
+        """
+        return mpz_all_ones(self.num_train_pts)
+
+    def reset_queue(self):
+        self.queue: Queue = Queue()
+
+        not_captured = self._not_captured_by_default_rule()
+
+        item = (self.tree.root, not_captured)
+        self.queue.push(item, key=0)
+
+    def _incremental_update_lb(self, v: mpz, y: np.ndarray) -> mpfr:
+        return incremental_update_lb(v, y, self.num_train_pts)
+
+    def _incremental_update_obj(self, u: mpz, v: mpz) -> Tuple[mpfr, mpz]:
+        return incremental_update_obj(u, v, self.y, self.num_train_pts)
+
+
+
+
+    def _loop(
+        self,
+        parent_node: Node,
+        parent_not_captured: mpz,
+        return_objective=False
+        ):
+        """
+        check one node in the search tree, update the queue, and yield feasible solution if exists
+
+        parent_node: the current node/prefix to check
+        parent_not_captured: postives not captured by the current prefix
+        return_objective: True if return the objective of the evaluated node
+        """
+        parent_lb = parent_node.lower_bound
+
+        for rule in self.rules[parent_node.rule_id:]:
+            # logger.debug(f"considering rule {rule.id}")
+            captured = captured = self._captured_by_rule(rule, parent_not_captured)
+
+            
+
+            flag_rule_set_size = rule_set_size_bound_with_default(
+                parent_node, self.lmbd, self.ub
+            )  # if true, we prune
+
+            
+
+            #if lb <= self.ub:
+            flag_rule_set_size = rule_set_size_bound_with_default(
+                parent_node, self.lmbd, self.ub
+            )  # i
+            if not flag_rule_set_size: # this is super fast to compute so we check it first 
+                
+                lb = (
+                    parent_lb
+                    + self._incremental_update_lb(captured, self.y)
+                    + self.lmbd
+                )
+                
+                
+                fn_fraction, not_captured = self._incremental_update_obj(
+                    parent_not_captured, captured
+                )
+                obj = lb + fn_fraction
+
+                child_node = Node(
+                    rule_id=rule.id,
+                    lower_bound=lb,
+                    objective=obj,
+                    num_captured=gmp.popcount(captured),
+                )
+
+                self.tree.add_node(child_node, parent_node)
+
+                self.queue.push(
+                    (child_node, not_captured),
+                    key=child_node.lower_bound,  # TODO: consider other types of prioritization
+                )
+                if obj <= self.ub:
+                    ruleset = child_node.get_ruleset_ids()
+                    # logger.debug(
+                    #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
+                    # )
+                    if return_objective:
+                        yield (ruleset, child_node.objective)
+                    else:
+                        yield ruleset
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def get_ground_truth_count(
