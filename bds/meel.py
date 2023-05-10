@@ -8,6 +8,7 @@ from typing import List, Optional, Tuple, Union, Set
 
 import numpy as np
 from tqdm import tqdm
+from contexttimer import Timer
 
 from .bb import BranchAndBoundNaive
 from .cbb import ConstrainedBranchAndBoundNaive
@@ -128,7 +129,9 @@ def log_search(
         A_sub, t_sub = A[:m], t[:m]
 
         # obtain only the first `thresh` solutions in the random cell
-        Y_size = cbb.bounded_count(thresh, A_sub, t_sub)
+        with Timer() as timer:
+            Y_size = cbb.bounded_count(thresh, A_sub, t_sub)
+            logger.debug(f"solving takes {timer.elapsed:.2f} secs")
         Y_size_arr[m] = Y_size
 
         search_trajectory.append((m, Y_size, thresh))
@@ -242,12 +245,12 @@ def approx_mc2_core(
     # try to find at most thresh solutions using all constraints
     cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
     logger.debug(f"initial solving under {A.shape[0]} constraints")
-    Y_size = cbb.bounded_count(thresh, A, t)
+    with Timer() as timer:
+        Y_size = cbb.bounded_count(thresh, A, t)
+        logger.debug(f"solving takes {timer.elapsed:.2f} secs")
 
     if Y_size >= thresh:
-        logger.debug(
-            f"with |Y| {Y_size} >= {thresh}, therefore return None"
-        )
+        logger.debug(f"with |Y| {Y_size} >= {thresh}, therefore return None")
         return None, None
     else:
         logger.debug(
@@ -329,7 +332,9 @@ def approx_mc2(
     thresh_floor = int_floor(thresh)  # round down to integer
 
     # take at most thresh_floor solutions
-    Y_bounded_size = bb.bounded_count(thresh_floor)
+    with Timer() as timer:
+        Y_bounded_size = bb.bounded_count(thresh_floor)
+        logger.debug(f"solving takes {timer.elapsed:.2f} secs")
 
     logger.debug(
         f"initial solving with thresh={thresh_floor} gives {Y_bounded_size} solutions"
@@ -357,15 +362,17 @@ def approx_mc2(
         for trial_idx in iter_obj:
             rand_seed_next = rand_seed_pool[trial_idx]
             # TODO: it can be parallelized
-            num_cells, num_sols = approx_mc2_core(
-                rules,
-                y,
-                lmbd,
-                ub,
-                thresh_floor,
-                prev_num_cells=prev_num_cells,
-                rand_seed=rand_seed_next,
-            )
+            with Timer() as timer:
+                num_cells, num_sols = approx_mc2_core(
+                    rules,
+                    y,
+                    lmbd,
+                    ub,
+                    thresh_floor,
+                    prev_num_cells=prev_num_cells,
+                    rand_seed=rand_seed_next,
+                )
+                logger.debug(f"running approx_mc2_core takes {timer.elapsed:.2f}s")
             prev_num_cells = num_cells
             if num_cells is not None:
                 logger.debug(f"num_cells: {num_cells}, num_sols: {num_sols}")
