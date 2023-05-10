@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Tuple, Union, Iterable
 from logzero import logger
 from gmpy2 import mpz, mpfr
 
-
+from .gf2 import GF, extended_rref
 from .bb import BranchAndBoundNaive, incremental_update_lb, incremental_update_obj
 from .bounds_utils import *
 from .bounds_v2 import equivalent_points_bounds, rule_set_size_bound_with_default
@@ -19,6 +19,7 @@ from .utils import (
     assert_binary_array,
     bin_ones,
     bin_zeros,
+    bin_array,
     mpz_all_ones,
     get_max_nz_idx_per_row,
 )
@@ -125,15 +126,31 @@ def check_if_satisfied(u: mpz, s: mpz, z: mpz, t: np.ndarray) -> bool:
 
 
 class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
+    def _simplify_constraint_system(
+        self, A: np.ndarray, t: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """simplify the constraint system using reduced row echelon form"""
+        A_rref, t_rref, p = extended_rref(
+            GF(A.astype(int)), GF(t.astype(int)), verbose=False
+        )
+        n_total_entries = np.prod(A.shape)
+
+        logger.debug(
+            "density of A dropped from {:.5%} to {:.5%}".format(
+                A.sum() / n_total_entries, bin_array(A_rref).sum() / n_total_entries
+            )
+        )
+        return bin_array(A_rref), bin_array(t_rref)
+
     def reset_queue(self, A: np.ndarray, t: np.ndarray):
         assert_binary_array(t)
 
         self.queue: Queue = Queue()
         not_captured = self._not_captured_by_default_rule()
 
-        # assign the parity constraint system
-        self.A = A
-        self.t = t
+        # simplify theconstraint system
+        self.A, self.t = self._simplify_constraint_system(A, t)
+
         num_constraints = self.A.shape[0]
 
         # auxiliary data structures for caching and better performance
@@ -281,7 +298,9 @@ class ConstrainedBranchAndBoundV1(BranchAndBoundNaive):
     # i guess we could instead compute self.equivalence_classes upon initialization?
     def run(self, *args, X_trn, return_objective=False):
         self.reset(*args)
-        data_points2rules, equivalence_classes = find_equivalence_classes(X_trn, self.y, self.rules)
+        data_points2rules, equivalence_classes = find_equivalence_classes(
+            X_trn, self.y, self.rules
+        )
         while not self.queue.is_empty:
             queue_item = self.queue.pop()
             yield from self._loop(
@@ -322,15 +341,18 @@ class ConstrainedBranchAndBoundV1(BranchAndBoundNaive):
                 )
                 if not_unsatisfied:
                     captured = self._captured_by_rule(rule, parent_not_captured)
-                    
+
                     flag_rule_set_size = rule_set_size_bound_with_default(
-                        parent_node, self.lmbd, self.ub)
+                        parent_node, self.lmbd, self.ub
+                    )
 
                     if not flag_rule_set_size:
-                        
-                        lb = parent_lb + incremental_update_lb(captured, self.y) + self.lmbd
+                        lb = (
+                            parent_lb
+                            + incremental_update_lb(captured, self.y)
+                            + self.lmbd
+                        )
 
-                        
                         flag_equivalent_classes = equivalent_points_bounds(
                             lb,
                             self.lmbd,
@@ -340,29 +362,27 @@ class ConstrainedBranchAndBoundV1(BranchAndBoundNaive):
                             data_points2rules,
                             equivalence_classes,
                         )  # if true, we prune
-                        
-                        
-                        if not flag_equivalent_classes: 
-                
+
+                        if not flag_equivalent_classes:
                             fn_fraction, not_captured = incremental_update_obj(
                                 parent_not_captured, captured, self.y
                             )
                             obj = lb + fn_fraction
-    
+
                             child_node = Node(
                                 rule_id=rule.id,
                                 lower_bound=lb,
                                 objective=obj,
                                 num_captured=captured.sum(),
                             )
-    
+
                             self.tree.add_node(child_node, parent_node)
-    
+
                             self.queue.push(
                                 (child_node, not_captured, sp, zp),
                                 key=child_node.lower_bound,  # TODO: consider other types of prioritization
                             )
-    
+
                             if obj <= self.ub and check_if_satisfied(sp, zp, self.t):
                                 ruleset = child_node.get_ruleset_ids()
                                 # logger.debug(
