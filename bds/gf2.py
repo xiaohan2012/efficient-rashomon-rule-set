@@ -72,7 +72,7 @@ def rref_of_triu(
 def rref(A: GF, b: Optional[GF] = None) -> Tuple[GF, GF]:
     """given a linear system Ax=b or a matrix A in GF2
 
-    calculate the row reduced echolon form of A (and the corresponding vector of b if b is given)
+    calculate the reduced row echelon form of A (and the corresponding vector of b if b is given)
     """
     # do Gaussian elimination, PA = LU
     # P: the permutation matrix
