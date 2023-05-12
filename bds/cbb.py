@@ -80,28 +80,20 @@ def check_if_not_unsatisfied(
         iter_obj = rule2cst[j]
 
     for i in iter_obj:
-        # if gmp.bit_test(up, i):  # the ith constraint is undetermined
-        #     zp = gmp.bit_flip(zp, i)  # flip the parity value
-        if up[i]:
-            zp[i] = not zp[i]
+        if up[i]:  # the ith constraint is undetermined
+            zp[i] = not zp[i]  # flip the parity value
             # obtain the maximum non-zero index for the current constraint
             # either from cache or caculation from scratch
             max_nz_idx = max_nz_idx_array[i]
 
             if j == (max_nz_idx + 1):  # we can evaluate this constraint
-                # up = gmp.bit_clear(up, i)  # the ith constraint is determined
-                up[i] = 0
-                # if gmp.bit_test(zp, i) == t[i]:
+                up[i] = 0  # the ith constraint is determined
                 if zp[i] == t[i]:
                     # this constraint evaluates to true
                     # we do not return because we might need to consider remaining constraints
-                    # print(f"and it is satisfied")
-                    # sp = gmp.bit_set(sp, i)
                     sp[i] = True
                 else:
                     # this constraint evaluates to false, thus the system evaluates to false
-                    # print(f"and it is unsatisfied")
-                    # sp = gmp.bit_clear(sp, i)
                     sp[i] = False
                     return up, sp, zp, False
     return up, sp, zp, True
@@ -118,20 +110,10 @@ def check_if_satisfied(
 
     num_constraints = t.shape[0]
     for i in range(num_constraints):
-        # constraint is determiend but failed
-        if (not u[i]) and (not s[i]):
-            # if (gmp.bit_test(u, i) == 0) and (
-            #     gmp.bit_test(s, i) == 0
-            # ):  # constraint is determiend but failed
+        if (not u[i]) and (not s[i]):  # constraint is determiend but failed
             return False
-        elif u[i] and (z[i] != t[i]):
-            # constraint is undetermiend
-            # elif (gmp.bit_test(u, i) == 1) and (
-            #     gmp.bit_test(z, i) != t[i]
-            # ):  # constraint is undetermiend
+        elif u[i] and (z[i] != t[i]):  # constraint is undetermiend
             return False
-        # elif (s[i] == -1) and (z[i] != t[i]):  # undecided
-        #     return False
     return True
 
 
@@ -189,8 +171,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
         # the satisfication status constraint
         # means unsatisified, 1 means satisfied
-        s = bin_zeros(num_constraints
-)
+        s = bin_zeros(num_constraints)
         # the parity status constraint
         # 0 mean an even number of rules are selected
         # 1 mean an odd number of rules are selected
