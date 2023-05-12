@@ -245,7 +245,8 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
                     self.queue.push(
                         (child_node, not_captured, up, sp, zp),
-                        key=child_node.lower_bound,  # TODO: consider other types of prioritization, does the prioritization method count for enumeration problem?
+                        key=child_node.lower_bound,
+                        # key=child_node.lower_bound / child_node.num_captured,  # using the curiosity function defined in CORELS
                     )
 
                     if obj <= self.ub and check_if_satisfied(up, sp, zp, self.t):
@@ -312,7 +313,6 @@ class ConstrainedBranchAndBoundV1(BranchAndBoundNaive):
                 return_objective=return_objective,
             )
 
-    # @profile
     def _loop(
         self,
         parent_node: Node,

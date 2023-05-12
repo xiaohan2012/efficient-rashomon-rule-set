@@ -14,7 +14,9 @@ class Node:
     children: Dict[int, "Node"] = field(default_factory=dict)
     depth: int = 0
     parent: Optional["Node"] = None
-    equivalent_lower_bound: Optional[float] = None # it should default to none if not given 
+    equivalent_lower_bound: Optional[
+        float
+    ] = None  # it should default to none if not given
 
     def __post_init__(self):
         """if parent is not None, 'bind' self and parent by upting children and depth accordingly"""
@@ -94,9 +96,9 @@ class Node:
 
     def __gt__(self, other):
         if type(other) != type(self):
-            raise TypeError(f'{other} is not of type {type(self)}')
+            raise TypeError(f"{other} is not of type {type(self)}")
         return self.rule_id > other.rule_id
-        
+
     def __repr__(self):
         return f"Node(rule_id={self.rule_id}, lower_bound={self.lower_bound}, objective={self.objective})"
 
