@@ -40,8 +40,50 @@ def rule_set_size_bound_with_default(parent_node: Node, lmbd: float, alpha: floa
         parent_node.get_ruleset_ids()
     )  # this should be the number of rules each set contains
     
-    return ruleset_size > ((alpha/lmbd)) # the -1 is because of the extra rule moving from the parent to its children
+    
+    # ruleset_size includes also "0" which is the root and not an actual rule 
+    
+    return ruleset_size > (alpha/lmbd)
 
+
+
+
+def rule_set_size_bound_specific(lb: float, parent_node: Node, lmbd: float, alpha: float):
+    """
+
+    Simple pruning condition according to solely rule-set size.
+    Important: this pruning condition assumes the minority class is the class of positives (labelled with 1). Otherwise,
+    re-labelling is needed to use this bound in this form
+
+    Parameters
+    ----------
+    lb: hierarchical lower bound 
+    
+    parent_node : Node
+
+    lmbd : float
+       penalty parameter
+
+    current_optimal_objective: current optimal set objective
+
+    alpha: Rashomon set confidence parameter
+
+    Returns
+    -------
+    bool
+        true:  prune all the children of parent_node , false: do not prune
+    """
+
+    ruleset_size = len(
+        parent_node.get_ruleset_ids()
+    )  # this should be the number of rules each set contains
+    
+    
+    # ruleset_size includes also "0" which is the root and not an actual rule 
+    K = ruleset_size - 1 # parent rule set size 
+    
+    
+    return ruleset_size > (K + ((alpha-lb)/lmbd))
 
 
 
@@ -70,6 +112,8 @@ def update_equivalent_lower_bound(captured:mpz,  data_points2rules: dict, all_cl
     
     return tot_update_bound
     
+
+
 
 
 
@@ -114,4 +158,4 @@ def equivalent_points_bounds(
     """
     
     
-    return lb + equivalent_lower_bound > alpha
+    return (lb + equivalent_lower_bound) > alpha

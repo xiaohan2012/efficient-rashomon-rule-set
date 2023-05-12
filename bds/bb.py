@@ -252,7 +252,6 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
         return incremental_update_obj(u, v, self.y, self.num_train_pts)
 
 
-
     # override method from the base class
     def run(self, *args, return_objective=False):
         tot_not_captured_error_bound_init, data_points2rules, equivalence_classes = find_equivalence_classes(self.y_bool, self.rules)
@@ -266,6 +265,8 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
                 equivalence_classes,
                 return_objective=return_objective,
             )
+
+
 
     def _loop(
         self,
@@ -304,7 +305,6 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
                 parent_equivalent_lower_bound = parent_node.equivalent_lower_bound
 
                 equivalent_lower_bound = parent_equivalent_lower_bound - update_equivalent_lower_bound(captured, data_points2rules, equivalence_classes) 
-                
                 # just checking 
                 #print("rule " + str(rule)) 
                 ##print("parent rules " + str(parent_node.get_ruleset_ids())) 
@@ -312,8 +312,6 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
                 #print("equivalent lower bound after update " + str(equivalent_lower_bound))
                 #print("lower bound " + str(lb))
                 #print("parent lower bound " + str(parent_lb)) 
-                
-                
                 flag_equivalent_classes = equivalent_points_bounds(
                     lb,
                     equivalent_lower_bound, 
@@ -353,6 +351,7 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
                             
                             
                             
+
 
 
 class BranchAndBoundV0(BranchAndBoundGeneric):
