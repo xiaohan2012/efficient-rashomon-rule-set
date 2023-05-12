@@ -1,27 +1,26 @@
 # constrained branch-and-bound
 import itertools
+from typing import Dict, Iterable, List, Optional, Tuple, Union
+
 import gmpy2 as gmp
-
 import numpy as np
-
-from typing import Dict, List, Optional, Tuple, Union, Iterable
+from gmpy2 import mpfr, mpz
 from logzero import logger
-from gmpy2 import mpz, mpfr
 
-from .gf2 import GF, extended_rref
 from .bb import BranchAndBoundNaive, incremental_update_lb, incremental_update_obj
 from .bounds_utils import *
 from .bounds_v2 import equivalent_points_bounds, rule_set_size_bound_with_default
 from .cache_tree import CacheTree, Node
+from .gf2 import GF, extended_rref
 from .queue import Queue
 from .rule import Rule
 from .utils import (
     assert_binary_array,
+    bin_array,
     bin_ones,
     bin_zeros,
-    bin_array,
-    mpz_all_ones,
     get_max_nz_idx_per_row,
+    mpz_all_ones,
 )
 
 
@@ -30,13 +29,13 @@ def check_if_not_unsatisfied(
     j: int,
     A: np.ndarray,
     t: np.ndarray,
-    u: mpz,
-    s: mpz,
-    z: mpz,
+    u: np.ndarray,
+    s: np.ndarray,
+    z: np.ndarray,
     *,
     rule2cst: Optional[Dict[int, List[int]]] = None,
     max_nz_idx_array: Optional[np.ndarray] = None,
-) -> Tuple[mpz, mpz, mpz, bool]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
     """
     given:
 
@@ -69,8 +68,8 @@ def check_if_not_unsatisfied(
     if max_nz_idx_array is None:
         max_nz_idx_array = get_max_nz_idx_per_row(A)
 
-    up, sp, zp = mpz(u), mpz(s), mpz(z)
-    # s.copy(), z.copy()
+    up, sp, zp = u.copy(), s.copy(), z.copy()
+
     num_constraints, num_variables = A.shape
 
     if rule2cst is None:
@@ -81,29 +80,36 @@ def check_if_not_unsatisfied(
         iter_obj = rule2cst[j]
 
     for i in iter_obj:
-        if gmp.bit_test(up, i):  # the ith constraint is undetermined
-            zp = gmp.bit_flip(zp, i)  # flip the parity value
-
+        # if gmp.bit_test(up, i):  # the ith constraint is undetermined
+        #     zp = gmp.bit_flip(zp, i)  # flip the parity value
+        if up[i]:
+            zp[i] = not zp[i]
             # obtain the maximum non-zero index for the current constraint
             # either from cache or caculation from scratch
             max_nz_idx = max_nz_idx_array[i]
 
             if j == (max_nz_idx + 1):  # we can evaluate this constraint
-                up = gmp.bit_clear(up, i)  # the ith constraint is determined
-                if gmp.bit_test(zp, i) == t[i]:
+                # up = gmp.bit_clear(up, i)  # the ith constraint is determined
+                up[i] = 0
+                # if gmp.bit_test(zp, i) == t[i]:
+                if zp[i] == t[i]:
                     # this constraint evaluates to true
                     # we do not return because we might need to consider remaining constraints
                     # print(f"and it is satisfied")
-                    sp = gmp.bit_set(sp, i)
+                    # sp = gmp.bit_set(sp, i)
+                    sp[i] = True
                 else:
                     # this constraint evaluates to false, thus the system evaluates to false
                     # print(f"and it is unsatisfied")
-                    sp = gmp.bit_clear(sp, i)
+                    # sp = gmp.bit_clear(sp, i)
+                    sp[i] = False
                     return up, sp, zp, False
     return up, sp, zp, True
 
 
-def check_if_satisfied(u: mpz, s: mpz, z: mpz, t: np.ndarray) -> bool:
+def check_if_satisfied(
+    u: np.ndarray, s: np.ndarray, z: np.ndarray, t: np.ndarray
+) -> bool:
     """check if yielding the current prefix as solution satisfies the parity constraint
 
     the calculation is based on incremental results from previous parity constraint checks
@@ -112,13 +118,17 @@ def check_if_satisfied(u: mpz, s: mpz, z: mpz, t: np.ndarray) -> bool:
 
     num_constraints = t.shape[0]
     for i in range(num_constraints):
-        if (gmp.bit_test(u, i) == 0) and (
-            gmp.bit_test(s, i) == 0
-        ):  # constraint is determiend but failed
+        # constraint is determiend but failed
+        if (not u[i]) and (not s[i]):
+            # if (gmp.bit_test(u, i) == 0) and (
+            #     gmp.bit_test(s, i) == 0
+            # ):  # constraint is determiend but failed
             return False
-        elif (gmp.bit_test(u, i) == 1) and (
-            gmp.bit_test(z, i) != t[i]
-        ):  # constraint is undetermiend
+        elif u[i] and (z[i] != t[i]):
+            # constraint is undetermiend
+            # elif (gmp.bit_test(u, i) == 1) and (
+            #     gmp.bit_test(z, i) != t[i]
+            # ):  # constraint is undetermiend
             return False
         # elif (s[i] == -1) and (z[i] != t[i]):  # undecided
         #     return False
@@ -175,14 +185,16 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
         # the undetermined vector:
         # one entry per constraint, 1 means the constraint cannot be evaluated and 0 otherwise
-        u = mpz_all_ones(num_constraints)
+        u = bin_ones(num_constraints)
+
         # the satisfication status constraint
         # means unsatisified, 1 means satisfied
-        s = mpz()
+        s = bin_zeros(num_constraints
+)
         # the parity status constraint
         # 0 mean an even number of rules are selected
         # 1 mean an odd number of rules are selected
-        z = mpz()
+        z = bin_zeros(num_constraints)
 
         item = (self.tree.root, not_captured, u, s, z)
         self.queue.push(item, key=0)
@@ -196,9 +208,9 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         self,
         parent_node: Node,
         parent_not_captured: mpz,
-        u: mpz,
-        s: mpz,
-        z: mpz,
+        u: np.ndarray,
+        s: np.ndarray,
+        z: np.ndarray,
         return_objective=False,
     ):
         """

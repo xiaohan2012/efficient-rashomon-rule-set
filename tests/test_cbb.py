@@ -1,14 +1,12 @@
-import gmpy2 as gmp
 import numpy as np
 import pytest
-from gmpy2 import mpfr, mpz
 
 from bds.cbb import (
     ConstrainedBranchAndBoundNaive,
     check_if_not_unsatisfied,
     check_if_satisfied,
 )
-from bds.utils import bin_array, solutions_to_dict, mpz_all_ones
+from bds.utils import bin_array, solutions_to_dict, bin_zeros, bin_ones
 
 from .fixtures import rules, y
 from .utils import assert_dict_allclose
@@ -26,41 +24,45 @@ class TestCheckIfNotUnsatisfied:
         # we update the parity value for the 2nd constraint to 1
         # however, we cannot evaluate it because the 3rd rule is not considered yet
         j = 1
-        u = mpz("0b11")  # all constraints are undecided
-        s = mpz()
-        z = mpz("0b00")
-        # bin_array([0, 1])
+        u = bin_ones(2)  # all constraints are undecided
+        s = bin_zeros(2)
+        z = bin_zeros(2)
+
         up, sp, zp, not_unsatisfied = check_if_not_unsatisfied(j, A, t, u, s, z)
         assert not_unsatisfied is True
-        assert up == mpz("0b11")  # all constraints are still undetermined
-        assert zp == mpz("0b10")
-        # assert sp == mpz()  # do not test sp because all constraints are not determined, thus sp is not relevant
+        np.testing.assert_allclose(
+            up, bin_ones(2)
+        )  # all constraints are still undetermined
+        np.testing.assert_allclose(zp, bin_array([0, 1]))
+        np.testing.assert_allclose(sp, bin_zeros(2))
 
         # we add the second rule
         # evaluation of constraint 1 is updated, because it contains only rule-2
         # while the rest remains the same
         j = 2
-        # u, z, and s are "inheritted" from previous run
-        u = mpz("0b11")
-        z = mpz("0b10")
-        s = mpz()
+        # u, z, and s are "inherited" from previous run
+        u = bin_ones(2)
+        z = bin_array([0, 1])
+        s = bin_zeros(2)
+
         up, sp, zp, not_unsatisfied = check_if_not_unsatisfied(j, A, t, u, s, z)
         assert not_unsatisfied is True
-        assert up == mpz("0b10")
-        assert zp == mpz("0b11")
-        assert sp == mpz("0b01")
+
+        np.testing.assert_allclose(up, bin_array([0, 1]))
+        np.testing.assert_allclose(zp, bin_ones(2))
+        np.testing.assert_allclose(sp, bin_array([1, 0]))
 
         # we add the third rule
         # all constraints are determined and are satisfied
         j = 3
-        u = mpz("0b10")
-        z = mpz("0b11")
-        s = mpz("0b01")
+        u = bin_array([0, 1])
+        z = bin_ones(2)
+        s = bin_array([1, 0])
         up, sp, zp, not_unsatisfied = check_if_not_unsatisfied(j, A, t, u, s, z)
         assert not_unsatisfied is True
-        assert up == mpz("0b00")  # all constraints are determined
-        assert zp == mpz("0b01")
-        assert sp == mpz("0b11")  # all are satisfied
+        np.testing.assert_allclose(up, bin_zeros(2))  # all constraints are determined
+        np.testing.assert_allclose(zp, bin_array([1, 0]))
+        np.testing.assert_allclose(sp, bin_ones(2))  # all are satisfied
 
     def test_unsatisfied_case(self):
         # the parity constraint system
@@ -69,30 +71,30 @@ class TestCheckIfNotUnsatisfied:
         t = bin_array([0, 1, 1])
         # we add the first rule, note that the rules are 1-indexed
         j = 1
-        u = mpz("0b111")
-        s = mpz()
-        z = mpz()
+        u = bin_ones(3)
+        s = bin_zeros(3)
+        z = bin_zeros(3)
         up, sp, zp, not_unsatisfied = check_if_not_unsatisfied(j, A, t, u, s, z)
 
         # first rule appears in 2nd and 3rd constraint
         # thus we update the 2nd and 3rd rows in z
-        assert up == mpz("0b111")
-        assert zp == mpz("0b110")
+        np.testing.assert_allclose(up, bin_ones(3))
+        np.testing.assert_allclose(zp, bin_array([0, 1, 1]))
         assert not_unsatisfied is True
 
         # then we add 3rd rule on top of the 1st one
         # only the 2nd constraints is updated
         j = 3
-        u = mpz("0b111")
-        s = mpz()
-        z = mpz("0b110")
+        u = bin_ones(3)
+        s = bin_zeros(3)
+        z = bin_array([0, 1, 1])
 
         up, sp, zp, not_unsatisfied = check_if_not_unsatisfied(j, A, t, u, s, z)
 
-        assert up == mpz("0b101")
-        assert sp == mpz("0b000")
+        np.testing.assert_allclose(up, bin_array([1, 0, 1]))
+        np.testing.assert_allclose(sp, bin_zeros(3))
         # parity for the the 3rd constarint is not updated because 2nd evaluates to False and checking stops
-        assert zp == mpz("0b100")
+        np.testing.assert_allclose(zp, bin_array([0, 0, 1]))
         assert not_unsatisfied is False
 
 
@@ -100,14 +102,14 @@ class TestCheckIfSatisfied:
     @pytest.mark.parametrize(
         "u, s, z, expected_result",
         [
-            (mpz("0b11"), mpz("0b00"), mpz("0b01"), True),
-            (mpz("0b01"), mpz("0b10"), mpz("0b01"), True),
-            (mpz("0b01"), mpz("0b00"), mpz("0b01"), False),
-            (mpz("0b00"), mpz("0b11"), mpz("0b10"), True),
-            (mpz("0b10"), mpz("0b01"), mpz("0b11"), False),
-            (mpz("0b11"), mpz("0b00"), mpz("0b10"), False),
-            (mpz("0b00"), mpz("0b11"), mpz("0b01"), True),
-            (mpz("0b01"), mpz("0b10"), mpz("0b00"), False),
+            (bin_ones(2), bin_zeros(2), bin_array([1, 0]), True),
+            (bin_array([1, 0]), bin_array([0, 1]), bin_array([1, 0]), True),
+            (bin_array([1, 0]), bin_array([0, 0]), bin_array([1, 0]), False),
+            (bin_array([0, 0]), bin_array([1, 1]), bin_array([0, 1]), True),
+            (bin_array([0, 1]), bin_array([1, 0]), bin_array([1, 1]), False),
+            (bin_array([1, 1]), bin_array([0, 0]), bin_array([0, 1]), False),
+            (bin_array([0, 0]), bin_array([1, 1]), bin_array([1, 0]), True),
+            (bin_array([1, 0]), bin_array([0, 1]), bin_array([0, 0]), False),
         ],
     )
     def test_case(self, u, s, z, expected_result):
@@ -130,11 +132,11 @@ class TestConstrainedBranchAndBoundNaive:
         item = cbb.queue.front()
         u, s, z = item[2:]
         for value in [u, s, z]:
-            assert isinstance(value, mpz)
+            assert isinstance(value, np.ndarray)
 
-        assert u == mpz_all_ones(2)
-        assert s == mpz()
-        assert z == mpz()
+        np.testing.assert_allclose(u, 1)
+        np.testing.assert_allclose(s, 0)
+        np.testing.assert_allclose(z, 0)
 
     @pytest.mark.parametrize(
         "ub, expected",
