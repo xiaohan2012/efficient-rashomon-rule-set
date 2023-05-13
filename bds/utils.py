@@ -1,23 +1,21 @@
-import numpy as np
-import pandas as pd
+import itertools
+import json
+import logging
+import math
 import os
 import pickle as pkl
-import json
-import math
 import tempfile
-import itertools
-import logging
-import gmpy2 as gmp
-
-
-from gmpy2 import mpz
-from itertools import chain, combinations
 from collections import deque
+from itertools import chain, combinations
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
+
+import gmpy2 as gmp
+import numpy as np
+import pandas as pd
+from gmpy2 import mpz
 from logzero import logger, setup_logger
-from typing import Optional, List, Dict, Tuple, Union, Set, Iterable
 
 from .common import loglevel
-
 
 ii32 = np.iinfo(np.int32)
 
@@ -201,7 +199,7 @@ def get_max_nz_idx_per_row(m: np.ndarray) -> np.ndarray:
         ]
     )
 
-
+    
 def reconstruct_array(n: gmp.mpz) -> np.ndarray:
     # Count the number of bits in `n`
     bit_count = gmp.bit_length(n)

@@ -26,8 +26,23 @@ from .utils import (
 
 
 # @profile
+def get_rule2constraint_idxs(rules: List[Rule], A: np.ndarray) -> Dict[int, List[int]]:
+    """for a list of rules and a constraint matrix A,
+    return the mapping from rule id to the indices of constraints in A where the rule appears
+    """
+    return {
+        r.id: list(
+            map(
+                int,  # convert to int for mpz.bit_test campatibility
+                A[:, r.id - 1].nonzero()[0],
+            )
+        )
+        for r in rules
+    }
 
-@jit(nopython=True)
+
+# @jit(nopython=True)
+@jit
 def check_if_not_unsatisfied(
     j: int,
     A: np.ndarray,
@@ -35,9 +50,8 @@ def check_if_not_unsatisfied(
     u: np.ndarray,
     s: np.ndarray,
     z: np.ndarray,
-    *,
-    rule2cst: Optional[Dict[int, List[int]]] = None,
-    max_nz_idx_array: Optional[np.ndarray] = None,
+    rule2cst: Dict[int, List[int]],
+    max_nz_idx_array: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
     """
     given:
@@ -48,9 +62,9 @@ def check_if_not_unsatisfied(
     u: the 'undetermined' vector for the constraints of a given prefix, 1 means "undecided" and 0 means "decided"
     s: the satisfication vector for the constraints of a given prefix, 1 means 'satisfied and 0 means 'unsatisfied'
     z: 'parity states vector for the constraints of a given preifx, 0 means 'even' and 1 means 'odd'
-    rule2cst (optional): mapping from rule index to the indices of constraints that the rule is present
+    rule2cst: mapping from rule index to the indices of constraints that the rule is present
         provide it for better performance
-    max_nz_idx_array (optional): the array of largest non-zero idx per constraint
+    max_nz_idx_array: the array of largest non-zero idx per constraint
         provide it for better performance
 
     (note that A and t determines the parity constraint system)
@@ -68,19 +82,14 @@ def check_if_not_unsatisfied(
     # assert s.shape == z.shape == t.shape
 
     # compute max_nz_idx_array from scratch if not given
-    if max_nz_idx_array is None:
-        max_nz_idx_array = get_max_nz_idx_per_row(A)
-
     up, sp, zp = u.copy(), s.copy(), z.copy()
 
     num_constraints, num_variables = A.shape
 
-    if rule2cst is None:
-        # without caching
-        iter_obj = [i for i in range(num_constraints) if A[i, j - 1]]
-    else:
-        # with caching
-        iter_obj = rule2cst[j]
+    # iter_obj = [i for i in range(num_constraints) if A[i, j - 1]]
+
+    # with caching
+    iter_obj = rule2cst[j]
 
     for i in iter_obj:
         if up[i]:  # the ith constraint is undetermined
@@ -152,15 +161,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         # auxiliary data structures for caching and better performance
         self.max_nz_idx_array = get_max_nz_idx_per_row(self.A)
 
-        self.rule2cst = {
-            r.id: list(
-                map(
-                    int,  # convert to int for mpz.bit_test campatibility
-                    self.A[:, r.id - 1].nonzero()[0],
-                )
-            )
-            for r in self.rules
-        }
+        self.rule2cst = get_rule2constraint_idxs(self.rules, A)
 
         assert (
             self.A.shape[0] == self.t.shape[0]
