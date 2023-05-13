@@ -28,7 +28,7 @@ class TestCheckIfNotUnsatisfied:
         s = bin_zeros(2)
         z = bin_zeros(2)
 
-        up, sp, zp, not_unsatisfied = check_if_not_unsatisfied(j, A, t, u, s, z)
+        up, sp, zp, not_unsatisfied = check_if_not_unsatisfied(j, A, t, u, s, z, None, None)
         assert not_unsatisfied is True
         np.testing.assert_allclose(
             up, bin_ones(2)

@@ -6,6 +6,7 @@ import gmpy2 as gmp
 import numpy as np
 from gmpy2 import mpfr, mpz
 from logzero import logger
+from numba import jit
 
 from .bb import BranchAndBoundNaive, incremental_update_lb, incremental_update_obj
 from .bounds_utils import *
@@ -25,6 +26,8 @@ from .utils import (
 
 
 # @profile
+
+@jit(nopython=True)
 def check_if_not_unsatisfied(
     j: int,
     A: np.ndarray,
