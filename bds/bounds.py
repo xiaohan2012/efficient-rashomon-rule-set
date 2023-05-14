@@ -1,10 +1,46 @@
 import numpy as np
+import gmpy2 as gmp
 import pandas as pd
+
+from gmpy2 import mpz, mpfr
+
+from typing import Tuple, Optional, List, Iterable
 from .cache_tree import CacheTree, Node
-from bounds_utils import *
+from .bounds_utils import *
+
 
 #### TODO: test and eventually integrate within the bb.py loop() calling the function below
 #### TODO2: (optionally) add more bounds
+
+
+def incremental_update_lb(v: mpz, y: mpz, num_pts: mpz) -> mpfr:
+    """
+    return the incremental false positive fraction for a given rule
+
+    v: a bit vector indicating which points are captured
+    y: a bit vector of the true labels
+    num_pts: length of the bit vectors, which is the total number of points
+    """
+    n = gmp.popcount(v)  # number of predicted positive
+    w = v & y  # true positives
+
+    t = gmp.popcount(w)
+    return (n - t) / num_pts
+
+
+def incremental_update_obj(u: mpz, v: mpz, y: mpz, num_pts: mpz) -> Tuple[mpfr, mpz]:
+    """
+    return the incremental false negative fraction for a rule set (prefix + current rule)
+    and the indicator vector of false negatives
+
+    u: points not captured by the prefix
+    v: points captured by the current rule (in the context of the prefix)
+    y: true labels
+    num_pts: the total number
+    """
+    f = u & (~v)  # points not captured by both prefix and the rule
+    g = f & y  # false negatives
+    return gmp.popcount(g) / num_pts, f
 
 
 def rule_set_size_bound_with_default(
@@ -70,44 +106,6 @@ def rule_set_size_bound(
     return ruleset_size > ((current_optimal_objective + alpha) / lmbd - 1)
 
 
-def bound_on_false_positives(
-    lb: float,
-    parent_node: Node,
-    lmbd: float,
-    current_optimal_objective: float,
-    alpha: float,
-):
-    """
-    Pruning condition according to hierarchical lower bound in the Rashomon set formulation
-
-    Parameters
-    ----------
-    lb : float
-       incrementally computed lower bound
-
-
-    parent_node : Node
-
-    lmbd: float
-        penalty parameter
-
-    current_optimal_objective: float
-        current optimal set objective
-
-    alpha: float
-        Rashomon set confidence parameter
-
-    Returns
-    -------
-    bool
-        true: prune all the children of parent_node , false: do not prune
-    """
-
-    return lb > current_optimal_objective + alpha - lmbd * (
-        len(parent_node.get_ruleset_ids()) - 1
-    )
-
-
 def equivalent_points_bounds(
     lb: float,
     lmbd: float,
@@ -161,3 +159,27 @@ def equivalent_points_bounds(
     )  # normalize as usual for mistakes
 
     return lb + tot_not_captured_error_bound > (current_optimal_objective + alpha)
+
+
+def prefix_specific_length_upperbound(
+    prefix_lb: float, prefix_length: int, lmbd: float, ub: float
+):
+    """
+    for a prefix `d` with lb=`prefix_lb` and length=`prefix_length`,
+    determine the upper bound of the sizes of rulesets that extend from `d`
+
+    Parameters
+    ----------
+    lb: lower bound of the objective on the current prefix
+
+    perfix_length: length of the current prefix
+
+    lmbd: the complexity penalty parameter
+
+    ub: the maximum objective function value for a solution to be considered in the Rashomon set
+
+    Returns
+    -------
+    the upper bound of the length of its extensions
+    """
+    return (prefix_length + np.floor((ub - prefix_lb) / lmbd))

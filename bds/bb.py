@@ -12,46 +12,15 @@ from .rule import Rule
 from .utils import (
     bin_ones,
     assert_binary_array,
-    debug2,
     mpz_set_bits,
     mpz_all_ones,
     count_iter,
 )
+from .bounds import incremental_update_lb, incremental_update_obj
 
 # logger.setLevel(logging.INFO)
 from .bounds_utils import *
 from .bounds_v2 import rule_set_size_bound_with_default, equivalent_points_bounds, update_equivalent_lower_bound
-
-
-# @profile
-def incremental_update_lb(v: mpz, y: mpz, num_pts: mpz) -> mpfr:
-    """
-    return the incremental false positive fraction for a given rule
-
-    v: a bit vector indicating which points are captured
-    y: a bit vector of the true labels
-    num_pts: length of the bit vectors, which is the total number of points
-    """
-    n = gmp.popcount(v)  # number of predicted positive
-    w = v & y  # true positives
-
-    t = gmp.popcount(w)
-    return (n - t) / num_pts
-
-
-def incremental_update_obj(u: mpz, v: mpz, y: mpz, num_pts: mpz) -> Tuple[mpfr, mpz]:
-    """
-    return the incremental false negative fraction for a rule set (prefix + current rule)
-    and the indicator vector of false negatives
-
-    u: points not captured by the prefix
-    v: points captured by the current rule (in the context of the prefix)
-    y: true labels
-    num_pts: the total number
-    """
-    f = u & (~v)  # points not captured by both prefix and the rule
-    g = f & y  # false negatives
-    return gmp.popcount(g) / num_pts, f
 
 
 class BranchAndBoundGeneric:

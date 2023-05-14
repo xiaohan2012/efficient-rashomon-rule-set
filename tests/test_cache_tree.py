@@ -17,9 +17,11 @@ class TestNode:
     def test__init__(self):
         parent = create_dummy_node(0)
         child = create_dummy_node(1, parent)
+        grand_child = create_dummy_node(2, child)
 
         assert parent.children[child.rule_id] == child
         assert child.depth == 1
+        assert grand_child.depth == 2
 
     def test___eq__(self):
         n1 = create_dummy_node(0)

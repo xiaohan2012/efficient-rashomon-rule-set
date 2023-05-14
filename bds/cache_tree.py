@@ -26,6 +26,10 @@ class Node:
             self.depth = self.parent.depth + 1
 
     @property
+    def num_rules(self):
+        return self.depth
+
+    @property
     def num_children(self):
         return len(self.children)
 

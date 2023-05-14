@@ -7,7 +7,9 @@ from bds.utils import bin_random, randints
 
 def assert_dict_allclose(actual: Dict[Any, Number], expected: [Any, Number]):
     """check the equivalence of two dicts, assuming the value field of both dict are numeric"""
-    assert set(actual.keys()) == (expected.keys())
+    assert set(actual.keys()) == set(
+        expected.keys()
+    ), f"{set(actual.keys())} != {set(expected.keys())}"
 
     for k in actual.keys():
         np.testing.assert_allclose(float(actual[k]), float(expected[k]))
@@ -17,7 +19,10 @@ def generate_random_rule_list(num_pts: int, num_rules: int, rand_seed: int = Non
     """generate a list of `num_rules` random rules on a dataset with num_pts"""
     np.random.seed(1234)
     rand_seeds = randints(num_rules)
-    return [Rule.random(id=i + 1, num_pts=num_pts, random_seed=seed) for i, seed in zip(range(num_rules), rand_seeds)]
+    return [
+        Rule.random(id=i + 1, num_pts=num_pts, random_seed=seed)
+        for i, seed in zip(range(num_rules), rand_seeds)
+    ]
 
 
 def generate_random_rules_and_y(num_pts, num_rules, rand_seed: int = None):

@@ -8,7 +8,12 @@ from gmpy2 import mpfr, mpz
 from logzero import logger
 from numba import jit
 
-from .bb import BranchAndBoundNaive, incremental_update_lb, incremental_update_obj
+from .bb import BranchAndBoundNaive
+from .bounds import (
+    incremental_update_lb,
+    incremental_update_obj,
+    prefix_specific_length_upperbound,
+)
 from .bounds_utils import *
 from .bounds_v2 import equivalent_points_bounds, rule_set_size_bound_with_default
 from .cache_tree import CacheTree, Node
@@ -191,9 +196,16 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         return_objective: True if return the objective of the evaluated node
         """
         parent_lb = parent_node.lower_bound
+        length_ub = prefix_specific_length_upperbound(
+            parent_lb, parent_node.num_rules, self.lmbd, self.ub
+        )
 
         # here we assume the rule ids are consecutive integers
         for rule in self.rules[parent_node.rule_id :]:
+            # prune by ruleset length
+            if (parent_node.num_rules + 1) > length_ub:
+                pass
+
             captured = self._captured_by_rule(rule, parent_not_captured)
             lb = parent_lb + self._incremental_update_lb(captured, self.y) + self.lmbd
             if lb <= self.ub:
@@ -224,6 +236,11 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
                     self.tree.add_node(child_node, parent_node)
 
+                    # look-ahead bound
+                    # TODO: add equivalent point bound
+                    if (child_node.lower_bound + self.lmbd) >= self.ub:
+                        continue
+
                     self.queue.push(
                         (child_node, not_captured, up, sp, zp),
                         key=child_node.lower_bound,
@@ -241,7 +258,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                             yield ruleset
 
 
-class ConstrainedBranchAndBoundV1(BranchAndBoundNaive):
+class ConstrainedBranchAndBoundV1(ConstrainedBranchAndBoundNaive):
     def reset_queue(self, A: np.ndarray, t: np.ndarray):
         self.queue: Queue = Queue()
         not_captured = bin_ones(self.y.shape)  # the dafault rule captures nothing
