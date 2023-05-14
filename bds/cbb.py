@@ -226,7 +226,6 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                         parent_not_captured, captured
                     )
                     obj = lb + fn_fraction
-
                     child_node = Node(
                         rule_id=rule.id,
                         lower_bound=lb,
@@ -236,22 +235,17 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
                     self.tree.add_node(child_node, parent_node)
 
-                    # look-ahead bound
-                    # TODO: add equivalent point bound
-                    if (child_node.lower_bound + self.lmbd) >= self.ub:
-                        continue
-
-                    self.queue.push(
-                        (child_node, not_captured, up, sp, zp),
-                        key=child_node.lower_bound,
-                        # key=child_node.lower_bound / child_node.num_captured,  # using the curiosity function defined in CORELS
-                    )
+                    # apply look-ahead bound
+                    # TODO: combine with equivalent point bound
+                    if (child_node.lower_bound + self.lmbd) <= self.ub:
+                        self.queue.push(
+                            (child_node, not_captured, up, sp, zp),
+                            key=child_node.lower_bound,
+                            # key=child_node.lower_bound / child_node.num_captured,  # using the curiosity function defined in CORELS
+                        )
 
                     if obj <= self.ub and check_if_satisfied(up, sp, zp, self.t):
                         ruleset = child_node.get_ruleset_ids()
-                        # logger.debug(
-                        #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
-                        # )
                         if return_objective:
                             yield (ruleset, child_node.objective)
                         else:
