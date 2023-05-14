@@ -6,7 +6,7 @@ from typing import Tuple, Union, Optional
 GF = galois.GF(2)
 
 
-def extended_rref(A: GF, b: GF, verbose: bool=False) -> Tuple[GF, GF, int]:
+def extended_rref(A: GF, b: GF, verbose: bool = False) -> Tuple[GF, GF, int]:
     """
     given a 2D matrix A and a vector b, both in GF2,
     obtain the reduced row echelon form of a matrix A and repeat the reduction process on a column vector b
@@ -14,12 +14,16 @@ def extended_rref(A: GF, b: GF, verbose: bool=False) -> Tuple[GF, GF, int]:
     """
     if b.ndim == 1:
         b = b.reshape(-1, 1)  # transform it to column vector
-        
+
     if (not b.ndim == 2) or b.shape[0] != A.shape[0] or b.shape[1] != 1:
-        raise ValueError(f'b (of shape {b.shape}) should be a 2D column vector of the same number of rows as A')        
+        raise ValueError(
+            f"b (of shape {b.shape}) should be a 2D column vector of the same number of rows as A"
+        )
 
     if not A.ndim == 2:
-        raise ValueError(f"Only 2-D matrices can be converted to reduced row echelon form, not {A.ndim}-D.")
+        raise ValueError(
+            f"Only 2-D matrices can be converted to reduced row echelon form, not {A.ndim}-D."
+        )
 
     ncols = A.shape[1]
     A_rre = A.copy()
@@ -31,34 +35,34 @@ def extended_rref(A: GF, b: GF, verbose: bool=False) -> Tuple[GF, GF, int]:
         print(f"b:\n{b_rre}")
     for j in range(ncols):
         if verbose:
-            print(f'p={p}')
+            print(f"p={p}")
         # Find a pivot in column `j` at or below row `p`
         idxs = np.nonzero(A_rre[p:, j])[0]
         if idxs.size == 0:
             continue
         i = p + idxs[0]  # Row with a pivot
         if verbose:
-            print(f'checking column {j}')            
-            print(f'pivot is at row {i}')
+            print(f"checking column {j}")
+            print(f"pivot is at row {i}")
 
         # Swap row `p` and `i`. The pivot is now located at row `p`.
         A_rre[[p, i], :] = A_rre[[i, p], :]
         b_rre[[p, i], :] = b_rre[[i, p], :]
         if p != i and verbose:
-            print(f'swap row {p} and {i}')
+            print(f"swap row {p} and {i}")
             print("A:")
-            print(f'{A_rre}')
+            print(f"{A_rre}")
             print("b:")
-            print(f'{b_rre}')
+            print(f"{b_rre}")
 
         idxs = np.nonzero(A_rre[:, j])[0].tolist()
         idxs.remove(p)
         A_rre[idxs, :] -= A_rre[p, :]
         b_rre[idxs, :] -= b_rre[p, :]
-        
+
         if len(idxs) > 0 and verbose:
-            print('Force zeros above and below the pivot')            
-            print(f'substract row {p} to row {idxs}')
+            print("Force zeros above and below the pivot")
+            print(f"substract row {p} to row {idxs}")
             print("A:")
             print(A_rre)
             print("b:")
@@ -70,8 +74,10 @@ def extended_rref(A: GF, b: GF, verbose: bool=False) -> Tuple[GF, GF, int]:
 
     return A_rre, b_rre.flatten(), p
 
+
 def eye(rank: int) -> GF:
     return GF(np.eye(rank, dtype=int))
+
 
 def is_piecewise_linear(arr: GF):
     """
@@ -88,7 +94,9 @@ def is_piecewise_linear(arr: GF):
     """
     arr = np.array(arr, dtype=int)
     unique_elems = set(np.unique(arr))
-    assert len(unique_elems - {0, 1}) == 0, 'extra values {}'.format(unique_elems - {0, 1})
+    assert len(unique_elems - {0, 1}) == 0, "extra values {}".format(
+        unique_elems - {0, 1}
+    )
     try:
         idx_of_1st_zero = next(i for i, el in enumerate(arr) if el == 0)
     except StopIteration:  # all 1s
