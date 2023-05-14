@@ -5,13 +5,16 @@ import math
 import os
 import pickle as pkl
 import tempfile
-from collections import deque
-from itertools import chain, combinations
-from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
-
 import gmpy2 as gmp
 import numpy as np
 import pandas as pd
+
+from collections import deque
+from itertools import chain, combinations
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
+from scipy.sparse import csc_matrix, csr_matrix
+
+
 from gmpy2 import mpz
 from logzero import logger, setup_logger
 
@@ -153,18 +156,17 @@ def mpz_all_ones(n: int) -> mpz:
         return mpz()
 
 
-def mpz2bag(n: mpz): 
-    """ given a mpz() this function returns the original array it is retrieved from """
+def mpz2bag(n: mpz):
+    """given a mpz() this function returns the original array it is retrieved from"""
     i = 0
     bag = set()
-    thisBit = gmp.bit_scan1(n,i)
-    while thisBit!=None: 
+    thisBit = gmp.bit_scan1(n, i)
+    while thisBit != None:
         bag.add(thisBit)
-        i+=1 
-        thisBit = gmp.bit_scan1(n,i)
-        
+        i += 1
+        thisBit = gmp.bit_scan1(n, i)
+
     return bag
-    
 
 
 def debug1(msg):
@@ -199,27 +201,39 @@ def get_max_nz_idx_per_row(m: np.ndarray) -> np.ndarray:
         ]
     )
 
-    
+
 def reconstruct_array(n: gmp.mpz) -> np.ndarray:
     # Count the number of bits in `n`
     bit_count = gmp.bit_length(n)
-    
+
     # Calculate the number of bytes needed to store the bits
     byte_count = (bit_count + 7) // 8
-    
+
     # Extract the bits of `n` into a bit string
     bit_str = ""
     for i in range(bit_count - 1, -1, -1):
         bit_str += "1" if gmp.bit_test(n, i) else "0"
-    
+
     # Reverse the bit string and pad it with zeros to a multiple of 8
     bit_str = bit_str[::-1].ljust(byte_count * 8, "0")
-    
+
     # Convert the bit string to a byte string and then to a numpy array
     byte_str = int(bit_str, 2).to_bytes(byte_count, byteorder="little")
-    return np.frombuffer(byte_str, dtype=np.uint8)[:len(bit_str) // 8]
+    return np.frombuffer(byte_str, dtype=np.uint8)[: len(bit_str) // 8]
 
 
+def get_indices_and_indptr(A: np.ndarray, axis: int = 1):
+    """get the indptr and indices attributes of A's sparse matrix
+
+    axis determines if A is a csc_matrix (axis=0) or csr_matrix (axis=1)
+    """
+    assert A.ndim == 2
+    assert axis in (0, 1)
+    if axis == 0:  # treat A as a csr_matrix
+        A_sp = csr_matrix(A)
+    else:  # treat A as a csc_matrix
+        A_sp = csc_matrix(A)
+    return A_sp.indices, A_sp.indptr
 
 
 # import logzero

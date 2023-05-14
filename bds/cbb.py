@@ -22,27 +22,11 @@ from .utils import (
     bin_zeros,
     get_max_nz_idx_per_row,
     mpz_all_ones,
+    get_indices_and_indptr,
 )
 
 
-# @profile
-def get_rule2constraint_idxs(rules: List[Rule], A: np.ndarray) -> Dict[int, List[int]]:
-    """for a list of rules and a constraint matrix A,
-    return the mapping from rule id to the indices of constraints in A where the rule appears
-    """
-    return {
-        r.id: list(
-            map(
-                int,  # convert to int for mpz.bit_test campatibility
-                A[:, r.id - 1].nonzero()[0],
-            )
-        )
-        for r in rules
-    }
-
-
-# @jit(nopython=True)
-@jit
+@jit(nopython=True)
 def check_if_not_unsatisfied(
     j: int,
     A: np.ndarray,
@@ -50,7 +34,8 @@ def check_if_not_unsatisfied(
     u: np.ndarray,
     s: np.ndarray,
     z: np.ndarray,
-    rule2cst: Dict[int, List[int]],
+    A_indices: np.ndarray,
+    A_indptr: np.ndarray,
     max_nz_idx_array: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
     """
@@ -62,7 +47,7 @@ def check_if_not_unsatisfied(
     u: the 'undetermined' vector for the constraints of a given prefix, 1 means "undecided" and 0 means "decided"
     s: the satisfication vector for the constraints of a given prefix, 1 means 'satisfied and 0 means 'unsatisfied'
     z: 'parity states vector for the constraints of a given preifx, 0 means 'even' and 1 means 'odd'
-    rule2cst: mapping from rule index to the indices of constraints that the rule is present
+    A_indices and A_indptr: where the non-zero row indices for column/rule i are stored in A_indices[A_indptr[i-1]:A_indptr[i]]
         provide it for better performance
     max_nz_idx_array: the array of largest non-zero idx per constraint
         provide it for better performance
@@ -76,22 +61,20 @@ def check_if_not_unsatisfied(
     - the updated parity constraint
     - whether the constraint system is still not unsatisfied
     """
-    # print(f"==== checking the parity system ===== ")
-    # assert_binary_array(z)
-    # assert_binary_array(t)
-    # assert s.shape == z.shape == t.shape
+    cst_idxs = A_indices[
+        A_indptr[j - 1] : A_indptr[j]
+    ]  # get the constraint (row) indices corresponind to rule j
 
     # compute max_nz_idx_array from scratch if not given
-    up, sp, zp = u.copy(), s.copy(), z.copy()
+    up: np.ndarray = u.copy()
+    sp: np.ndarray = s.copy()
+    zp: np.ndarray = z.copy()
 
     num_constraints, num_variables = A.shape
 
     # iter_obj = [i for i in range(num_constraints) if A[i, j - 1]]
 
-    # with caching
-    iter_obj = rule2cst[j]
-
-    for i in iter_obj:
+    for i in cst_idxs:
         if up[i]:  # the ith constraint is undetermined
             zp[i] = not zp[i]  # flip the parity value
             # obtain the maximum non-zero index for the current constraint
@@ -111,6 +94,7 @@ def check_if_not_unsatisfied(
     return up, sp, zp, True
 
 
+@jit(nopython=True)
 def check_if_satisfied(
     u: np.ndarray, s: np.ndarray, z: np.ndarray, t: np.ndarray
 ) -> bool:
@@ -118,7 +102,6 @@ def check_if_satisfied(
 
     the calculation is based on incremental results from previous parity constraint checks
     """
-    assert_binary_array(t)
 
     num_constraints = t.shape[0]
     for i in range(num_constraints):
@@ -161,7 +144,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         # auxiliary data structures for caching and better performance
         self.max_nz_idx_array = get_max_nz_idx_per_row(self.A)
 
-        self.rule2cst = get_rule2constraint_idxs(self.rules, A)
+        self.A_indices, self.A_indptr = get_indices_and_indptr(self.A)
 
         assert (
             self.A.shape[0] == self.t.shape[0]
@@ -222,7 +205,8 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                     s,
                     z,
                     # provide the following cache data for better performance
-                    rule2cst=self.rule2cst,
+                    A_indices=self.A_indices,
+                    A_indptr=self.A_indptr,
                     max_nz_idx_array=self.max_nz_idx_array,
                 )
                 if not_unsatisfied:
