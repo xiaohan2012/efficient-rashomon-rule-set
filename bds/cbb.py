@@ -26,7 +26,7 @@ from .utils import (
 )
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def check_if_not_unsatisfied(
     j: int,
     A: np.ndarray,
@@ -94,7 +94,7 @@ def check_if_not_unsatisfied(
     return up, sp, zp, True
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def check_if_satisfied(
     u: np.ndarray, s: np.ndarray, z: np.ndarray, t: np.ndarray
 ) -> bool:
