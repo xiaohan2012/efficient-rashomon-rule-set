@@ -143,6 +143,7 @@ class TestCheckIfSatisfied:
 
 
 class TestConstrainedBranchAndBoundNaive:
+    @pytest.mark.skip("because equivalent point bound is disabled for now")
     def test___post_init__(self, rules, y):
         # after cbb is created, equivalent points-related attributes should be available
         cbb = ConstrainedBranchAndBoundNaive(rules, float('inf'), y, 0.1)
