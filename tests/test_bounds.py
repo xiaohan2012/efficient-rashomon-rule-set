@@ -2,11 +2,15 @@ import pytest
 import numpy as np
 from gmpy2 import mpz, mpfr
 
-from bds.utils import mpz_set_bits, mpz_clear_bits, randints
+from bds.utils import mpz_set_bits, mpz_clear_bits, randints, bin_random, bin_array
+from bds.rule import Rule
 from bds.bounds import (
     incremental_update_lb,
     incremental_update_obj,
     prefix_specific_length_upperbound,
+    find_equivalence_points,
+    EquivalentPointClass,
+    get_equivalent_point_lb,
 )
 
 
@@ -59,3 +63,76 @@ def test_prefix_specific_length_upperbound():
 
     lmbd = 4.9  # floor(5 / lmbd) = 1
     assert 6 == prefix_specific_length_upperbound(prefix_lb, prefix_length, lmbd, ub)
+
+
+class TestEquivalentPointClass:
+    def test_basic(self):
+        epc = EquivalentPointClass(0)
+        data_idx_and_labels = [
+            (0, False),
+            (1, 0),
+            (2, 0),
+            (3, True),
+            (4, 1),
+            (4, 1),
+            (4, 1),  # duplicates shouldn't be over-counted
+        ]
+        for idx, label in data_idx_and_labels:
+            epc.update(idx, label)
+
+        assert epc.total_positives == 2
+        assert epc.total_negatives == 3
+        assert epc.minority_mistakes == 2
+        assert epc.data_points == set(range(5))
+
+    @pytest.mark.parametrize("label", [-1, "abc", 10, None])
+    def test_invalid_label(self, label):
+        epc = EquivalentPointClass(0)
+        with pytest.raises(ValueError, match="invalid label.*"):
+            epc.update(0, label)
+
+
+class TestEquivalencePointsLowerBound:
+    """test cases for find_equivalence_points and get_equivalence_point_lb"""
+
+    @property
+    def rules(self):
+        return [
+            Rule(id=0, name="rule-0", cardinality=1, truthtable=mpz("0b11000")),
+            Rule(id=1, name="rule-1", cardinality=1, truthtable=mpz("0b11110")),
+            Rule(id=2, name="rule-2", cardinality=1, truthtable=mpz("0b00111")),
+        ]
+
+    @property
+    def y(self):
+        return bin_array([0, 0, 1, 0, 0])
+
+    def test_find_equivalence_points(self):
+        # there are 5 points
+        # the equivalent point classes are:
+        # {0}, {1, 2}, {3, 4}
+        (
+            tot_not_captured_error_bound_init,
+            pt2rules,
+            ep_classes,
+        ) = find_equivalence_points(self.y, self.rules)
+        eqc_as_tuples = set(
+            tuple(sorted(cls.data_points)) for cls in ep_classes.values()
+        )
+        assert eqc_as_tuples == {(0,), (1, 2), (3, 4)}
+
+        assert tot_not_captured_error_bound_init == 1 / 5  # one minority mistake
+        assert pt2rules == [[2], [1, 2], [1, 2], [0, 1], [0, 1]]
+
+    @pytest.mark.parametrize(
+        "captured, expected_lb", [(mpz("0b00110"), 1 / 5), (mpz("0b11000"), 0.0)]
+    )
+    def test_get_equivalent_point_lb(self, captured, expected_lb):
+        (
+            tot_not_captured_error_bound_init,
+            pt2rules,
+            ep_classes,
+        ) = find_equivalence_points(self.y, self.rules)
+
+        lb = get_equivalent_point_lb(captured, pt2rules, ep_classes)
+        np.testing.assert_allclose(lb, expected_lb)

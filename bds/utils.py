@@ -111,7 +111,7 @@ def bin_random(shape):
 
 
 def assert_binary_array(arr):
-    assert isinstance(arr, np.ndarray)
+    assert isinstance(arr, np.ndarray), f'{type(arr)}'
     assert arr.dtype == bool
 
 
@@ -157,11 +157,11 @@ def mpz_all_ones(n: int) -> mpz:
 
 
 def mpz2bag(n: mpz):
-    """given a mpz() this function returns the original array it is retrieved from"""
+    """given a mpz() this function returns the indices of non-zero entries"""
     i = 0
     bag = set()
     thisBit = gmp.bit_scan1(n, i)
-    while thisBit != None:
+    while thisBit is not None:
         bag.add(thisBit)
         i += 1
         thisBit = gmp.bit_scan1(n, i)

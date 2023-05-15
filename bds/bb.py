@@ -20,7 +20,11 @@ from .bounds import incremental_update_lb, incremental_update_obj
 
 # logger.setLevel(logging.INFO)
 from .bounds_utils import *
-from .bounds_v2 import rule_set_size_bound_with_default, equivalent_points_bounds, update_equivalent_lower_bound
+from .bounds_v2 import (
+    rule_set_size_bound_with_default,
+    equivalent_points_bounds,
+    update_equivalent_lower_bound,
+)
 
 
 class BranchAndBoundGeneric:
@@ -34,10 +38,10 @@ class BranchAndBoundGeneric:
         lmbd: the parameter that controls regularization strength
         """
         assert_binary_array(y)
-        self.y_bool = y
+        self.y_np = y  # np.ndarray version of y
         self.rules = rules
         self.ub = ub
-        self.y = mpz_set_bits(mpz(), y.nonzero()[0])  # convert y from np.array to mpz
+        self.y_mpz = mpz_set_bits(mpz(), y.nonzero()[0])  # convert y from np.array to mpz
         self.lmbd = mpfr(lmbd)
 
         logger.debug(f"calling {self.__class__.__name__} with ub={ub}, lmbd={lmbd}")
@@ -45,9 +49,15 @@ class BranchAndBoundGeneric:
         self.num_train_pts = mpz(y.shape[0])
 
         # false negative rate of the default rule = fraction of positives
-        self.default_rule_fnr = mpz(gmp.popcount(self.y)) / self.num_train_pts
+        self.default_rule_fnr = mpz(gmp.popcount(self.y_mpz)) / self.num_train_pts
 
         self._check_rule_ids()
+
+        self.__post_init__()
+
+    def __post_init__(self):
+        """hook function to be called after __init__ is called"""
+        pass
 
     def _check_rule_ids(self):
         """check the rule ids are consecutive integers starting from 1"""
@@ -132,7 +142,7 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         return incremental_update_lb(v, y, self.num_train_pts)
 
     def _incremental_update_obj(self, u: mpz, v: mpz) -> Tuple[mpfr, mpz]:
-        return incremental_update_obj(u, v, self.y, self.num_train_pts)
+        return incremental_update_obj(u, v, self.y_mpz, self.num_train_pts)
 
     def _loop(
         self, parent_node: Node, parent_not_captured: mpz, return_objective=False
@@ -145,13 +155,9 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         return_objective: True if return the objective of the evaluated node
         """
         parent_lb = parent_node.lower_bound
-        for rule in self.rules[parent_node.rule_id:]:
+        for rule in self.rules[parent_node.rule_id :]:
             captured = self._captured_by_rule(rule, parent_not_captured)
-            lb = (
-                parent_lb
-                + self._incremental_update_lb(captured, self.y)
-                + self.lmbd
-            )
+            lb = parent_lb + self._incremental_update_lb(captured, self.y_mpz) + self.lmbd
             if lb <= self.ub:
                 fn_fraction, not_captured = self._incremental_update_obj(
                     parent_not_captured, captured
@@ -187,7 +193,7 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
 
     bounds used: hierarchical lower bound, bounds on the total number of rules, bounds on equivalent points
     """
-    
+
     def reset(self, first_equivalent_lower_bound):
         self.reset_tree(first_equivalent_lower_bound)
         self.reset_queue()
@@ -218,14 +224,19 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
         return incremental_update_lb(v, y, self.num_train_pts)
 
     def _incremental_update_obj(self, u: mpz, v: mpz) -> Tuple[mpfr, mpz]:
-        return incremental_update_obj(u, v, self.y, self.num_train_pts)
-
+        return incremental_update_obj(u, v, self.y_mpz, self.num_train_pts)
 
     # override method from the base class
     def run(self, *args, return_objective=False):
-        tot_not_captured_error_bound_init, data_points2rules, equivalence_classes = find_equivalence_classes(self.y_bool, self.rules)
-        self.equivalence_classes = equivalence_classes # for testing
-        self.reset(*args, first_equivalent_lower_bound = tot_not_captured_error_bound_init)
+        (
+            tot_not_captured_error_bound_init,
+            data_points2rules,
+            equivalence_classes,
+        ) = find_equivalence_points(self.y_np, self.rules)
+        self.equivalence_classes = equivalence_classes  # for testing
+        self.reset(
+            *args, first_equivalent_lower_bound=tot_not_captured_error_bound_init
+        )
         while not self.queue.is_empty:
             queue_item = self.queue.pop()
             yield from self._loop(
@@ -235,16 +246,14 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
                 return_objective=return_objective,
             )
 
-
-
     def _loop(
         self,
         parent_node: Node,
         parent_not_captured: mpz,
         data_points2rules: dict,
         equivalence_classes: dict,
-        return_objective=False
-        ):
+        return_objective=False,
+    ):
         """
         check one node in the search tree, update the queue, and yield feasible solution if exists
 
@@ -254,41 +263,41 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
         """
         parent_lb = parent_node.lower_bound
 
-        for rule in self.rules[parent_node.rule_id:]:
+        for rule in self.rules[parent_node.rule_id :]:
             # logger.debug(f"considering rule {rule.id}")
             captured = self._captured_by_rule(rule, parent_not_captured)
 
-            
-            #if lb <= self.ub:
+            # if lb <= self.ub:
             flag_rule_set_size = rule_set_size_bound_with_default(
                 parent_node, self.lmbd, self.ub
             )  # i
-            if not flag_rule_set_size: # this is fast to compute so we check it first 
-                
+            if not flag_rule_set_size:  # this is fast to compute so we check it first
                 lb = (
                     parent_lb
-                    + self._incremental_update_lb(captured, self.y)
+                    + self._incremental_update_lb(captured, self.y_mpz)
                     + self.lmbd
                 )
-                
+
                 parent_equivalent_lower_bound = parent_node.equivalent_lower_bound
 
-                equivalent_lower_bound = parent_equivalent_lower_bound - update_equivalent_lower_bound(captured, data_points2rules, equivalence_classes) 
-                # just checking 
-                #print("rule " + str(rule)) 
-                ##print("parent rules " + str(parent_node.get_ruleset_ids())) 
-                #print("parent_equivalent_lower_bound " + str(parent_equivalent_lower_bound)) 
-                #print("equivalent lower bound after update " + str(equivalent_lower_bound))
-                #print("lower bound " + str(lb))
-                #print("parent lower bound " + str(parent_lb)) 
+                equivalent_lower_bound = (
+                    parent_equivalent_lower_bound
+                    - update_equivalent_lower_bound(
+                        captured, data_points2rules, equivalence_classes
+                    )
+                )
+                # just checking
+                # print("rule " + str(rule))
+                ##print("parent rules " + str(parent_node.get_ruleset_ids()))
+                # print("parent_equivalent_lower_bound " + str(parent_equivalent_lower_bound))
+                # print("equivalent lower bound after update " + str(equivalent_lower_bound))
+                # print("lower bound " + str(lb))
+                # print("parent lower bound " + str(parent_lb))
                 flag_equivalent_classes = equivalent_points_bounds(
-                    lb,
-                    equivalent_lower_bound, 
-                    self.ub
+                    lb, equivalent_lower_bound, self.ub
                 )  # if true, we prune
-                
-                if not flag_equivalent_classes: 
-                        
+
+                if not flag_equivalent_classes:
                     fn_fraction, not_captured = self._incremental_update_obj(
                         parent_not_captured, captured
                     )
@@ -317,18 +326,13 @@ class BranchAndBoundV1(BranchAndBoundGeneric):
                             yield (ruleset, child_node.objective)
                         else:
                             yield ruleset
-                            
-                            
-                            
-
 
 
 class BranchAndBoundV0(BranchAndBoundGeneric):
-    
-    
+
     """
-    V0 only uses the bound on rule set size , probably mostly for testing 
-    
+    V0 only uses the bound on rule set size , probably mostly for testing
+
     an implementation of the branch and bound algorithm for enumerating good decision sets.
 
     bounds used: hierarchical lower bound, bounds on the total number of rules, bounds on equivalent points
@@ -359,17 +363,11 @@ class BranchAndBoundV0(BranchAndBoundGeneric):
         return incremental_update_lb(v, y, self.num_train_pts)
 
     def _incremental_update_obj(self, u: mpz, v: mpz) -> Tuple[mpfr, mpz]:
-        return incremental_update_obj(u, v, self.y, self.num_train_pts)
-
-
-
+        return incremental_update_obj(u, v, self.y_mpz, self.num_train_pts)
 
     def _loop(
-        self,
-        parent_node: Node,
-        parent_not_captured: mpz,
-        return_objective=False
-        ):
+        self, parent_node: Node, parent_not_captured: mpz, return_objective=False
+    ):
         """
         check one node in the search tree, update the queue, and yield feasible solution if exists
 
@@ -379,22 +377,22 @@ class BranchAndBoundV0(BranchAndBoundGeneric):
         """
         parent_lb = parent_node.lower_bound
 
-        for rule in self.rules[parent_node.rule_id:]:
+        for rule in self.rules[parent_node.rule_id :]:
             # logger.debug(f"considering rule {rule.id}")
             captured = captured = self._captured_by_rule(rule, parent_not_captured)
 
             flag_rule_set_size = rule_set_size_bound_with_default(
                 parent_node, self.lmbd, self.ub
             )  # i
-            if not flag_rule_set_size: # this is super fast to compute so we check it first 
-                
+            if (
+                not flag_rule_set_size
+            ):  # this is super fast to compute so we check it first
                 lb = (
                     parent_lb
-                    + self._incremental_update_lb(captured, self.y)
+                    + self._incremental_update_lb(captured, self.y_mpz)
                     + self.lmbd
                 )
-                
-                
+
                 fn_fraction, not_captured = self._incremental_update_obj(
                     parent_not_captured, captured
                 )
@@ -424,15 +422,11 @@ class BranchAndBoundV0(BranchAndBoundGeneric):
                         yield ruleset
 
 
-
-
-
 class BranchAndBoundV2(BranchAndBoundGeneric):
-    
-    
+
     """
     V2 uses HLB and RSSB
-    
+
     an implementation of the branch and bound algorithm for enumerating good decision sets.
 
     bounds used: hierarchical lower bound, bounds on the total number of rules, bounds on equivalent points
@@ -463,17 +457,11 @@ class BranchAndBoundV2(BranchAndBoundGeneric):
         return incremental_update_lb(v, y, self.num_train_pts)
 
     def _incremental_update_obj(self, u: mpz, v: mpz) -> Tuple[mpfr, mpz]:
-        return incremental_update_obj(u, v, self.y, self.num_train_pts)
-
-
-
+        return incremental_update_obj(u, v, self.y_mpz, self.num_train_pts)
 
     def _loop(
-        self,
-        parent_node: Node,
-        parent_not_captured: mpz,
-        return_objective=False
-        ):
+        self, parent_node: Node, parent_not_captured: mpz, return_objective=False
+    ):
         """
         check one node in the search tree, update the queue, and yield feasible solution if exists
 
@@ -483,37 +471,38 @@ class BranchAndBoundV2(BranchAndBoundGeneric):
         """
         parent_lb = parent_node.lower_bound
 
-        for rule in self.rules[parent_node.rule_id:]:
+        for rule in self.rules[parent_node.rule_id :]:
             # logger.debug(f"considering rule {rule.id}")
             captured = captured = self._captured_by_rule(rule, parent_not_captured)
 
-            #if lb <= self.ub:
+            # if lb <= self.ub:
             flag_rule_set_size = rule_set_size_bound_with_default(
                 parent_node, self.lmbd, self.ub
             )  # i
-            if not flag_rule_set_size: # this is super fast to compute so we check it first 
-                
+            if (
+                not flag_rule_set_size
+            ):  # this is super fast to compute so we check it first
                 lb = (
                     parent_lb
-                    + self._incremental_update_lb(captured, self.y)
+                    + self._incremental_update_lb(captured, self.y_mpz)
                     + self.lmbd
                 )
-                
+
                 if lb <= self.ub:
                     fn_fraction, not_captured = self._incremental_update_obj(
                         parent_not_captured, captured
                     )
                     obj = lb + fn_fraction
-    
+
                     child_node = Node(
                         rule_id=rule.id,
                         lower_bound=lb,
                         objective=obj,
                         num_captured=gmp.popcount(captured),
                     )
-    
+
                     self.tree.add_node(child_node, parent_node)
-    
+
                     self.queue.push(
                         (child_node, not_captured),
                         key=child_node.lower_bound,  # TODO: consider other types of prioritization
@@ -527,13 +516,6 @@ class BranchAndBoundV2(BranchAndBoundGeneric):
                             yield (ruleset, child_node.objective)
                         else:
                             yield ruleset
-
-
-
-
-
-
-
 
 
 def get_ground_truth_count(

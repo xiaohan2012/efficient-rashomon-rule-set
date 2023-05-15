@@ -1,16 +1,12 @@
 import numpy as np
 import gmpy2 as gmp
-import pandas as pd
 
 from gmpy2 import mpz, mpfr
 
-from typing import Tuple, Optional, List, Iterable
-from .cache_tree import CacheTree, Node
-from .bounds_utils import *
-
-
-#### TODO: test and eventually integrate within the bb.py loop() calling the function below
-#### TODO2: (optionally) add more bounds
+from typing import Tuple, Optional, List, Iterable, Dict
+from .cache_tree import Node
+from .rule import Rule
+from .utils import mpz2bag, mpz_set_bits
 
 
 def incremental_update_lb(v: mpz, y: mpz, num_pts: mpz) -> mpfr:
@@ -182,4 +178,124 @@ def prefix_specific_length_upperbound(
     -------
     the upper bound of the length of its extensions
     """
-    return (prefix_length + np.floor((ub - prefix_lb) / lmbd))
+    return prefix_length + np.floor((ub - prefix_lb) / lmbd)
+
+
+class EquivalentPointClass:
+    """a single class of points captured by the same set of rules"""
+
+    def __init__(self, this_id: int):
+        self.id = this_id
+        self.total_positives = 0
+        self.total_negatives = 0
+        self.data_points = (
+            set()
+        )  # we also keep track of the points so we do not need to access rules anymore
+
+    @property
+    def valid_label_values(self):
+        return {0, 1, True, False}
+
+    def update(self, idx: int, label: int):
+        """add one point of index idx with label to the equivalent point class"""
+        if label not in self.valid_label_values:
+            raise ValueError(
+                f"invalid label {label}, use one of the following: {self.valid_label_values}"
+            )
+
+        if idx in self.data_points:
+            # idx is added alreaady
+            return
+        
+        self.data_points.add(idx)
+
+        if label == 1 or label is True:
+            self.total_positives += 1
+        else:
+            self.total_negatives += 1
+
+    @property
+    def minority_mistakes(self):
+        return min(
+            self.total_negatives, self.total_positives
+        )  # recall this is to be normalized
+
+
+def find_equivalence_points(
+    y_train: np.ndarray, rules: List[Rule]
+) -> Tuple[float, Dict, Dict[int, EquivalentPointClass]]:
+    """
+    Fimd equivalence classes of points having the same attributes but possibly different labels.
+    This function is to be used once prior to branch-and-bound execution to exploit the equivalence-points-based bound.
+
+    Parameters
+    ----------
+    y_train :  np.ndarray
+        labels
+
+    rules: all rules
+
+    Returns
+    -------
+    all equivalent point classes
+    """
+    assert isinstance(y_train, np.ndarray), type(y_train)
+    ep_classes = dict()  # equivalent point classes
+
+    n_pts = len(y_train)
+    
+    # find equivalence classes
+    pt2rules = [[] for _ in range(n_pts)]
+    print("y_train.shape: {}".format(y_train.shape))
+    print("n_pts: {}".format(n_pts))
+    for rule in rules:
+        covered = mpz2bag(rule.truthtable)
+        for cov in covered:
+            try:
+                pt2rules[cov].append(rule.id)
+            except IndexError:
+                print("cov: {}".format(cov))
+                raise IndexError
+
+    for i in range(n_pts):
+        n = mpz_set_bits(gmp.mpz(), pt2rules[i])
+        if n not in ep_classes:
+            ep_classes[n] = EquivalentPointClass(n)
+        ep_classes[n].update(i, y_train[i])
+
+    # also compute the equivalent lower bound for the root node
+    tot_not_captured_error_bound_init = 0
+    for equi_class in ep_classes.keys():
+        tot_not_captured_error_bound_init += ep_classes[equi_class].minority_mistakes
+
+    tot_not_captured_error_bound_init = (
+        tot_not_captured_error_bound_init / n_pts
+    )  # normalize as usual for mistakes
+
+    return tot_not_captured_error_bound_init, pt2rules, ep_classes
+
+def get_equivalent_point_lb(
+    captured: mpz, pt2rules: Dict[int, List[int]], ep_classes: Dict[int, EquivalentPointClass]
+) -> float:
+    """
+    get the equivalent point lower bound for a rule
+    
+    captured: indicator vector of points captured by the rule (and not by its parents)
+    pt2rules: mapping from a point index to indices of rules that capture it (essentially inverted index for rule truthtables)
+    ep_classses: pre-computed equivalence point classes
+    """
+
+    tot_update_bound = 0
+    added = set()
+    newly_captured_points = mpz2bag(captured)  # newly captured
+    for cap in newly_captured_points:
+        n = mpz_set_bits(gmp.mpz(), pt2rules[cap])
+        if n not in added:
+            tot_update_bound += ep_classes[n].minority_mistakes
+            added.add(n)
+
+    tot_update_bound = tot_update_bound / len(
+        pt2rules
+    )  # normalize as usual for mistakes
+
+    return tot_update_bound

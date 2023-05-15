@@ -47,7 +47,7 @@ class TestBranchAndBoundV1:
     def test_prepare(self, rules, y):
         bb = self.create_bb_object(rules, y)
 
-        first_lb, data_points2rules, equivalence_classes = find_equivalence_classes(
+        first_lb, data_points2rules, equivalence_classes = find_equivalence_points(
             y, rules
         )
 
@@ -68,7 +68,7 @@ class TestBranchAndBoundV1:
         lmbd = mpfr(lmbd)
         # the first iteration of the branch and bound
 
-        first_elb, data_points2rules, equivalence_classes = find_equivalence_classes(
+        first_elb, data_points2rules, equivalence_classes = find_equivalence_points(
             y, rules
         )
 
@@ -147,7 +147,7 @@ class TestBranchAndBoundV1:
         lmbd = 0.1
         ub = 0.5
         bb = BranchAndBoundV1(rules, ub=ub + EPSILON, y=y, lmbd=lmbd)
-        first_elb, data_points2rules, equivalence_classes = find_equivalence_classes(
+        first_elb, data_points2rules, equivalence_classes = find_equivalence_points(
             y, rules
         )
 
@@ -225,7 +225,7 @@ class TestBranchAndBoundV1:
         lmbd = 0.1
         ub = float("inf")
         bb = BranchAndBoundV1(rulesForBounds1, ub=ub, y=yForBounds1, lmbd=lmbd)
-        first_elb, data_points2rules, equivalence_classes = find_equivalence_classes(
+        first_elb, data_points2rules, equivalence_classes = find_equivalence_points(
             yForBounds1, rulesForBounds1
         )
 

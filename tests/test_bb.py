@@ -36,7 +36,8 @@ class TestBranchAndBoundNaive:
         bb = self.create_bb_object(rules, y)
 
         assert bb.num_train_pts == mpz(5)
-        assert isinstance(bb.y, mpz)
+        assert isinstance(bb.y_mpz, mpz)
+        assert isinstance(bb.y_np, np.ndarray)
 
         assert bb.default_rule_fnr == 0.4
         assert bb.rules == rules

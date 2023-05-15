@@ -143,6 +143,13 @@ class TestCheckIfSatisfied:
 
 
 class TestConstrainedBranchAndBoundNaive:
+    def test___post_init__(self, rules, y):
+        # after cbb is created, equivalent points-related attributes should be available
+        cbb = ConstrainedBranchAndBoundNaive(rules, float('inf'), y, 0.1)
+
+        assert isinstance(cbb._equivalent_pts, dict)
+        assert isinstance(cbb._pt2rules, list)
+
     def test_reset(self, rules, y):
         ub = float("inf")
         lmbd = 0.1

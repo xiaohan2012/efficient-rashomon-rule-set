@@ -16,6 +16,7 @@ from .bounds import (
 )
 from .bounds_utils import *
 from .bounds_v2 import equivalent_points_bounds, rule_set_size_bound_with_default
+from .bounds import find_equivalence_points, get_equivalent_point_lb
 from .cache_tree import CacheTree, Node
 from .gf2 import GF, extended_rref
 from .queue import Queue
@@ -172,6 +173,15 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         item = (self.tree.root, not_captured, u, s, z)
         self.queue.push(item, key=0)
 
+    def __post_init__(self):
+        self._find_equivalent_points()
+
+    def _find_equivalent_points(self):
+        # call it only once after initialization
+        _, self._pt2rules, self._equivalent_pts = find_equivalence_points(
+            self.y_np, self.rules
+        )
+
     def reset(self, A: np.ndarray, t: np.ndarray):
         self.reset_tree()
         self.reset_queue(A, t)
@@ -207,7 +217,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                 pass
 
             captured = self._captured_by_rule(rule, parent_not_captured)
-            lb = parent_lb + self._incremental_update_lb(captured, self.y) + self.lmbd
+            lb = parent_lb + self._incremental_update_lb(captured, self.y_mpz) + self.lmbd
             if lb <= self.ub:
                 up, sp, zp, not_unsatisfied = check_if_not_unsatisfied(
                     rule.id,
@@ -235,9 +245,15 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
                     self.tree.add_node(child_node, parent_node)
 
-                    # apply look-ahead bound
-                    # TODO: combine with equivalent point bound
-                    if (child_node.lower_bound + self.lmbd) <= self.ub:
+                    # apply look-ahead bound combine with equivalent point bound
+                    lb = (
+                        child_node.lower_bound
+                        + get_equivalent_point_lb(  # belongs to equivalent point bound
+                            captured, self._pt2rules, self._equivalent_pts
+                        )
+                        + self.lmbd  # belongs to 'look-ahead' bound
+                    )
+                    if lb <= self.ub:
                         self.queue.push(
                             (child_node, not_captured, up, sp, zp),
                             key=child_node.lower_bound,
@@ -255,7 +271,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 class ConstrainedBranchAndBoundV1(ConstrainedBranchAndBoundNaive):
     def reset_queue(self, A: np.ndarray, t: np.ndarray):
         self.queue: Queue = Queue()
-        not_captured = bin_ones(self.y.shape)  # the dafault rule captures nothing
+        not_captured = bin_ones(self.y_np.shape)  # the dafault rule captures nothing
 
         # assign the parity constraint system
         self.A = A
@@ -292,8 +308,8 @@ class ConstrainedBranchAndBoundV1(ConstrainedBranchAndBoundNaive):
     # i guess we could instead compute self.equivalence_classes upon initialization?
     def run(self, *args, X_trn, return_objective=False):
         self.reset(*args)
-        data_points2rules, equivalence_classes = find_equivalence_classes(
-            X_trn, self.y, self.rules
+        data_points2rules, equivalence_classes = find_equivalence_points(
+            X_trn, self.y_np, self.rules
         )
         while not self.queue.is_empty:
             queue_item = self.queue.pop()
@@ -342,7 +358,7 @@ class ConstrainedBranchAndBoundV1(ConstrainedBranchAndBoundNaive):
                     if not flag_rule_set_size:
                         lb = (
                             parent_lb
-                            + incremental_update_lb(captured, self.y)
+                            + incremental_update_lb(captured, self.y_mpz)
                             + self.lmbd
                         )
 
@@ -358,7 +374,7 @@ class ConstrainedBranchAndBoundV1(ConstrainedBranchAndBoundNaive):
 
                         if not flag_equivalent_classes:
                             fn_fraction, not_captured = incremental_update_obj(
-                                parent_not_captured, captured, self.y
+                                parent_not_captured, captured, self.y_mpz
                             )
                             obj = lb + fn_fraction
 
