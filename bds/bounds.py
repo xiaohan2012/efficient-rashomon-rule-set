@@ -246,8 +246,6 @@ def find_equivalence_points(
     
     # find equivalence classes
     pt2rules = [[] for _ in range(n_pts)]
-    print("y_train.shape: {}".format(y_train.shape))
-    print("n_pts: {}".format(n_pts))
     for rule in rules:
         covered = mpz2bag(rule.truthtable)
         for cov in covered:

@@ -174,13 +174,18 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         self.queue.push(item, key=0)
 
     def __post_init__(self):
-        self._find_equivalent_points()
+        # disable equivalent_points for now
+        # self._find_equivalent_points()
+        pass
 
     def _find_equivalent_points(self):
         # call it only once after initialization
+
         _, self._pt2rules, self._equivalent_pts = find_equivalence_points(
             self.y_np, self.rules
         )
+        print("number of points: {}".format(self.y_np.shape[0]))
+        print("number of equivalent points: {}".format(len(self._equivalent_pts)))
 
     def reset(self, A: np.ndarray, t: np.ndarray):
         self.reset_tree()
@@ -217,7 +222,11 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                 pass
 
             captured = self._captured_by_rule(rule, parent_not_captured)
-            lb = parent_lb + self._incremental_update_lb(captured, self.y_mpz) + self.lmbd
+            lb = (
+                parent_lb
+                + self._incremental_update_lb(captured, self.y_mpz)
+                + self.lmbd
+            )
             if lb <= self.ub:
                 up, sp, zp, not_unsatisfied = check_if_not_unsatisfied(
                     rule.id,
@@ -245,12 +254,14 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
                     self.tree.add_node(child_node, parent_node)
 
-                    # apply look-ahead bound combine with equivalent point bound
+                    # apply look-ahead bound
+                    # equivalent point bound is not added yet
                     lb = (
                         child_node.lower_bound
-                        + get_equivalent_point_lb(  # belongs to equivalent point bound
-                            captured, self._pt2rules, self._equivalent_pts
-                        )
+                        # equivalent point bound disabled for now, due to slower speed
+                        # + get_equivalent_point_lb(  # belongs to equivalent point bound
+                        #     captured, self._pt2rules, self._equivalent_pts
+                        # )
                         + self.lmbd  # belongs to 'look-ahead' bound
                     )
                     if lb <= self.ub:
