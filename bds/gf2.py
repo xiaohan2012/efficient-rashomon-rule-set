@@ -10,7 +10,7 @@ def extended_rref(A: GF, b: GF, verbose: bool = False) -> Tuple[GF, GF, int]:
     """
     given a 2D matrix A and a vector b, both in GF2,
     obtain the reduced row echelon form of a matrix A and repeat the reduction process on a column vector b
-    return the transformed A and b as well as the rank
+    return the transformed A and b as well as the rank of A
     """
     if b.ndim == 1:
         b = b.reshape(-1, 1)  # transform it to column vector

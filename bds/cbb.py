@@ -52,7 +52,7 @@ def check_if_not_unsatisfied(
     t: target parity vector
     u: the 'undetermined' vector for the constraints of a given prefix, 1 means "undecided" and 0 means "decided"
     s: the satisfication vector for the constraints of a given prefix, 1 means 'satisfied and 0 means 'unsatisfied'
-    z: 'parity states vector for the constraints of a given preifx, 0 means 'even' and 1 means 'odd'
+    z: the parity states vector for the constraints of a given preifx, 0 means 'even' and 1 means 'odd'
     A_indices and A_indptr: where the non-zero row indices for column/rule i are stored in A_indices[A_indptr[i-1]:A_indptr[i]]
         provide it for better performance
     max_nz_idx_array: the array of largest non-zero idx per constraint
