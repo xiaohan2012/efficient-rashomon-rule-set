@@ -38,10 +38,8 @@ class Node:
         """return the total number of nodes in the tree rooted at self"""
         if self.num_children == 0:
             # leaf
-            print("is leaf")
             return 1
         else:
-            print("not leaf")
             return 1 + sum([c.total_num_nodes for c in self.children.values()])
 
     def add_child(self, node: "Node"):
