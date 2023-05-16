@@ -33,6 +33,17 @@ class Node:
     def num_children(self):
         return len(self.children)
 
+    @property
+    def total_num_nodes(self):
+        """return the total number of nodes in the tree rooted at self"""
+        if self.num_children == 0:
+            # leaf
+            print("is leaf")
+            return 1
+        else:
+            print("not leaf")
+            return 1 + sum([c.total_num_nodes for c in self.children.values()])
+
     def add_child(self, node: "Node"):
         if node == self:
             raise ValueError('cannot add "self" as a child of itself')

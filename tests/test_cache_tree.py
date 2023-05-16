@@ -74,6 +74,10 @@ class TestNode:
         assert child2.parent == parent
         assert parent.num_children == 2
 
+        assert parent.total_num_nodes == 3
+        assert child1.total_num_nodes == 1
+        assert child1.total_num_nodes == 1
+
     def test_make_root(self):
         num_train_pts = 10
         fnr = 0.2
