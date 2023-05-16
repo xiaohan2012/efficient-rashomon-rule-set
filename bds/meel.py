@@ -132,6 +132,7 @@ def log_search(
         with Timer() as timer:
             Y_size = cbb.bounded_count(thresh, A_sub, t_sub)
             logger.debug(f"solving takes {timer.elapsed:.2f} secs")
+            logger.debug(f"search tree size: {cbb.tree.root.total_num_nodes}")
         Y_size_arr[m] = Y_size
 
         search_trajectory.append((m, Y_size, thresh))
