@@ -267,9 +267,9 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                     if lb <= self.ub:
                         self.queue.push(
                             (child_node, not_captured, up, sp, zp),
-                            # key=child_node.lower_bound,
+                            key=child_node.lower_bound,
                             # key=-self.queue.size  # policy = stack = FILO
-                            key=child_node.lower_bound / child_node.num_captured,  # using the curiosity function defined in CORELS
+                            # key=child_node.lower_bound / child_node.num_captured,  # using the curiosity function defined in CORELS
                         )
 
                     if obj <= self.ub and check_if_satisfied(up, sp, zp, self.t):
