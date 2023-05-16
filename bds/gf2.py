@@ -1,7 +1,7 @@
 # util functions for operations uedr GF(2)
 import numpy as np
 import galois
-from typing import Tuple, Union, Optional
+from typing import Tuple, Union, Optional, List
 
 GF = galois.GF(2)
 
@@ -107,3 +107,36 @@ def is_piecewise_linear(arr: GF):
     arr_mirror[idx_of_1st_zero:] = 1
 
     return ((arr + arr_mirror) == 1).all()
+
+
+def num_of_solutions(A: GF, b: GF) -> int:
+    """return the number of solutions to a linear system Ax=b in GF2"""
+    R, t, rank = extended_rref(A, b)
+    if not (t[rank:] == 0).all():
+        # the system is not solvable
+        return 0
+    else:
+        return np.power(2, A.shape[1] - rank)
+
+
+def fix_variables_to_one(A: GF, b: GF, which: List[int]) -> Tuple[GF, GF]:
+    """fix the value of all variables in `which` to 1 for a linear system Ax=b,
+    return the updated linear system with those fixed variables removed"""
+    # identify the rows in b whose values should change
+    row_occurences = A[:, which].nonzero()[0]
+
+    # get those rows with odd number of occurences
+    # these rows in b should be updated
+    row_idxs, freq = np.unique(row_occurences, return_counts=True)
+    row_idxs_to_update = row_idxs[
+        (freq % 2) == 1
+    ]  # select rows with odd number of occurences
+
+    # update the rows in b
+    bp = b.copy()
+    bp[row_idxs_to_update] = GF(1) - bp[row_idxs_to_update]  # flip the value
+
+    # remove those columns from A
+    Ap = np.delete(A, which, axis=1)
+
+    return Ap, bp
