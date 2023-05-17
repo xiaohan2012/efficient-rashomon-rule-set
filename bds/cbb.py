@@ -140,6 +140,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
     def generate(self, return_objective=False) -> Iterable:
         if not self.is_linear_system_solvable:
+            logger.debug("abort the search since linear system is not solvable")
             yield from ()
         else:
             yield from super(ConstrainedBranchAndBoundNaive, self).generate(return_objective)
@@ -154,11 +155,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
         # simplify theconstraint system
         self.A, self.t, rank = self._simplify_constraint_system(A, t)
-        logger.debug(f"rank(A) = {rank}, t[rank:]={t[rank:]}")
         self.is_linear_system_solvable = (self.t[rank:] == 0).all()
-        logger.debug(
-            f"self.is_linear_system_solvable = {self.is_linear_system_solvable}"
-        )
 
         # auxiliary data structures for caching and better performance
         self.max_nz_idx_array = get_max_nz_idx_per_row(self.A)
