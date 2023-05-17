@@ -151,6 +151,21 @@ class TestConstrainedBranchAndBoundNaive:
         assert isinstance(cbb._equivalent_pts, dict)
         assert isinstance(cbb._pt2rules, list)
 
+    @pytest.mark.parametrize(
+        't, solvable',
+        [
+            (bin_array([0, 1]), False),
+            (bin_array([0, 0]), True)
+        ]
+    )
+    def test_is_linear_system_solvable(self, rules, y, t, solvable):
+        A = bin_array([[1, 0, 1], [0, 0, 0]])
+        ub = float("inf")
+        lmbd = 0.1
+        cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
+        cbb.reset(A, t)
+        assert cbb.is_linear_system_solvable == solvable
+        
     def test_reset(self, rules, y):
         ub = float("inf")
         lmbd = 0.1
@@ -160,7 +175,7 @@ class TestConstrainedBranchAndBoundNaive:
         t = bin_array([0, 1])
 
         cbb.reset(A, t)
-
+        
         assert cbb.queue.size == 1
         item = cbb.queue.front()
         u, s, z = item[2:]
@@ -272,8 +287,8 @@ class TestConstrainedBranchAndBoundNaive:
 
         A = bin_array([[1, 0, 1], [1, 1, 0]])
         t = bin_array([0, 1])
-
-        assert cbb.bounded_count(thresh, A, t) == count
+        # cbb.reset(A, t)
+        assert cbb.bounded_count(A, t, threshold=thresh) == count
 
     @pytest.mark.parametrize(
         "thresh, count", [(None, 2), (1, 1), (2, 2), (3, 2)]  # total count is returned
@@ -286,6 +301,6 @@ class TestConstrainedBranchAndBoundNaive:
         A = bin_array([[1, 0, 1], [1, 1, 0]])  # 0  # 1
         t = bin_array([0, 1])
 
-        sols = cbb.bounded_sols(thresh, A, t)
+        sols = cbb.bounded_sols(A, t, threshold=thresh)
         assert isinstance(sols, list)
         assert len(sols) == count

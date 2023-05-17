@@ -29,6 +29,7 @@ from .utils import (
     get_max_nz_idx_per_row,
     mpz_all_ones,
     get_indices_and_indptr,
+    count_iter,
 )
 
 
@@ -124,9 +125,10 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
     ) -> Tuple[np.ndarray, np.ndarray]:
         """simplify the constraint system using reduced row echelon form"""
         logger.debug("simplifying A x = t using rref")
-        A_rref, t_rref, p = extended_rref(
+        A_rref, t_rref, rank = extended_rref(
             GF(A.astype(int)), GF(t.astype(int)), verbose=False
         )
+
         n_total_entries = np.prod(A.shape)
 
         logger.debug(
@@ -134,18 +136,33 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                 bin_array(A_rref).sum() / n_total_entries, A.sum() / n_total_entries
             )
         )
-        return bin_array(A_rref), bin_array(t_rref)
+        return bin_array(A_rref), bin_array(t_rref), rank
 
-    def reset_queue(self, A: np.ndarray, t: np.ndarray):
+    def run(self, A, t, return_objective=False) -> Iterable:
+        self.reset(A, t)
+
+        if not self.is_linear_system_solvable:
+            return []
+        else:
+            while not self.queue.is_empty:
+                queue_item = self.queue.pop()
+                yield from self._loop(*queue_item, return_objective=return_objective)
+
+    def reset(self, A, t):
+        self.setup_constraint_system(A, t)
+        super(ConstrainedBranchAndBoundNaive, self).reset()
+
+    def setup_constraint_system(self, A: np.ndarray, t: np.ndarray):
+        """set the constraint system, e.g., simplify the system"""
         assert_binary_array(t)
 
-        self.queue: Queue = Queue()
-        not_captured = self._not_captured_by_default_rule()
-
         # simplify theconstraint system
-        self.A, self.t = self._simplify_constraint_system(A, t)
-
-        num_constraints = self.A.shape[0]
+        self.A, self.t, rank = self._simplify_constraint_system(A, t)
+        logger.debug(f"rank(A) = {rank}, t[rank:]={t[rank:]}")
+        self.is_linear_system_solvable = (self.t[rank:] == 0).all()
+        logger.debug(
+            f"self.is_linear_system_solvable = {self.is_linear_system_solvable}"
+        )
 
         # auxiliary data structures for caching and better performance
         self.max_nz_idx_array = get_max_nz_idx_per_row(self.A)
@@ -156,19 +173,23 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
             self.A.shape[0] == self.t.shape[0]
         ), f"dimension mismatch: {self.A.shape[0]} != {self.t.shape[0]}"
 
-        num_constraints = int(self.A.shape[0])
+        self.num_constraints = int(self.A.shape[0])
+
+    def reset_queue(self):
+        self.queue: Queue = Queue()
+        not_captured = self._not_captured_by_default_rule()
 
         # the undetermined vector:
         # one entry per constraint, 1 means the constraint cannot be evaluated and 0 otherwise
-        u = bin_ones(num_constraints)
+        u = bin_ones(self.num_constraints)
 
         # the satisfication status constraint
         # means unsatisified, 1 means satisfied
-        s = bin_zeros(num_constraints)
+        s = bin_zeros(self.num_constraints)
         # the parity status constraint
         # 0 mean an even number of rules are selected
         # 1 mean an odd number of rules are selected
-        z = bin_zeros(num_constraints)
+        z = bin_zeros(self.num_constraints)
 
         item = (self.tree.root, not_captured, u, s, z)
         self.queue.push(item, key=0)
@@ -180,16 +201,11 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
     def _find_equivalent_points(self):
         # call it only once after initialization
-
         _, self._pt2rules, self._equivalent_pts = find_equivalence_points(
             self.y_np, self.rules
         )
         print("number of points: {}".format(self.y_np.shape[0]))
         print("number of equivalent points: {}".format(len(self._equivalent_pts)))
-
-    def reset(self, A: np.ndarray, t: np.ndarray):
-        self.reset_tree()
-        self.reset_queue(A, t)
 
     # @profile
     def _loop(
@@ -278,138 +294,3 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                             yield (ruleset, child_node.objective)
                         else:
                             yield ruleset
-
-
-class ConstrainedBranchAndBoundV1(ConstrainedBranchAndBoundNaive):
-    def reset_queue(self, A: np.ndarray, t: np.ndarray):
-        self.queue: Queue = Queue()
-        not_captured = bin_ones(self.y_np.shape)  # the dafault rule captures nothing
-
-        # assign the parity constraint system
-        self.A = A
-        self.t = t
-
-        self.max_nz_idx_array = np.array(
-            [
-                (nz.max() if len((nz := A[i].nonzero()[0])) > 0 else -1)
-                for i in range(self.A.shape[0])
-            ]
-        )
-
-        assert (
-            self.A.shape[0] == self.t.shape[0]
-        ), f"dimension mismatch: {self.A.shape[0]} != {self.t.shape[0]}"
-
-        num_constraints = self.A.shape[0]
-        # the satisfication status constraint
-        # -1 means ?, 0 means unsatisified, 1 means satisfied
-        s = np.ones(num_constraints, dtype=int) * -1
-        # the parity status constraint
-        # 0 mean an even number of rules are selected
-        # 1 mean an odd number of rules are selected
-        z = bin_zeros(num_constraints)
-
-        item = (self.tree.root, not_captured, s, z)
-        self.queue.push(item, key=0)
-
-    def reset(self, A: np.ndarray, t: np.ndarray):
-        self.reset_tree()
-        self.reset_queue(A, t)
-
-    # override method from the base class so we can compute the equivalence classes before starting the search
-    # i guess we could instead compute self.equivalence_classes upon initialization?
-    def run(self, *args, X_trn, return_objective=False):
-        self.reset(*args)
-        data_points2rules, equivalence_classes = find_equivalence_points(
-            X_trn, self.y_np, self.rules
-        )
-        while not self.queue.is_empty:
-            queue_item = self.queue.pop()
-            yield from self._loop(
-                *queue_item,
-                X_trn,
-                data_points2rules,
-                equivalence_classes,
-                return_objective=return_objective,
-            )
-
-    def _loop(
-        self,
-        parent_node: Node,
-        parent_not_captured: np.ndarray,
-        s: np.ndarray,
-        z: np.ndarray,
-        X_trn: np.array,
-        data_points2rules: dict,
-        equivalence_classes: dict,
-        return_objective=False,
-    ):
-        """
-        check one node in the search tree, update the queue, and yield feasible solution if exists
-
-        parent_node: the current node/prefix to check
-        parent_not_captured: postives not captured by the current prefix
-        s: the satisfifaction state vector
-        z: the parity state vector
-        return_objective: True if return the objective of the evaluated node
-        """
-        parent_lb = parent_node.lower_bound
-        for rule in self.rules:
-            if rule.id > parent_node.rule_id:
-                # logger.debug(f"considering rule {rule.id}")
-                sp, zp, not_unsatisfied = check_if_not_unsatisfied(
-                    rule.id, self.A, self.t, s, z, self.max_nz_idx_array
-                )
-                if not_unsatisfied:
-                    captured = self._captured_by_rule(rule, parent_not_captured)
-
-                    flag_rule_set_size = rule_set_size_bound_with_default(
-                        parent_node, self.lmbd, self.ub
-                    )
-
-                    if not flag_rule_set_size:
-                        lb = (
-                            parent_lb
-                            + incremental_update_lb(captured, self.y_mpz)
-                            + self.lmbd
-                        )
-
-                        flag_equivalent_classes = equivalent_points_bounds(
-                            lb,
-                            self.lmbd,
-                            self.ub,
-                            parent_not_captured,
-                            X_trn,
-                            data_points2rules,
-                            equivalence_classes,
-                        )  # if true, we prune
-
-                        if not flag_equivalent_classes:
-                            fn_fraction, not_captured = incremental_update_obj(
-                                parent_not_captured, captured, self.y_mpz
-                            )
-                            obj = lb + fn_fraction
-
-                            child_node = Node(
-                                rule_id=rule.id,
-                                lower_bound=lb,
-                                objective=obj,
-                                num_captured=captured.sum(),
-                            )
-
-                            self.tree.add_node(child_node, parent_node)
-
-                            self.queue.push(
-                                (child_node, not_captured, sp, zp),
-                                key=child_node.lower_bound,  # TODO: consider other types of prioritization
-                            )
-
-                            if obj <= self.ub and check_if_satisfied(sp, zp, self.t):
-                                ruleset = child_node.get_ruleset_ids()
-                                # logger.debug(
-                                #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
-                                # )
-                                if return_objective:
-                                    yield (ruleset, child_node.objective)
-                                else:
-                                    yield ruleset
