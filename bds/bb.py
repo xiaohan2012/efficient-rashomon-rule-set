@@ -73,7 +73,6 @@ class BranchAndBoundGeneric:
         raise NotImplementedError()
 
     def reset(self):
-        print("reset in generic")
         self.reset_tree()
         self.reset_queue()
 
@@ -81,7 +80,6 @@ class BranchAndBoundGeneric:
         """return the captured array for the rule in the context of parent"""
         return parent_not_captured & rule.truthtable
 
-    def setup(self, *args, **kwargs):
         self.reset()
 
     def generate(self, return_objective=False) -> Iterable:
@@ -89,32 +87,33 @@ class BranchAndBoundGeneric:
             queue_item = self.queue.pop()
             yield from self._loop(*queue_item, return_objective=return_objective)
 
-    def run(self, return_objective=False, *args, **kwargs) -> Iterable:
-        self.setup(*args, **kwargs)
-        yield from self.generate(return_objective)
+    def run(self, return_objective=False, **kwargs) -> Iterable:
+        self.reset(**kwargs)
+        yield from self.generate(return_objective=return_objective)
 
     def _loop(self, *args, **kwargs):
         "the inner loop, corresponding to the evaluation of one item in the queue"
         raise NotImplementedError()
 
-    def _bounded_sols_iter(self, *args, threshold: Optional[int] = None) -> Iterable:
+    def _bounded_sols_iter(
+        self, threshold: Optional[int] = None, **kwargs
+    ) -> Iterable:
         """return an iterable of at most `threshold` feasible solutions
         if threshold is None, return all
         """
-        Y = self.run(*args)
+        Y = self.run(**kwargs)
         if threshold is not None:
             Y = itertools.islice(Y, threshold)
         return Y
 
     # @profile
-    def bounded_count(self, *args, threshold: Optional[int] = None) -> int:
+    def bounded_count(self, threshold: Optional[int] = None, **kwargs) -> int:
         """return min(|Y|, threshold), where Y is the set of feasible solutions"""
-        print("args: {}".format(args))
-        return count_iter(self._bounded_sols_iter(*args, threshold))
+        return count_iter(self._bounded_sols_iter(threshold, **kwargs))
 
-    def bounded_sols(self, *args, threshold: Optional[int] = None) -> List:
+    def bounded_sols(self, threshold: Optional[int] = None, **kwargs) -> List:
         """return at most threshold feasible solutions"""
-        return list(self._bounded_sols_iter(*args, threshold))
+        return list(self._bounded_sols_iter(threshold, **kwargs))
 
 
 class BranchAndBoundNaive(BranchAndBoundGeneric):

@@ -207,7 +207,7 @@ class TestConstrainedBranchAndBoundNaive:
         # rule-2 has to be selected
         # rule-0 and rule-1 is either both selected or both unselected
         t = bin_array([0, 1])
-        res_iter = cbb.run(A, t, return_objective=True)
+        res_iter = cbb.run(return_objective=True, A=A, t=t)
 
         sols = list(res_iter)
         actual = solutions_to_dict(sols)
@@ -229,7 +229,7 @@ class TestConstrainedBranchAndBoundNaive:
         # either rule 1 or rule 3 is selected
         # rule 2 cannot be selected
         t = bin_array([1, 0])
-        res_iter = cbb.run(A, t, return_objective=True)
+        res_iter = cbb.run(return_objective=True, A=A, t=t)
 
         sols = list(res_iter)
         actual = solutions_to_dict(sols)
@@ -250,7 +250,7 @@ class TestConstrainedBranchAndBoundNaive:
         # either both rule 1 and rule 3 are selected or neither is selected
         # either both rule 1 and rule 2 are selected or neither is selected
         t = bin_array([0, 0])
-        res_iter = cbb.run(A, t, return_objective=True)
+        res_iter = cbb.run(return_objective=True, A=A, t=t)
         sols = list(res_iter)
         actual = solutions_to_dict(sols)
         assert_dict_allclose(actual, expected)
@@ -271,7 +271,7 @@ class TestConstrainedBranchAndBoundNaive:
         # either both rule 1 and rule 3 are selected or neither is selected
         # either rule 1 or rule 2 is selected
         t = bin_array([0, 1])
-        res_iter = cbb.run(A, t, return_objective=True)
+        res_iter = cbb.run(return_objective=True, A=A, t=t)
         sols = list(res_iter)
 
         actual = solutions_to_dict(sols)
@@ -287,8 +287,8 @@ class TestConstrainedBranchAndBoundNaive:
 
         A = bin_array([[1, 0, 1], [1, 1, 0]])
         t = bin_array([0, 1])
-        # cbb.reset(A, t)
-        assert cbb.bounded_count(A, t, threshold=thresh) == count
+
+        assert cbb.bounded_count(thresh, A=A, t=t) == count
 
     @pytest.mark.parametrize(
         "thresh, count", [(None, 2), (1, 1), (2, 2), (3, 2)]  # total count is returned
@@ -301,6 +301,6 @@ class TestConstrainedBranchAndBoundNaive:
         A = bin_array([[1, 0, 1], [1, 1, 0]])  # 0  # 1
         t = bin_array([0, 1])
 
-        sols = cbb.bounded_sols(A, t, threshold=thresh)
+        sols = cbb.bounded_sols(thresh, A=A, t=t)
         assert isinstance(sols, list)
         assert len(sols) == count

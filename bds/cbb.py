@@ -138,15 +138,11 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         )
         return bin_array(A_rref), bin_array(t_rref), rank
 
-    def run(self, A, t, return_objective=False) -> Iterable:
-        self.reset(A, t)
-
+    def generate(self, return_objective=False) -> Iterable:
         if not self.is_linear_system_solvable:
-            return []
+            yield from ()
         else:
-            while not self.queue.is_empty:
-                queue_item = self.queue.pop()
-                yield from self._loop(*queue_item, return_objective=return_objective)
+            yield from super(ConstrainedBranchAndBoundNaive, self).generate(return_objective)
 
     def reset(self, A, t):
         self.setup_constraint_system(A, t)
