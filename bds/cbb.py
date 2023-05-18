@@ -228,7 +228,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         for rule in self.rules[parent_node.rule_id :]:
             # prune by ruleset length
             if (parent_node.num_rules + 1) > length_ub:
-                pass
+                continue
 
             captured = self._captured_by_rule(rule, parent_not_captured)
             lb = (

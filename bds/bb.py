@@ -16,7 +16,11 @@ from .utils import (
     mpz_all_ones,
     count_iter,
 )
-from .bounds import incremental_update_lb, incremental_update_obj
+from .bounds import (
+    incremental_update_lb,
+    incremental_update_obj,
+    prefix_specific_length_upperbound,
+)
 
 # logger.setLevel(logging.INFO)
 from .bounds_utils import *
@@ -95,9 +99,7 @@ class BranchAndBoundGeneric:
         "the inner loop, corresponding to the evaluation of one item in the queue"
         raise NotImplementedError()
 
-    def _bounded_sols_iter(
-        self, threshold: Optional[int] = None, **kwargs
-    ) -> Iterable:
+    def _bounded_sols_iter(self, threshold: Optional[int] = None, **kwargs) -> Iterable:
         """return an iterable of at most `threshold` feasible solutions
         if threshold is None, return all
         """
@@ -160,7 +162,15 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         return_objective: True if return the objective of the evaluated node
         """
         parent_lb = parent_node.lower_bound
+        length_ub = prefix_specific_length_upperbound(
+            parent_lb, parent_node.num_rules, self.lmbd, self.ub
+        )
+
         for rule in self.rules[parent_node.rule_id :]:
+            # prune by ruleset length
+            if (parent_node.num_rules + 1) > length_ub:
+                continue
+
             captured = self._captured_by_rule(rule, parent_not_captured)
             lb = (
                 parent_lb
@@ -182,15 +192,16 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
 
                 self.tree.add_node(child_node, parent_node)
 
-                self.queue.push(
-                    (child_node, not_captured),
-                    key=child_node.lower_bound,  # TODO: consider other types of prioritization
-                )
+                # apply look-ahead bound
+                lb = child_node.lower_bound + self.lmbd
+
+                if lb <= self.ub:
+                    self.queue.push(
+                        (child_node, not_captured),
+                        key=child_node.lower_bound,  # the choice of key shouldn't matter for complete enumeration
+                    )
                 if obj <= self.ub:
                     ruleset = child_node.get_ruleset_ids()
-                    # logger.debug(
-                    #     f"yield rule set {ruleset}: {child_node.objective:.4f} (obj) <= {self.ub:.4f} (ub)"
-                    # )
                     if return_objective:
                         yield (ruleset, child_node.objective)
                     else:
