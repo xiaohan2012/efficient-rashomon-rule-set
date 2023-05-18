@@ -1,3 +1,4 @@
+import ray
 import numpy as np
 import pytest
 from collections import Counter
@@ -17,6 +18,13 @@ from bds.bb import get_ground_truth_count
 
 from .fixtures import rules, y
 from .utils import generate_random_rules_and_y
+
+
+@pytest.fixture(scope="module")
+def ray_fix():
+    ray.init(num_cpus=4)
+    yield None
+    ray.shutdown()
 
 
 class TestLogSearch:
@@ -94,7 +102,7 @@ class TestLogSearch:
 
         self.check_output(m, Y_size, big_cell, Y_size_arr, thresh)
 
-    @pytest.mark.parametrize("ub", [.8])
+    @pytest.mark.parametrize("ub", [0.8])
     @pytest.mark.parametrize("thresh", [25])
     @pytest.mark.parametrize("rand_seed", randints(3))
     def test_on_search_trajectory(self, ub, thresh, rand_seed):
@@ -304,6 +312,40 @@ class TestApproxMC2Core:
 
 
 class TestApproxMC2:
+    @pytest.mark.parametrize("rand_seed", randints(1))
+    def test_parallel_execution(self, rand_seed, ray_fix):
+        ub = 0.9
+        eps = 0.8
+        delta = 0.8
+        lmbd = 0.1
+        num_pts, num_rules = 100, 10
+        random_rules, random_y = generate_random_rules_and_y(
+            num_pts, num_rules, rand_seed=1234
+        )
+
+        estimate_actual = approx_mc2(
+            random_rules,
+            random_y,
+            lmbd=lmbd,
+            ub=ub,
+            delta=delta,
+            eps=eps,
+            rand_seed=rand_seed,
+            parallel=True,  # using paralle run
+        )
+
+        estimate_expected = approx_mc2(
+            random_rules,
+            random_y,
+            lmbd=lmbd,
+            ub=ub,
+            delta=delta,
+            eps=eps,
+            rand_seed=rand_seed,
+            parallel=False,  # sequential run
+        )
+        assert estimate_expected == estimate_actual
+
     @pytest.mark.parametrize("ub", [0.6, 0.9, 1.0])
     @pytest.mark.parametrize("eps", [0.8, 0.5])
     @pytest.mark.parametrize("delta", [0.8])

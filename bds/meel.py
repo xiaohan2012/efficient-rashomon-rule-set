@@ -1,27 +1,30 @@
 import itertools
+import ray
 import logging
-import gmpy2 as gmp
-
 import math
 import random
-from typing import List, Optional, Tuple, Union, Set
 
+from typing import List, Optional, Set, Tuple, Union
+
+import gmpy2 as gmp
 import numpy as np
-from tqdm import tqdm
 from contexttimer import Timer
+from tqdm import tqdm
+from logzero import logger
 
 from .bb import BranchAndBoundNaive
 from .cbb import ConstrainedBranchAndBoundNaive
 from .random_hash import generate_h_and_alpha
 from .rule import Rule
+from .ray_pbar import RayProgressBar
 from .utils import (
     assert_binary_array,
     fill_array_from,
     fill_array_until,
-    logger,
-    randints,
     int_ceil,
     int_floor,
+    logger,
+    randints,
 )
 
 # logger.setLevel(logging.DEBUG)
@@ -300,6 +303,8 @@ def approx_mc2(
     ub: float,
     delta: float,
     eps: float,
+    parallel: Optional[bool] = False,
+    log_level: Optional[int] = logging.INFO,
     rand_seed: Optional[int] = None,
     show_progress: Optional[bool] = True,
 ) -> int:
@@ -316,6 +321,11 @@ def approx_mc2(
 
     delta: the estimation confidence parameter
     eps: the accuracy parameter
+
+    show_progress: True if a progress bar is to be displayed
+    parallel: True if run in paralle mode,
+              note that in this case, the previous values of m cannot be reused by subsequent runs of approx_mc2_core
+    log_level: the log level to use inside the Python process (only applicable in parallel mode)
     """
     _check_input(rules, y)
 
@@ -328,14 +338,12 @@ def approx_mc2(
 
     bb = BranchAndBoundNaive(rules, ub, y, lmbd)
 
-    # sol_iter = bb.run()
-
     thresh_floor = int_floor(thresh)  # round down to integer
 
     # take at most thresh_floor solutions
     with Timer() as timer:
         Y_bounded_size = bb.bounded_count(thresh_floor)
-        logger.debug(f"solving takes {timer.elapsed:.2f} secs")
+        logger.debug(f"BB solving takes {timer.elapsed:.2f} secs")
 
     logger.debug(
         f"initial solving with thresh={thresh_floor} gives {Y_bounded_size} solutions"
@@ -351,35 +359,87 @@ def approx_mc2(
 
         logger.debug(f"maximum number of calls to ApproxMC2Core: {max_num_calls}")
 
-        estimates = []
-
-        iter_obj = range(max_num_calls)
-        if show_progress:
-            iter_obj = tqdm(iter_obj)
-
         np.random.seed(rand_seed)
         rand_seed_pool = randints(max_num_calls)
 
-        for trial_idx in iter_obj:
-            rand_seed_next = rand_seed_pool[trial_idx]
-            # TODO: it can be parallelized
-            with Timer() as timer:
-                num_cells, num_sols = approx_mc2_core(
+        if not parallel:
+            estimates = []
+
+            iter_obj = tqdm(range(max_num_calls) if show_progress else range(max_num_calls))
+
+            for trial_idx, rand_seed_next in zip(iter_obj, rand_seed_pool):
+                with Timer() as timer:
+                    num_cells, num_sols = approx_mc2_core(
+                        rules,
+                        y,
+                        lmbd,
+                        ub,
+                        thresh_floor,
+                        # prev_num_cells=prev_num_cells,
+                        prev_num_cells=2,  # TODO: remove this!
+                        rand_seed=rand_seed_next,
+                    )
+                    logger.debug(f"running approx_mc2_core takes {timer.elapsed:.2f}s")
+                prev_num_cells = num_cells
+                if num_cells is not None:
+                    logger.debug(f"num_cells: {num_cells}, num_sols: {num_sols}")
+                    estimates.append(num_cells * num_sols)
+                else:
+                    logger.debug("one esimtation failed")
+        else:
+
+            @ray.remote
+            def approx_mc2_core_wrapper(log_level, *args, **kwargs):
+                # reset the loglevel since the function runs in a separate process
+                logger.setLevel(log_level)
+                num_cells, num_sols = approx_mc2_core(*args, **kwargs)
+                if num_cells is not None:
+                    return (num_cells, num_sols)
+                else:
+                    return None
+
+            num_available_cpus = int(ray.available_resources()["CPU"])
+            logger.info(f"number of available CPUs: {num_available_cpus}")
+            # we do two rounds of parallel execution
+            # the first round uses prev_num_cells = 2
+            # the second round uses prev_m_cells of the first round
+
+            # the 1st round executes k jobs, where k = the number of available CPUs
+            promise_1st_round = [
+                approx_mc2_core_wrapper.remote(
+                    log_level, rules, y, lmbd, ub, thresh_floor, prev_num_cells, seed
+                )
+                for seed in rand_seed_pool[:num_available_cpus]
+            ]
+
+            logger.info(f"doing 1st round of parallel execution of {len(rand_seed_pool[:num_available_cpus])} jobs")
+            RayProgressBar.show(promise_1st_round)
+            results_1st_round = ray.get(promise_1st_round)
+            results_1st_round = list(filter(None, results_1st_round))
+
+            # do the 2nd round, which reuses the values of prev_num_cells obtained from the 1st round
+            # and finishes the remaining jobs
+            prev_num_cells_1st_round = [num_cell for num_cell, _ in results_1st_round]
+            promise_2nd_round = [
+                approx_mc2_core_wrapper.remote(
+                    log_level,
                     rules,
                     y,
                     lmbd,
                     ub,
                     thresh_floor,
-                    prev_num_cells=prev_num_cells,
-                    rand_seed=rand_seed_next,
+                    # take a random prev_num_cells value from results in  the 1st round
+                    prev_num_cells=random.choice(prev_num_cells_1st_round),
+                    rand_seed=seed,
                 )
-                logger.debug(f"running approx_mc2_core takes {timer.elapsed:.2f}s")
-            prev_num_cells = num_cells
-            if num_cells is not None:
-                logger.debug(f"num_cells: {num_cells}, num_sols: {num_sols}")
-                estimates.append(num_cells * num_sols)
-            else:
-                logger.debug("one esimtation failed")
+                for seed in rand_seed_pool[num_available_cpus:]
+            ]
+            logger.info(f"doing 2nd round of parallel execution of {len(rand_seed_pool[num_available_cpus:])} jobs")
+            RayProgressBar.show(promise_2nd_round)
+            results_2nd_round = ray.get(promise_2nd_round)
+            results = list(filter(None, results_2nd_round)) + results_1st_round
+            estimates = [num_cells * num_sols for num_cells, num_sols in results]
+
         final_estimate = np.median(estimates)
 
         logger.debug(f"final estimate: {final_estimate}")
