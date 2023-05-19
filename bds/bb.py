@@ -145,6 +145,21 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         item = (self.tree.root, not_captured)
         self.queue.push(item, key=0)
 
+    def _create_new_node_and_add_to_tree(
+        self, rule: Rule, lb: mpfr, obj: mpfr, captured: mpz, parent_node: Node
+    ) -> Node:
+        """create a node using information provided by rule, lb, obj, and captured
+        and add it as a child of parent"""
+        child_node = Node(
+            rule_id=rule.id,
+            lower_bound=lb,
+            objective=obj,
+            num_captured=gmp.popcount(captured),
+        )
+
+        self.tree.add_node(child_node, parent_node)
+        return child_node
+
     def _incremental_update_lb(self, v: mpz, y: np.ndarray) -> mpfr:
         return incremental_update_lb(v, y, self.num_train_pts)
 
@@ -183,15 +198,9 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
                 )
                 obj = lb + fn_fraction
 
-                child_node = Node(
-                    rule_id=rule.id,
-                    lower_bound=lb,
-                    objective=obj,
-                    num_captured=gmp.popcount(captured),
+                child_node = self._create_new_node_and_add_to_tree(
+                    rule, lb, obj, captured, parent_node
                 )
-
-                self.tree.add_node(child_node, parent_node)
-
                 # apply look-ahead bound
                 lb = child_node.lower_bound + self.lmbd
 

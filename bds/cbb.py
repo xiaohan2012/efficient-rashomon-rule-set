@@ -10,13 +10,14 @@ from numba import jit
 
 from .bb import BranchAndBoundNaive
 from .bounds import (
+    find_equivalence_points,
+    get_equivalent_point_lb,
     incremental_update_lb,
     incremental_update_obj,
     prefix_specific_length_upperbound,
 )
 from .bounds_utils import *
 from .bounds_v2 import equivalent_points_bounds, rule_set_size_bound_with_default
-from .bounds import find_equivalence_points, get_equivalent_point_lb
 from .cache_tree import CacheTree, Node
 from .gf2 import GF, extended_rref
 from .queue import Queue
@@ -26,10 +27,10 @@ from .utils import (
     bin_array,
     bin_ones,
     bin_zeros,
+    count_iter,
+    get_indices_and_indptr,
     get_max_nz_idx_per_row,
     mpz_all_ones,
-    get_indices_and_indptr,
-    count_iter,
 )
 
 
@@ -143,7 +144,9 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
             logger.debug("abort the search since linear system is not solvable")
             yield from ()
         else:
-            yield from super(ConstrainedBranchAndBoundNaive, self).generate(return_objective)
+            yield from super(ConstrainedBranchAndBoundNaive, self).generate(
+                return_objective
+            )
 
     def reset(self, A, t):
         self.setup_constraint_system(A, t)
@@ -200,6 +203,23 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         print("number of points: {}".format(self.y_np.shape[0]))
         print("number of equivalent points: {}".format(len(self._equivalent_pts)))
 
+    def _check_if_not_unsatisfied(
+        self, rule: Rule, u: np.ndarray, s: np.ndarray, z: np.ndarray
+    ):
+        """wrapper of check_if_not_unsatisfied"""
+        return check_if_not_unsatisfied(
+            rule.id,
+            self.A,
+            self.t,
+            u,
+            s,
+            z,
+            # provide the following cache data for better performance
+            A_indices=self.A_indices,
+            A_indptr=self.A_indptr,
+            max_nz_idx_array=self.max_nz_idx_array,
+        )
+
     # @profile
     def _loop(
         self,
@@ -237,43 +257,32 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                 + self.lmbd
             )
             if lb <= self.ub:
-                up, sp, zp, not_unsatisfied = check_if_not_unsatisfied(
-                    rule.id,
-                    self.A,
-                    self.t,
-                    u,
-                    s,
-                    z,
-                    # provide the following cache data for better performance
-                    A_indices=self.A_indices,
-                    A_indptr=self.A_indptr,
-                    max_nz_idx_array=self.max_nz_idx_array,
+                fn_fraction, not_captured = self._incremental_update_obj(
+                    parent_not_captured, captured
                 )
-                if not_unsatisfied:
-                    fn_fraction, not_captured = self._incremental_update_obj(
-                        parent_not_captured, captured
-                    )
-                    obj = lb + fn_fraction
-                    child_node = Node(
-                        rule_id=rule.id,
-                        lower_bound=lb,
-                        objective=obj,
-                        num_captured=gmp.popcount(captured),
-                    )
+                obj = lb + fn_fraction
 
-                    self.tree.add_node(child_node, parent_node)
+                # the following variables might be assigned later
+                child_node = None
+                up = None
 
-                    # apply look-ahead bound
-                    # equivalent point bound is not added yet
-                    lb = (
-                        child_node.lower_bound
-                        # equivalent point bound disabled for now, due to slower speed
-                        # + get_equivalent_point_lb(  # belongs to equivalent point bound
-                        #     captured, self._pt2rules, self._equivalent_pts
-                        # )
-                        + self.lmbd  # belongs to 'look-ahead' bound
+                # apply look-ahead bound
+                lookahead_lb = (
+                    lb
+                    # equivalent point bound disabled for now, due to slower speed
+                    # + get_equivalent_point_lb(  # belongs to equivalent point bound
+                    #     captured, self._pt2rules, self._equivalent_pts
+                    # )
+                    + self.lmbd  # belongs to 'look-ahead' bound
+                )
+                if lookahead_lb <= self.ub:
+                    up, sp, zp, not_unsatisfied = self._check_if_not_unsatisfied(
+                        rule, u, s, z
                     )
-                    if lb <= self.ub:
+                    if not_unsatisfied:
+                        child_node = self._create_new_node_and_add_to_tree(
+                            rule, lb, obj, captured, parent_node
+                        )
                         self.queue.push(
                             (child_node, not_captured, up, sp, zp),
                             key=child_node.lower_bound,
@@ -281,7 +290,19 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                             # key=child_node.lower_bound / child_node.num_captured,  # using the curiosity function defined in CORELS
                         )
 
-                    if obj <= self.ub and check_if_satisfied(up, sp, zp, self.t):
+                if obj <= self.ub:
+                    if up is None:
+                        # do the checking if not done
+                        up, sp, zp, not_unsatisfied = self._check_if_not_unsatisfied(
+                            rule, u, s, z
+                        )
+
+                    if check_if_satisfied(up, sp, zp, self.t):
+                        if child_node is None:
+                            # compute child_node if not done
+                            child_node = self._create_new_node_and_add_to_tree(
+                                rule, lb, obj, captured, parent_node
+                            )
                         ruleset = child_node.get_ruleset_ids()
                         if return_objective:
                             yield (ruleset, child_node.objective)
