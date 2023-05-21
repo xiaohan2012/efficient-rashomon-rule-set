@@ -121,6 +121,7 @@ def check_if_satisfied(
 
 
 class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
+    # @profile
     def _simplify_constraint_system(
         self, A: np.ndarray, t: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -139,6 +140,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         )
         return bin_array(A_rref), bin_array(t_rref), rank
 
+    # @profile
     def generate(self, return_objective=False) -> Iterable:
         if not self.is_linear_system_solvable:
             logger.debug("abort the search since linear system is not solvable")
@@ -148,6 +150,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                 return_objective
             )
 
+    # @profile
     def reset(self, A, t):
         self.setup_constraint_system(A, t)
         super(ConstrainedBranchAndBoundNaive, self).reset()

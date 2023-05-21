@@ -86,11 +86,13 @@ class BranchAndBoundGeneric:
 
         self.reset()
 
+    # @profile
     def generate(self, return_objective=False) -> Iterable:
         while not self.queue.is_empty:
             queue_item = self.queue.pop()
             yield from self._loop(*queue_item, return_objective=return_objective)
 
+    # @profile
     def run(self, return_objective=False, **kwargs) -> Iterable:
         self.reset(**kwargs)
         yield from self.generate(return_objective=return_objective)
@@ -166,6 +168,7 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
     def _incremental_update_obj(self, u: mpz, v: mpz) -> Tuple[mpfr, mpz]:
         return incremental_update_obj(u, v, self.y_mpz, self.num_train_pts)
 
+    # @profile
     def _loop(
         self, parent_node: Node, parent_not_captured: mpz, return_objective=False
     ):
