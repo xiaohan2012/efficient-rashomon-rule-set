@@ -205,9 +205,9 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
                     rule, lb, obj, captured, parent_node
                 )
                 # apply look-ahead bound
-                lb = child_node.lower_bound + self.lmbd
+                lookahead_lb = child_node.lower_bound + self.lmbd
 
-                if lb <= self.ub:
+                if lookahead_lb <= self.ub:
                     self.queue.push(
                         (child_node, not_captured),
                         key=child_node.lower_bound,  # the choice of key shouldn't matter for complete enumeration
