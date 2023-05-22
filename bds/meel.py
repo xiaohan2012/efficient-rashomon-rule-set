@@ -125,7 +125,7 @@ def log_search(
     cbb = IncrementalConstrainedBranchAndBound(rules, ub, y, lmbd)
 
     cbb.set_constraint_system(A, t)
-    
+
     # we store the list of m values that are tried
     # as well as the solution size and threshold
     search_trajectory = []
@@ -139,8 +139,6 @@ def log_search(
             logger.debug(f"solving takes {timer.elapsed:.2f} secs")
             logger.debug(f"search tree size: {cbb.tree.root.total_num_nodes}")
 
-        cbb.update_checkpoint(m, Y_size, thresh)
-        
         Y_size_arr[m] = Y_size
 
         search_trajectory.append((m, Y_size, thresh))
@@ -166,6 +164,9 @@ def log_search(
             fill_array_until(big_cell, m, 1)
 
             lo = m
+
+            cbb.update_checkpoint()  # we only update the checkpoint when |Y| >= thresh
+
             if np.abs(m - m_prev) < 3:
                 m += 1
             elif (2 * m < num_vars) and big_cell[
@@ -372,7 +373,9 @@ def approx_mc2(
         if not parallel:
             estimates = []
 
-            iter_obj = tqdm(range(max_num_calls) if show_progress else range(max_num_calls))
+            iter_obj = tqdm(
+                range(max_num_calls) if show_progress else range(max_num_calls)
+            )
 
             for trial_idx, rand_seed_next in zip(iter_obj, rand_seed_pool):
                 with Timer() as timer:
@@ -419,7 +422,9 @@ def approx_mc2(
                 for seed in rand_seed_pool[:num_available_cpus]
             ]
 
-            logger.info(f"doing 1st round of parallel execution of {len(rand_seed_pool[:num_available_cpus])} jobs")
+            logger.info(
+                f"doing 1st round of parallel execution of {len(rand_seed_pool[:num_available_cpus])} jobs"
+            )
             RayProgressBar.show(promise_1st_round)
             results_1st_round = ray.get(promise_1st_round)
             results_1st_round = list(filter(None, results_1st_round))
@@ -441,7 +446,9 @@ def approx_mc2(
                 )
                 for seed in rand_seed_pool[num_available_cpus:]
             ]
-            logger.info(f"doing 2nd round of parallel execution of {len(rand_seed_pool[num_available_cpus:])} jobs")
+            logger.info(
+                f"doing 2nd round of parallel execution of {len(rand_seed_pool[num_available_cpus:])} jobs"
+            )
             RayProgressBar.show(promise_2nd_round)
             results_2nd_round = ray.get(promise_2nd_round)
             results = list(filter(None, results_2nd_round)) + results_1st_round
