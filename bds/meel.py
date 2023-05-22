@@ -124,7 +124,7 @@ def log_search(
 
     cbb = IncrementalConstrainedBranchAndBound(rules, ub, y, lmbd)
 
-    cbb.set_constraint_system(A, t)
+    cbb.set_original_constraint_system(A, t)
 
     # we store the list of m values that are tried
     # as well as the solution size and threshold
@@ -165,7 +165,7 @@ def log_search(
 
             lo = m
 
-            cbb.update_checkpoint()  # we only update the checkpoint when |Y| >= thresh
+            cbb.update_checkpoint()  # we only update the checkpoint when search lower bound is updated
 
             if np.abs(m - m_prev) < 3:
                 m += 1

@@ -366,6 +366,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
     def resume(self):
         pass
 
-    def set_constraint_system(self, A: np.ndarray, t: np.ndarray):
-        self.A = A
-        self.t = t
+    def set_original_constraint_system(self, A: np.ndarray, t: np.ndarray):
+        """save the original constraint system, without any further preprocessing"""
+        self.A_orig = A.copy()
+        self.t_orig = t.copy()
