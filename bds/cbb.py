@@ -9,19 +9,29 @@ from logzero import logger
 from numba import jit
 
 from .bb import BranchAndBoundNaive
-from .bounds import (find_equivalence_points, get_equivalent_point_lb,
-                     incremental_update_lb, incremental_update_obj,
-                     prefix_specific_length_upperbound)
+from .bounds import (
+    find_equivalence_points,
+    get_equivalent_point_lb,
+    incremental_update_lb,
+    incremental_update_obj,
+    prefix_specific_length_upperbound,
+)
 from .bounds_utils import *
-from .bounds_v2 import (equivalent_points_bounds,
-                        rule_set_size_bound_with_default)
+from .bounds_v2 import equivalent_points_bounds, rule_set_size_bound_with_default
 from .cache_tree import CacheTree, Node
 from .gf2 import GF, extended_rref
 from .queue import Queue
 from .rule import Rule
-from .utils import (assert_binary_array, bin_array, bin_ones, bin_zeros,
-                    count_iter, get_indices_and_indptr, get_max_nz_idx_per_row,
-                    mpz_all_ones)
+from .utils import (
+    assert_binary_array,
+    bin_array,
+    bin_ones,
+    bin_zeros,
+    count_iter,
+    get_indices_and_indptr,
+    get_max_nz_idx_per_row,
+    mpz_all_ones,
+)
 
 
 @jit(nopython=True, cache=True)
@@ -111,6 +121,16 @@ def check_if_satisfied(
 
 
 class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
+    def _update_solver_status(
+        self, parent_node: Node, rule: Rule, u: np.ndarray, s: np.ndarray, z: np.ndarray
+    ):
+        """uppate the current solver status"""
+        pass
+
+    def _record_feasible_solution(self, node: Node):
+        """record a feasible solution encoded by node"""
+        pass
+
     # @profile
     def _simplify_constraint_system(
         self, A: np.ndarray, t: np.ndarray
@@ -133,7 +153,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
     # @profile
     def generate(self, return_objective=False) -> Iterable:
         if not self.is_linear_system_solvable:
-            logger.debug("abort the search since linear system is not solvable")
+            logger.debug("abort the search since the linear system is not solvable")
             yield from ()
         else:
             yield from super(ConstrainedBranchAndBoundNaive, self).generate(
@@ -213,21 +233,6 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
             max_nz_idx_array=self.max_nz_idx_array,
         )
 
-    def _update_solver_status(
-            self,
-            parent_node: Node,
-            rule: Rule,
-            u: np.ndarray,
-            s: np.ndarray,
-            z: np.ndarray
-    ):
-        """uppate the current solver status"""
-        pass
-
-    def _record_feasible_solution(self, node: Node):
-        """record a feasible solution encoded by node"""
-        pass
-    
     # @profile
     def _loop(
         self,
@@ -280,6 +285,8 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                 obj = lb + fn_fraction
 
                 # the following variables might be assigned later
+                # and if assigned
+                # will be assigned only once in the check of the current rule
                 child_node = None
                 up = None
 
@@ -303,8 +310,6 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                         self.queue.push(
                             (child_node, not_captured, up, sp, zp),
                             key=child_node.lower_bound,
-                            # key=-self.queue.size  # policy = stack = FILO
-                            # key=child_node.lower_bound / child_node.num_captured,  # using the curiosity function defined in CORELS
                         )
 
                 if obj <= self.ub:
@@ -321,52 +326,10 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                                 rule, lb, obj, captured, parent_node
                             )
                         ruleset = child_node.get_ruleset_ids()
-                        
+
                         self._record_feasible_solution(child_node)
-                        
+
                         if return_objective:
                             yield (ruleset, child_node.objective)
                         else:
                             yield ruleset
-
-
-class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
-    """constrained branch and bound with incremental computation"""
-
-    def __post_init__(self):
-        self.init_solving_info()
-
-    def init_solving_info(self):
-        self._last_node = None  # the last node that is being expanded/checked
-        self._last_rule = None  # the last rule that was checked
-        self._feasible_nodes = []  # a list of nodes that correspond to feasible solutions
-        
-    def _update_solver_status(
-            self,
-            parent_node: Node,
-            rule: Rule,
-            u: np.ndarray,
-            s: np.ndarray,
-            z: np.ndarray
-    ):
-        """uppate the current solver status"""
-        self._last_ndoe = parent_node
-        self._last_rule = rule
-        self._last_u = u
-        self._last_s = s
-        self._last_z = z
-
-    def _record_feasible_solution(self, node: Node):
-        """record a feasible solution encoded by node"""
-        self._feasible_nodes.append(node)
-
-    def _check_solution_feasibility(self):
-        pass
-
-    def resume(self):
-        pass
-
-    def set_original_constraint_system(self, A: np.ndarray, t: np.ndarray):
-        """save the original constraint system, without any further preprocessing"""
-        self.A_orig = A.copy()
-        self.t_orig = t.copy()
