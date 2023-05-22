@@ -13,7 +13,7 @@ from tqdm import tqdm
 from logzero import logger
 
 from .bb import BranchAndBoundNaive
-from .cbb import ConstrainedBranchAndBoundNaive
+from .cbb import ConstrainedBranchAndBoundNaive, IncrementalConstrainedBranchAndBound
 from .random_hash import generate_h_and_alpha
 from .rule import Rule
 from .ray_pbar import RayProgressBar
@@ -120,27 +120,33 @@ def log_search(
 
     big_cell.fill(-1)  # -1 means not initialized
 
-    cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
+    # cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
 
+    cbb = IncrementalConstrainedBranchAndBound(rules, ub, y, lmbd)
+
+    cbb.set_constraint_system(A, t)
+    
     # we store the list of m values that are tried
     # as well as the solution size and threshold
     search_trajectory = []
 
     while True:
         logger.debug(f"current m = {m}")
-        # solve the problem with all constraints
-        A_sub, t_sub = A[:m], t[:m]
 
         # obtain only the first `thresh` solutions in the random cell
         with Timer() as timer:
-            Y_size = cbb.bounded_count(thresh, A=A_sub, t=t_sub)
+            Y_size = cbb.bounded_count(thresh, num_constraints=m)
             logger.debug(f"solving takes {timer.elapsed:.2f} secs")
             logger.debug(f"search tree size: {cbb.tree.root.total_num_nodes}")
+
+        cbb.update_checkpoint(m, Y_size, thresh)
+        
         Y_size_arr[m] = Y_size
 
         search_trajectory.append((m, Y_size, thresh))
 
         if Y_size >= thresh:
+            # not enough constraints, we increase m
             logger.debug(f"|Y| >= thresh ({Y_size} >= {thresh})")
 
             if m == num_vars - 2:
@@ -169,6 +175,7 @@ def log_search(
             else:
                 m = int((hi + m) / 2)
         else:
+            # too many constraints, we decrease m
             logger.debug(f"|Y| < thresh ({Y_size} < {thresh})")
             if m == 0:
                 big_cell[m] = 0
