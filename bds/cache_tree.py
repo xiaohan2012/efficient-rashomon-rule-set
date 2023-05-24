@@ -23,7 +23,6 @@ class Node:
         if self.parent is not None:
             assert isinstance(self.parent, Node)
             self.parent.add_child(self)
-            self.depth = self.parent.depth + 1
 
     @property
     def num_rules(self):
@@ -42,14 +41,17 @@ class Node:
         else:
             return 1 + sum([c.total_num_nodes for c in self.children.values()])
 
-    def add_child(self, node: "Node"):
-        if node == self:
+    def add_child(self, child: "Node"):
+        if child == self:
             raise ValueError('cannot add "self" as a child of itself')
 
-        if node.rule_id in self.children:
-            raise KeyError(f"{node} is already a child!")
-        self.children[node.rule_id] = node
-        node.parent = self
+        if child.rule_id in self.children:
+            raise KeyError(f"{child} is already a child!")
+        # two-way binding
+        self.children[child.rule_id] = child
+        child.parent = self
+        # update depth of the child
+        child.depth = self.depth + 1
 
     def get_ruleset_ids(self):
         """get the rule ids of the rule set associated with this node/rule"""
