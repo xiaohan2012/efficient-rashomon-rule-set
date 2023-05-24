@@ -121,16 +121,6 @@ def check_if_satisfied(
 
 
 class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
-    def _update_solver_status(
-        self, parent_node: Node, rule: Rule, u: np.ndarray, s: np.ndarray, z: np.ndarray
-    ):
-        """uppate the current solver status"""
-        pass
-
-    def _record_feasible_solution(self, node: Node):
-        """record a feasible solution encoded by node"""
-        pass
-
     # @profile
     def _simplify_constraint_system(
         self, A: np.ndarray, t: np.ndarray
@@ -161,15 +151,17 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
             )
 
     # @profile
-    def reset(self, A, t):
+    def reset(self, A: np.ndarray, t: np.ndarray):
         self.setup_constraint_system(A, t)
         super(ConstrainedBranchAndBoundNaive, self).reset()
 
     def setup_constraint_system(self, A: np.ndarray, t: np.ndarray):
         """set the constraint system, e.g., simplify the system"""
+        logger.debug("setting up the parity constraint system")
         assert_binary_array(t)
 
-        # simplify theconstraint system
+        # simplify the constraint system
+        # TODO: if the constraint system tends to be denser, do not use the rref version
         self.A, self.t, rank = self._simplify_constraint_system(A, t)
         self.is_linear_system_solvable = (self.t[rank:] == 0).all()
 
@@ -259,15 +251,6 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
         # here we assume the rule ids are consecutive integers
         for rule in self.rules[parent_node.rule_id :]:
-            self._update_solver_status(
-                parent_node,
-                parent_not_captured,
-                rule,
-                u,
-                s,
-                z,
-            )
-
             # prune by ruleset length
             if (parent_node.num_rules + 1) > length_ub:
                 continue
@@ -326,8 +309,6 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                                 rule, lb, obj, captured, parent_node
                             )
                         ruleset = child_node.get_ruleset_ids()
-
-                        self._record_feasible_solution(child_node)
 
                         if return_objective:
                             yield (ruleset, child_node.objective)
