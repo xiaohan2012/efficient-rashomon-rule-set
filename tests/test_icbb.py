@@ -1,17 +1,21 @@
-import pytest
-import numpy as np
+import itertools
 
+import numpy as np
+import pytest
+from gmpy2 import mpz
 
 from bds.cache_tree import CacheTree, Node
 from bds.cbb import ConstrainedBranchAndBoundNaive
 from bds.icbb import IncrementalConstrainedBranchAndBound
 from bds.queue import Queue
 from bds.random_hash import generate_h_and_alpha
-from bds.utils import bin_array, randints
+from bds.rule import Rule
+from bds.utils import bin_array, bin_zeros, randints
 
+from typing import Optional, List, Dict, Tuple, Union
 from .fixtures import rules, y
-from .utils import generate_random_rules_and_y
 from .test_cache_tree import create_dummy_node
+from .utils import generate_random_rules_and_y
 
 
 class TestEquivalenceToNonincrementalVersion:
@@ -33,6 +37,7 @@ class TestEquivalenceToNonincrementalVersion:
         expected = cbb.bounded_sols(thresh, A=A, t=t)
         actual = icbb.bounded_sols(thresh, A=A, t=t)
 
+        assert icbb.is_incremental is False
         assert actual == expected
 
     @pytest.mark.parametrize("thresh", [10, 20, 30])
@@ -51,11 +56,12 @@ class TestEquivalenceToNonincrementalVersion:
         expected = cbb.bounded_sols(thresh, A=A, t=t)
         actual = icbb.bounded_sols(thresh, A=A, t=t)
 
+        assert icbb.is_incremental is False
         assert actual == expected
 
 
-class Test2:
-    def test__recalculate_satisfiability_vectors(self):
+class TestRecalculateSatisfiabilityVectors:
+    def test_simple(self):
         # the tree is a path 0 -> 1 -> 2 -> 3
         root = create_dummy_node(0)
         node1 = create_dummy_node(1, root)
@@ -93,87 +99,427 @@ class Test2:
         assert not_unsatisfied is False
 
 
-class TestIncrementalConstrainedBranchAndBound:
-    def create_solver(self, rules, y):
-        return IncrementalConstrainedBranchAndBound(rules, float("inf"), y, 0.1)
+class TestGenerate:
+    """cannot find a better test name"""
 
-    def reset_solver_without_solver_status(self, solver):
-        A = bin_array([[0, 1, 0], [1, 0, 1]])
-        t = bin_array([1, 0])
-        solver.reset(A, t)
-        return solver
+    @property
+    def num_rules(self):
+        return 5
 
-    def reset_solver_with_solver_status(self, solver):
-        A = bin_array([[0, 1, 0], [1, 0, 1]])
-        t = bin_array([1, 0])
-        solver.reset(A, t, solver.solver_status)  # use its own status, which is weird
-        return solver
+    @property
+    def ub(self):
+        return float("inf")
 
-    def test__init_solver_status(self, rules, y):
-        solver = self.create_solver(rules, y)
-        self.reset_solver_with_solver_status(solver)
+    @property
+    def lmbd(self):
+        return 0.1
 
-        attr_names_to_check = [
+    @property
+    def num_constraints(self):
+        return self.num_rules - 1
+
+    @property
+    def vacuum_constraints(self):
+        """a constraint system in vacuum (= no constraint at all)"""
+        A = bin_zeros((1, self.num_rules))
+        t = bin_array([0])
+        return A, t
+
+    def get_A_and_t_that_exclude_rules(
+        self, excluded_rules: List[int]
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        # construct a new constraint system
+        # excluding the ith rule, for i in excluded_rules
+        num_constraints = len(excluded_rules)
+        A = bin_zeros((num_constraints, self.num_rules))
+        t = bin_zeros(num_constraints)
+
+        for i in range(num_constraints):
+            A[i, i] = 1  # exclude the (i+1)th rule
+
+        return A, t
+
+    def create_icbb(self):
+        rand_rules, rand_y = generate_random_rules_and_y(
+            10, self.num_rules, rand_seed=12345
+        )
+        return IncrementalConstrainedBranchAndBound(
+            rand_rules, self.ub, rand_y, self.lmbd
+        )
+
+    @property
+    def A_and_t(self):
+        return generate_h_and_alpha(
+            self.num_rules, self.num_rules - 1, seed=12345, as_numpy=True
+        )
+
+    @pytest.mark.parametrize(
+        "starting_rule, expected",
+        [
+            (None, 10),
+            (Rule(2, "rule-2", 0, mpz()), 10),
+            (Rule(11, "rule-11", 0, mpz()), 11),
+        ],
+    )
+    def test__get_continuation_idx(self, starting_rule, expected):
+        icbb = self.create_icbb()
+        parent_node = create_dummy_node(10)
+        assert icbb._get_continuation_idx(parent_node, starting_rule) == expected
+
+    def test__copy_solver_status(self):
+        thresh = 1
+        # computation from scratch
+        icbb1 = self.create_icbb()
+
+        A, t = self.A_and_t
+        icbb1.bounded_count(thresh, A=A, t=t)
+
+        # incremental computation
+        icbb2 = self.create_icbb()
+        icbb2._copy_solver_status(icbb1.solver_status)
+        assert icbb2.is_incremental is True
+
+        attrs_to_check = [
+            "queue",
+            "tree",
             "_last_node",
             "_last_not_captured",
             "_last_rule",
-            "_last_u",
-            "_last_s",
-            "_last_z",
+            "_feasible_nodes",
+        ]
+        for attr in attrs_to_check:
+            assert getattr(icbb1, attr) == getattr(icbb2, attr)
+
+    def test__generate_from_last_checked_node_feasible_case(self):
+        """test generating from the last checked node
+        in this case, the last checked node is feasible"""
+        thresh = 1
+        # computation from scratch
+        icbb1 = self.create_icbb()
+
+        # a constraint system in vacuum (= no constraint at all)
+        A, t = self.vacuum_constraints
+        sol1 = icbb1.bounded_sols(thresh, A=A, t=t)[0]
+        assert sol1 == {0, 1}  # the first solution should be {0, 1} by construction
+
+        # incremental computation from icbb1
+        # using the same set of constraints
+        icbb2 = self.create_icbb()
+        icbb2.reset(A=A, t=t, solver_status=icbb1.solver_status)
+        sol2 = list(itertools.islice(icbb2._generate_from_last_checked_node(), thresh))[
+            0
         ]
 
-        for name in attr_names_to_check:
-            assert getattr(solver, name) is None
+        assert icbb2.is_incremental is True
+        assert sol2 == {0, 2}  # and sol2 should be {0, 2} by construction
 
-        assert getattr(solver, "_feasible_nodes") == []
+        # incremental computation from icbb2
+        # using the same set of constraints
+        icbb3 = self.create_icbb()
+        icbb3.reset(A=A, t=t, solver_status=icbb2.solver_status)
+        # now we yield 2 solutions
+        sols3 = list(itertools.islice(icbb3._generate_from_last_checked_node(), 2))
 
-    def test_solver_status(self, rules, y):
-        solver = self.create_solver(rules, y)
-        solver = self.reset_solver_without_solver_status(solver)
+        assert icbb3.is_incremental is True
+        assert sols3 == [{0, 3}, {0, 4}]
 
-        status = solver.solver_status
-        assert isinstance(status, dict)
+    def test__generate_from_last_checked_node_infeasible_case(self):
+        """test generating from the last checked node
+        in this case, the last checked node becomes infeasible due to the new unsatisfiable constraint system
+        """
+        thresh = 6
+        # generate the {0, 1}, ..., {0, 5}, and some other ruleset
+        # computation from scratch
+        icbb1 = self.create_icbb()
 
-        keys = [
-            "last_node",
-            "last_not_captured",
-            "last_rule",
-            "last_u",
-            "last_s",
-            "last_z",
-            "feasible_nodes",
-            "queue",
-            "tree",
-        ]
-        for key in keys:
-            assert key in status
-        assert isinstance(status["feasible_nodes"], list)
-        assert isinstance(status["queue"], Queue)
-        assert isinstance(status["tree"], CacheTree)
+        # a constraint system in vacuum (= no constraint at all)
+        A, t = self.vacuum_constraints
+        sols = icbb1.bounded_sols(thresh, A=A, t=t)
+        assert len(sols) == 6
 
-    def test__update_solver_status(self):
-        pass
+        # construct a new constraint sysmte that cannot be satisfied
+        # thus making any further search in vain
+        A1 = bin_zeros((2, self.num_rules))
+        t1 = bin_zeros(2)
 
-    def test__record_feasible_solution(self):
-        pass
+        # the first rule are involved in both constraints
+        A1[0, 0] = 1
+        A1[1, 0] = 1
+        # however, it is both present and absent
+        t1[0], t1[1] = 0, 1
 
-    def test_is_incremental(self):
-        pass
+        icbb2 = self.create_icbb()
+        icbb2.reset(A=A1, t=t1, solver_status=icbb1.solver_status)
 
-    def test_generate(self):
-        pass
+        # since the last checked node becomes infeasible
+        # we do not continue from that node any more
+        # thus no solution yielded
+        sols = list(itertools.islice(icbb2._generate_from_last_checked_node(), thresh))
+        assert len(sols) == 0
 
-    def test__recalculate_satisfiability_vectors(self):
-        pass
+    def test_solver_status_case_1(self):
+        """we yield just one solution and check if the solver status is as expected
 
-    def test__copy_solver_status(self):
-        pass
+        the solving procedure is something like this:
 
-    def test_reset(self):
-        pass
+        1. initial state:
 
-    def test__loop(self):
-        pass
+        queue = [root]
+        tree:
+        - root
 
-    def test_basic(self):
-        pass
+        2. after yielding {0, 1}
+
+        tree:
+        - root
+          - 1
+
+        queue = [(0, 1)]  # other children of root has not been checked yet
+        last_node = root
+        last_rule = rule_1
+        """
+        thresh = 1
+        # computation from scratch
+        icbb1 = self.create_icbb()
+
+        A, t = self.vacuum_constraints
+        icbb1.bounded_sols(thresh, A=A, t=t)[0]
+
+        ss = icbb1.solver_status
+        assert ss["last_node"] == icbb1.tree.root
+        assert ss["last_rule"] == icbb1.rules[0]
+        assert ss["queue"].size == 1
+        assert ss["queue"].front()[0].rule_id == 1
+        assert ss["tree"].num_nodes == 2  # root + {0, 1}
+
+    def test_solver_status_case_2(self):
+        """we yield more solutions and check if the solver status is as expected
+
+        the solving procedure is something like this:
+
+        1. initial state:
+
+        queue = [root]
+        tree:
+        - root
+
+        2. after yielding {0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}
+
+        tree:
+        - root
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+
+        queue = [(0, 1), (0, 2), (0, 3), (0, 4), (0, 5)]
+        last_node = root
+        last_rule = rule_4
+        """
+        thresh = 5
+        # computation from scratch
+        icbb1 = self.create_icbb()
+
+        A, t = self.vacuum_constraints
+        icbb1.bounded_sols(thresh, A=A, t=t)[0]
+
+        ss = icbb1.solver_status
+        assert ss["last_node"] == icbb1.tree.root
+        assert ss["last_rule"] == icbb1.rules[4]
+        assert ss["queue"].size == 5
+
+        # check the nodes in the queue are correct
+        # item[1] is the stored item
+        # item[1][0] is the stored node
+        assert set(
+            [tuple(item[1][0].get_ruleset_ids()) for item in ss["queue"]._items]
+        ) == {
+            (0, 1),
+            (0, 2),
+            (0, 3),
+            (0, 4),
+            (0, 5),
+        }
+        assert (
+            ss["tree"].num_nodes == 6
+        )  # root, {0, 1}, {0, 2} , {0, 3} , {0, 4}, {0, 5}
+
+    def test_solver_status_case_3(self):
+        """we go down to the next level fo the search tree
+
+        the solving procedure is something like this:
+
+        1. initial state:
+
+        queue = [root]
+        tree:
+        - root
+
+        2. after yielding {0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}
+
+        tree:
+        - root
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+
+        queue = [(0, 1), (0, 2), (0, 3), (0, 4), (0, 5)]
+        last_node = root
+        last_rule = rule_5
+
+        3. pick one from queue and search down one level, could be any child of root
+
+        for instance, if we pop (0, 1), we have
+
+        tree:
+        - root
+          - 1
+            - 2
+          - 2
+          - 3
+          - 4
+          - 5
+
+        queue = [(0, 2), (0, 3), (0, 4), (0, 5), (0, 1, 2)]
+        last_node = (0, 1)
+        last_rule = rule_2
+        """
+        thresh = 6  # {0, 1}, ..., {0, 5}, another arbitrary ruleset
+        # computation from scratch
+        icbb1 = self.create_icbb()
+
+        A, t = self.vacuum_constraints
+        sols = icbb1.bounded_sols(thresh, A=A, t=t)
+
+        ss = icbb1.solver_status
+        for sol in sols[:-1]:
+            assert len(sol) == 2
+        assert (
+            len(sols[-1]) == 3
+        )  # the last ruleset should contain 3 rules (one of them is the default one)
+        # it is hard to check which node is last_node due to the randomness in data generation
+        # assert ss["last_node"] == icbb1.tree.root.children[1]
+        # assert ss["last_rule"] == icbb1.rules[1]
+
+        # if (0, 5) is popped, another node needs to be popped, leaving 3 in the queue
+        # then after searching down, the new yielded node is pushed in the queue
+        # given 4 nodes in the queue
+        # for the other cases, only one node is popped, leaving 5 nodes in the queue finally
+        assert 4 <= ss["queue"].size <= 5
+        assert ss["tree"].num_nodes == 7
+
+    @pytest.mark.parametrize(
+        "excluded_rules, expected_sols",
+        [
+            ([1, 2, 3, 4], set()),
+            ([1, 2, 3], {(0, 4, 5)}),
+            ([1, 2], {(0, 4, 5), (0, 3, 4, 5), (0, 3, 5), (0, 3, 4)}),
+        ],
+    )
+    def test__generate_from_queue_element(self, excluded_rules, expected_sols):
+        """check that:
+        - nodes inserted in the queue by previous run are indeed filtered out
+        - nodes inserted in the queue by current run are not filtered out
+
+        note that:
+        we explicitly inject a constraint system with a different number of constraints from the previous run (1 constraint)
+        so that the solver can tell we are solving a different problem
+        """
+        thresh = 5  # {0, 1}, ..., {0, 5}
+        # computation from scratch
+        icbb1 = self.create_icbb()
+
+        A, t = self.vacuum_constraints
+        icbb1.bounded_sols(thresh, A=A, t=t)
+
+        A1, t1 = self.get_A_and_t_that_exclude_rules(excluded_rules)
+
+        icbb2 = self.create_icbb()
+        icbb2.reset(A=A1, t=t1, solver_status=icbb1.solver_status)
+        sols = list(icbb2._generate_from_queue())
+
+        # the solutions should not contain any ruleset that includes any one of 1, 2, or 3
+        sols = set(map(tuple, map(sorted, sols)))
+        assert sols == expected_sols
+
+    @pytest.mark.parametrize(
+        "excluded_rules, expected_sols",
+        [
+            ([1, 2, 3, 4], {(0, 5)}),
+            ([1, 2, 3], {(0, 4), (0, 5)}),
+            ([1, 2], {(0, 3), (0, 4), (0, 5)}),
+        ],
+    )
+    def test__generate_from_feasible_solutions(self, excluded_rules, expected_sols):
+        thresh = 5  # yield {0, 1}, ..., {0, 5}
+        # computation from scratch
+        icbb1 = self.create_icbb()
+
+        A, t = self.vacuum_constraints
+        icbb1.bounded_sols(thresh, A=A, t=t)
+
+        A1, t1 = self.get_A_and_t_that_exclude_rules(excluded_rules)
+
+        icbb2 = self.create_icbb()
+        icbb2.reset(A=A1, t=t1, solver_status=icbb1.solver_status)
+        sols = list(icbb2._generate_from_feasible_solutions())
+
+        sols = set(map(tuple, map(sorted, sols)))
+        # none of the previously-found solutions are feasible
+        assert sols == expected_sols
+
+        # and the list is emptied
+        assert icbb2._feasible_nodes == []
+
+    def test__generate_from_feasible_solutions_when_not_incremental(self):
+        """calling this method in non-incremental mode is not allowed"""
+        thresh = 1
+        # computation from scratch
+        icbb = self.create_icbb()
+
+        A, t = self.vacuum_constraints
+        icbb.bounded_sols(thresh, A=A, t=t)
+
+        with pytest.raises(RuntimeError, match="forbidden.*non-incremental mode"):
+            list(icbb._generate_from_feasible_solutions())
+
+    @pytest.mark.parametrize(
+        "excluded_rules, expected_sols, expected_collected_feasible_sols",
+        [
+            ([1, 2, 3, 4], {(0, 5)}, set()),
+            ([1, 2, 3], {(0, 4), (0, 5), (0, 4, 5)}, {(0, 4, 5)}),
+            (
+                [1, 2],
+                {(0, 3), (0, 4), (0, 5), (0, 3, 4), (0, 3, 5), (0, 4, 5), (0, 3, 4, 5)},
+                {(0, 3, 4), (0, 3, 5), (0, 4, 5), (0, 3, 4, 5)},
+            ),
+        ],
+    )
+    def test_generate(
+        self, excluded_rules, expected_sols, expected_collected_feasible_sols
+    ):
+        thresh = 5  # yield {0, 1}, ..., {0, 5}
+        # computation from scratch
+        icbb1 = self.create_icbb()
+
+        A, t = self.vacuum_constraints
+        icbb1.bounded_sols(thresh, A=A, t=t)
+
+        A1, t1 = self.get_A_and_t_that_exclude_rules(excluded_rules)
+
+        icbb2 = self.create_icbb()
+        icbb2.reset(A=A1, t=t1, solver_status=icbb1.solver_status)
+        sols = list(icbb2.generate())
+
+        sols = set(map(tuple, map(sorted, sols)))
+        # none of the previously-found solutions are feasible
+        assert sols == expected_sols
+
+        # and the list is emptied
+        collected_feasible_sols = set(
+            [tuple(n.get_ruleset_ids()) for n in icbb2._feasible_nodes]
+        )
+        assert collected_feasible_sols == expected_collected_feasible_sols

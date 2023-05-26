@@ -13,7 +13,8 @@ from tqdm import tqdm
 from logzero import logger
 
 from .bb import BranchAndBoundNaive
-from .cbb import ConstrainedBranchAndBoundNaive, IncrementalConstrainedBranchAndBound
+from .cbb import ConstrainedBranchAndBoundNaive
+from .icbb import IncrementalConstrainedBranchAndBound
 from .random_hash import generate_h_and_alpha
 from .rule import Rule
 from .ray_pbar import RayProgressBar

@@ -5,10 +5,11 @@ from gmpy2 import mpz
 from logzero import logger
 
 from .bounds import prefix_specific_length_upperbound
-from .utils import bin_ones, bin_zeros
 from .cache_tree import Node
 from .cbb import ConstrainedBranchAndBoundNaive, check_if_satisfied
 from .rule import Rule
+from .utils import bin_ones, bin_zeros
+
 
 class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
     """constrained branch-and-bound with incremental computation"""
@@ -25,7 +26,6 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         - the last node being checked
         - the not_captured vector for the above node
         - the last rule being checked
-        - satisfiability (to the parity constraint system) information of the last node
         - the queue
         - the search tree
         """
@@ -99,49 +99,91 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         return self._is_incremental
 
     def _generate_from_last_checked_node(self, return_objective=False):
-        """continue checking the last checked node in previous run"""
-        logger.debug("continue checking the last checked node in previous run")
+        """continue checking the last checked node in previous run (if the node does not fail the parity constraints)"""
 
-        # TODO: recalculate u, s and z
-        u, s, z = self._recalculate_satisfiability_vectors(self._last_node)
-        args = (
-            self._last_node,  # these attributes will be overriden once _loop is called
-            self._last_not_captured,
-            u,
-            s,
-            z,
+        u, s, z, not_unsatisfied = self._recalculate_satisfiability_vectors(
+            self._last_node
         )
-        yield from self._loop(
-            *args, return_objective=return_objective, starting_rule=self._last_rule
-        )
-
-    def _generate_from_queue(self, return_objective=False):
-        """continue the normal search (e.g., check the nodes one by one in the queue)"""
-
-        logger.debug("continue the normal search (e.g., check the nodes in the queue)")
-
-        while not self.queue.is_empty:
-            parent, parent_not_captured, u, s, z = self.queue.pop()
-
-            if self.is_incremental and (
-                u.shape[0] != self.num_constraints
-            ):  # the node is inserted by previous run
-                logger.debug("recalculate u, s, and z")
-                # the stored u, s, and z in queue_item[3:] can be outdated
-                # TOOD: re-calculate them for the new constraint system
-                u, s, z = self._recalculate_satisfiability_vectors(parent)
-
-                # otherwise, we use the queue item as it is
-            yield from self._loop(
-                parent,
-                parent_not_captured,
-                u,  # u, s, and z maybe updated
+        if not_unsatisfied:
+            logger.debug("continue checking the last checked node in previous run")
+            args = (
+                # _last_node and _last_not_captured will be overriden once _loop is called
+                self._last_node,
+                self._last_not_captured,
+                u,
                 s,
                 z,
+            )
+            yield from self._loop(
+                *args, return_objective=return_objective, starting_rule=self._last_rule
+            )
+        else:
+            logger.debug("unsatisfying Ax=b, thus stop checking last node ")
+            yield from ()
+
+    def _generate_from_queue(self, return_objective=False):
+        """continue the normal search (e.g., check the nodes one by one in the queue)
+
+        some nodes in the queue may become infeasible in the new constraint system
+        """
+
+        logger.debug("continue the normal checking on the nodes in the queue")
+
+        while not self.queue.is_empty:
+            parent, not_captured, u, s, z = self.queue.pop()
+
+            kwargs_to_loop = dict(
+                parent_node=parent,
+                parent_not_captured=not_captured,
+                u=u,
+                s=s,
+                z=z,
+                starting_rule=None,
                 return_objective=return_objective,
             )
+            # if in incremental mode
+            # the node maybe inserted by previous run or current run
+            # if the former, re-check the satisfication of the constraints and conditionally continue the search
+            # otherwise, search directly
+            if self.is_incremental:
+                # the node is inserted by previous run
+                # here we assume that it is in the same run if and only if the length of u = the number of constraints
+                # this assumption could fail in general of course
+                if u.shape[0] != self.num_constraints:
+                    logger.debug("recalculate u, s, and z")
+                    (
+                        up,
+                        sp,
+                        zp,
+                        not_unsatisfied,
+                    ) = self._recalculate_satisfiability_vectors(parent)
+                    if not_unsatisfied:
+                        # the node does not dissatisfy Ax=b,
+                        # continue the search
+                        # but with the updated u, s, and z
+                        kwargs_to_loop["u"] = up
+                        kwargs_to_loop["s"] = sp
+                        kwargs_to_loop["z"] = zp
+                        yield from self._loop(**kwargs_to_loop)
+                    else:
+                        logger.debug(
+                            "the node failed the current Ax=b, thus do not check it"
+                        )
+                else:
+                    # the node is inserted by current run
+                    yield from self._loop(**kwargs_to_loop)
+            else:
+                # in non-incremental mode
+                # search directly
+                yield from self._loop(**kwargs_to_loop)
 
     def generate(self, return_objective=False) -> Iterable:
+        """return a generator which yields the feasible solutions
+        the feasible solution can be yielded from two "sources":
+
+        1. the unfinished checked from previous run (if exists)
+        2. and the normal search (by checking nodes in the queue)
+        """
         logger.debug("calling generate in icbb")
         if not self.is_linear_system_solvable:
             logger.debug("abort the search since the linear system is not solvable")
@@ -149,12 +191,36 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         else:
             # apply the following logic:
             # if in incremental mode
-            # search from the last checked node from previous one
-            # and then check the nodes in the queue
+            # generate from feasible solutions found by previous run
+            # search from the last checked node from previous run
+            # and in any case, continue check the nodes in the queue
             if self.is_incremental:
+                # generate from previously-found solutions
+                yield from self._generate_from_feasible_solutions(return_objective)
+
+                # and continue checking from the last node checked by previous run
                 yield from self._generate_from_last_checked_node(return_objective)
 
             yield from self._generate_from_queue(return_objective)
+
+    def _generate_from_feasible_solutions(
+        self, return_objective: bool = False
+    ) -> Iterable:
+        """generate from previously collected feasible solutions"""
+        if not self.is_incremental:
+            raise RuntimeError("it is forbidden to call this method in non-incremental mode")
+
+        for node in self._feasible_nodes:
+            # sol = node.get_ruleset_ids()
+            u, s, z, not_unsatisfied = self._recalculate_satisfiability_vectors(node)
+            if not_unsatisfied and check_if_satisfied(u, s, z, self.t):
+                ruleset = node.get_ruleset_ids()
+                if return_objective:
+                    yield (ruleset, node.objective)
+                else:
+                    yield ruleset
+        # empty _feasible_nodes
+        self._feasible_nodes = []
 
     def _recalculate_satisfiability_vectors(
         self, node: Node
@@ -167,6 +233,8 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         - s: the satisfiability states vector
         - z: the parity states vector
         """
+
+        # print("node: {}".format(node))
         rule_ids = node.get_ruleset_ids() - {0}
 
         assert len(rule_ids) == node.depth, f"{len(rule_ids)} != {node.depth}"
@@ -174,7 +242,9 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         u = bin_ones(self.num_constraints)
         s = bin_zeros(self.num_constraints)
         z = bin_zeros(self.num_constraints)
-
+        not_unsatisfied = True
+        # print("checking satisfiability")
+        # print("rule_ids: {}".format(rule_ids))
         # TODO: can we do it in one run e.g., using vectorized operation?
         for idx in rule_ids:
             u, s, z, not_unsatisfied = self._check_if_not_unsatisfied(
@@ -183,6 +253,12 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 s,
                 z,
             )
+            # print("idx: {}".format(idx))
+            # print("u: {}".format(u))
+            # print("s: {}".format(s))
+            # print("z: {}".format(z))
+            # print("not_unsatisfied: {}".format(not_unsatisfied))
+
         return u, s, z, not_unsatisfied
 
     def _copy_solver_status(self, solver_status: Optional[Dict[str, Any]] = None):
@@ -196,9 +272,9 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         self._last_not_captured = solver_status["last_not_captured"]
         self._last_rule = solver_status["last_rule"]
 
-        self._last_u = solver_status["last_u"]
-        self._last_s = solver_status["last_s"]
-        self._last_z = solver_status["last_z"]
+        # self._last_u = solver_status["last_u"]
+        # self._last_s = solver_status["last_s"]
+        # self._last_z = solver_status["last_z"]
 
         self._feasible_nodes = solver_status["feasible_nodes"]
 
@@ -230,6 +306,23 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
 
         yield from self.generate(return_objective=return_objective)
 
+    def _get_continuation_idx(
+        self, parent_node: Node, starting_rule: Optional[Rule]
+    ) -> int:
+        """
+        get the index where the search continues
+        the continuation index is determined by whether starting_rule is given
+
+        - if yes, then we start from max(starting_rule.rule_id, parent_node.rule_id)
+           (we do not subtract the index by 1 because rule indices start from 1)
+        - otherwise, start from parent_node.rule_id
+        """
+        return (
+            max(starting_rule.id, parent_node.rule_id)
+            if starting_rule is not None
+            else parent_node.rule_id
+        )
+
     def _loop(
         self,
         parent_node: Node,
@@ -255,22 +348,14 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             parent_lb, parent_node.num_rules, self.lmbd, self.ub
         )
 
-        # the starting point is determined by whether starting_rule is given
-        # if yes, then we start from starting_rule.rule_id (not minus one because rule ids are one-indexed)
-        # otherwise, start from the rule id of the parent node
-        starting_rule_idx = (
-            starting_rule.id if starting_rule is not None else parent_node.rule_id
-        )
+        continuation_idx = self._get_continuation_idx(parent_node, starting_rule)
 
         # here we assume the rule ids are consecutive integers
-        for rule in self.rules[starting_rule_idx:]:
+        for rule in self.rules[continuation_idx:]:
             self._update_solver_status(
                 parent_node,
                 parent_not_captured,
                 rule,
-                # u,
-                # s,
-                # z,
             )
 
             # prune by ruleset length
@@ -308,6 +393,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                         self.queue.push(
                             (child_node, not_captured, up, sp, zp),
                             key=child_node.lower_bound,
+                            # key=self.queue.size,  # FIFO
                         )
 
                 if obj <= self.ub:
