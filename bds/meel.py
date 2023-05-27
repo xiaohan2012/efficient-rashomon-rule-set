@@ -124,13 +124,16 @@ def log_search(
     # cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
 
     latest_solver_status = None
-
+    latest_usable_m: int = None
     # we store the list of m values that are tried
     # as well as the solution size and threshold
     search_trajectory = []
 
     while True:
-        logger.debug(f"---- current m = {m} ----")
+        logger.debug("---- solve m = {} {}----".format(
+            m,
+            f"(based on {latest_usable_m})" if latest_usable_m else ""
+        ))
 
         # obtain only the first `thresh` solutions in the random cell
         with Timer() as timer:
@@ -138,9 +141,8 @@ def log_search(
             Y_size = icbb.bounded_count(
                 thresh, A=A[:m], t=t[:m], solver_status=latest_solver_status
             )
-
+            logger.debug(f"search tree size: {icbb.tree.num_nodes}")
         logger.debug(f"solving takes {timer.elapsed:.2f} secs")
-        logger.debug(f"search tree size: {icbb.tree.root.total_num_nodes}")
 
         Y_size_arr[m] = Y_size
 
@@ -171,6 +173,7 @@ def log_search(
             # we only update the checkpoint when search lower bound is updated
             logger.debug(f"using the solver status for m={m} as the latest")
             latest_solver_status = icbb.solver_status
+            latest_usable_m = m
 
             if np.abs(m - m_prev) < 3:
                 m += 1
