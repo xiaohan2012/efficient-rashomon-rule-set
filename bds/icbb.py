@@ -47,7 +47,9 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         self,
     ) -> List[Tuple]:
         """return the collected set of rulesets"""
-        return list(map(lambda n: tuple(sorted(n.get_ruleset_ids())), self._feasible_nodes))
+        return list(
+            map(lambda n: tuple(sorted(n.get_ruleset_ids())), self._feasible_nodes)
+        )
 
     @property
     def solver_status(self):
@@ -177,9 +179,10 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                         kwargs_to_loop["z"] = zp
                         yield from self._loop(**kwargs_to_loop)
                     else:
-                        logger.debug(
-                            "the node failed the current Ax=b, thus do not check it"
-                        )
+                        pass
+                        # logger.debug(
+                        #     "the node failed the current Ax=b, thus do not check it"
+                        # )
                 else:
                     # the node is inserted by current run
                     yield from self._loop(**kwargs_to_loop)
@@ -240,11 +243,13 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                     yield ruleset
                 new_feasible_nodes.append(node)
 
+        logger.debug(
+            "inheritted {} solutions out of {}".format(
+                len(new_feasible_nodes), len(self._feasible_nodes)
+            )
+        )
         # update _feasible_nodes
         self._feasible_nodes = new_feasible_nodes
-        logger.debug(
-            "filtered feasible solutions: {}".format(self.feasible_rulesets)
-        )
 
     def _recalculate_satisfiability_vectors(
         self, node: Node

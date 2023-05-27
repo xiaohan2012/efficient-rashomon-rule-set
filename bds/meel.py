@@ -138,7 +138,6 @@ def log_search(
             Y_size = icbb.bounded_count(
                 thresh, A=A[:m], t=t[:m], solver_status=latest_solver_status
             )
-            logger.debug(f"icbb.feasible_rulesets: {icbb.feasible_rulesets}")
 
         logger.debug(f"solving takes {timer.elapsed:.2f} secs")
         logger.debug(f"search tree size: {icbb.tree.root.total_num_nodes}")
@@ -202,13 +201,13 @@ def log_search(
             else:
                 m = int((m + lo) / 2)
 
-        logger.debug("big_cell: {}".format(big_cell))
-        logger.debug("Y_size_arr: {}".format(Y_size_arr))
+        # logger.debug("big_cell: {}".format(big_cell))
+        # logger.debug("Y_size_arr: {}".format(Y_size_arr))
         # logger.debug(f"lo: {lo}")
         # logger.debug(f"hi: {hi}")
         # logger.debug("\n")
-    logger.debug(f"big_cell: {big_cell}")
-    logger.debug(f"Y_size_arr: {Y_size_arr}")
+    # logger.debug(f"big_cell: {big_cell}")
+    # logger.debug(f"Y_size_arr: {Y_size_arr}")
 
     # to make sure that the search trajectory is logical
     _check_log_search_trajectory(search_trajectory)
