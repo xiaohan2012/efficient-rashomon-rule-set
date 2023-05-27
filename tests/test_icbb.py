@@ -191,9 +191,10 @@ class TestGenerate(Utility):
         icbb2._copy_solver_status(icbb1.solver_status)
         assert icbb2.is_incremental is True
 
+        assert isinstance(icbb1.tree, CacheTree)
+        assert isinstance(icbb1.queue, Queue)
+
         attrs_to_check = [
-            "queue",
-            "tree",
             "_last_node",
             "_last_not_captured",
             "_last_rule",
@@ -201,6 +202,13 @@ class TestGenerate(Utility):
         ]
         for attr in attrs_to_check:
             assert getattr(icbb1, attr) == getattr(icbb2, attr)
+
+        # modify the queue and the original queue shouldn't be affected
+        icbb2.queue.push("random stuff", 11)
+        assert icbb1.solver_status["queue"].size < icbb2.queue.size
+
+        icbb2._feasible_nodes.append("blah")
+        assert len(icbb1.solver_status["feasible_nodes"]) < len(icbb2._feasible_nodes)
 
     def test__generate_from_last_checked_node_feasible_case(self):
         """test generating from the last checked node
@@ -483,8 +491,11 @@ class TestGenerate(Utility):
         # none of the previously-found solutions are feasible
         assert sols == expected_sols
 
-        # and the list is emptied
-        assert icbb2._feasible_nodes == []
+        # and the feasible node list is updated accordingly
+        assert (
+            set(map(lambda n: tuple(n.get_ruleset_ids()), icbb2._feasible_nodes))
+            == sols
+        )
 
     def test__generate_from_feasible_solutions_when_not_incremental(self):
         """calling this method in non-incremental mode is not allowed"""
@@ -499,20 +510,17 @@ class TestGenerate(Utility):
             list(icbb._generate_from_feasible_solutions())
 
     @pytest.mark.parametrize(
-        "excluded_rules, expected_sols, expected_collected_feasible_sols",
+        "excluded_rules, expected_sols",
         [
-            ([1, 2, 3, 4], {(0, 5)}, set()),
-            ([1, 2, 3], {(0, 4), (0, 5), (0, 4, 5)}, {(0, 4, 5)}),
+            ([1, 2, 3, 4], {(0, 5)}),
+            ([1, 2, 3], {(0, 4), (0, 5), (0, 4, 5)}),
             (
                 [1, 2],
                 {(0, 3), (0, 4), (0, 5), (0, 3, 4), (0, 3, 5), (0, 4, 5), (0, 3, 4, 5)},
-                {(0, 3, 4), (0, 3, 5), (0, 4, 5), (0, 3, 4, 5)},
             ),
         ],
     )
-    def test_generate(
-        self, excluded_rules, expected_sols, expected_collected_feasible_sols
-    ):
+    def test_generate(self, excluded_rules, expected_sols):
         thresh = 5  # yield {0, 1}, ..., {0, 5}
         # computation from scratch
         icbb1 = self.create_icbb()
@@ -530,15 +538,17 @@ class TestGenerate(Utility):
         # none of the previously-found solutions are feasible
         assert sols == expected_sols
 
-        # and the list is emptied
+        # collected solutions should be consistent with yielded solutions
         collected_feasible_sols = set(
-            [tuple(n.get_ruleset_ids()) for n in icbb2._feasible_nodes]
+            map(lambda n: tuple(n.get_ruleset_ids()), icbb2._feasible_nodes)
         )
-        assert collected_feasible_sols == expected_collected_feasible_sols
+        assert collected_feasible_sols == expected_sols
+
 
 
 class TestEnd2End(Utility):
     """end2end functional test"""
+
     @pytest.mark.parametrize("target_thresh", randints(3))
     @pytest.mark.parametrize("seed", randints(3))
     def test_bounded_sols(self, target_thresh, seed):
@@ -552,19 +562,29 @@ class TestEnd2End(Utility):
         # create random constraints
         A1, t1 = generate_h_and_alpha(self.num_rules, 2, seed=seed, as_numpy=True)
 
-        # enable return objective
+        # 1. return objective
         icbb2 = self.create_icbb()
         sols_with_obj = icbb2.bounded_sols(
-            target_thresh, A=A1, t=t1, return_objective=True
+            target_thresh,
+            A=A1,
+            t=t1,
+            solver_status=icbb1.solver_status,
+            return_objective=True,
         )
         assert 0 < len(sols_with_obj) <= target_thresh
         for sol, o in sols_with_obj:
             assert isinstance(sol, set)
             assert isinstance(o, mpfr)
 
-        # do not return objective
+        # 2. do not return objective
         icbb3 = self.create_icbb()
-        sols = icbb3.bounded_sols(target_thresh, A=A1, t=t1, return_objective=False)
+        sols = icbb3.bounded_sols(
+            target_thresh,
+            A=A1,
+            t=t1,
+            solver_status=icbb1.solver_status,
+            return_objective=False,
+        )
         assert 0 < len(sols) <= target_thresh
         for sol in sols:
             assert isinstance(sol, set)
@@ -583,11 +603,13 @@ class TestEnd2End(Utility):
         A1, t1 = generate_h_and_alpha(self.num_rules, 2, seed=seed, as_numpy=True)
 
         icbb2 = self.create_icbb()
-        count2 = icbb2.bounded_count(target_thresh, A=A1, t=t1)
+        count2 = icbb2.bounded_count(
+            target_thresh, A=A1, t=t1, solver_status=icbb1.solver_status
+        )
         assert 0 < count2 <= target_thresh
 
-    @pytest.mark.parametrize("thresh1", randints(3, vmin=1, vmax=int(2**5-1)))
-    @pytest.mark.parametrize("thresh2", randints(3, vmin=1, vmax=int(2**5-1)))
+    @pytest.mark.parametrize("thresh1", randints(3, vmin=1, vmax=int(2**5 - 1)))
+    @pytest.mark.parametrize("thresh2", randints(3, vmin=1, vmax=int(2**5 - 1)))
     @pytest.mark.parametrize(
         "num_constraints", [1, 2, 3, 4]
     )  # at most 4, since there are only 5 rules
@@ -608,7 +630,7 @@ class TestEnd2End(Utility):
         A1, t1 = A[:1, :], t[:1]
         icbb1.bounded_sols(thresh1, A=A1, t=t1)
         assert not icbb1.is_incremental
-        
+
         # icbb2 solves incrementally based on icbb1
         icbb2 = self.create_icbb()
         sols_icbb = icbb2.bounded_sols(
@@ -619,6 +641,42 @@ class TestEnd2End(Utility):
         # 2. solve non-incrementally
         cbb = self.create_cbb()
         sols_cbb = cbb.bounded_sols(thresh2, A=A, t=t)
+
+        # and the output should be exactly the same
+        assert set(map(tuple, sols_icbb)) == set(map(tuple, sols_cbb))
+
+    @pytest.mark.parametrize("thresh", [1, 2, 5, 10])
+    @pytest.mark.parametrize(
+        "num_constraints", [1, 2, 3, 4]
+    )  # at most 4, since there are only 5 rules
+    @pytest.mark.parametrize("seed", randints(3))
+    def test_solving_by_multiple_steps(self, thresh, num_constraints, seed):
+        """we call incremental solver multiple times with the same thresh
+        this simulates how incremental CBB is used e.g., by log_search
+        """
+        # the random constraint system to be shared
+        A, t = generate_h_and_alpha(
+            self.num_rules, num_constraints, seed=seed, as_numpy=True
+        )
+
+        # initially, solver status is None
+        # we solve from scratch
+        solver_status = None
+
+        for i in range(1, num_constraints + 1):
+            # solve using the first i constraint(s)
+            icbb_i = self.create_icbb()
+            # take a sub system of Ax=b
+            Ai, ti = A[:i, :], t[:i]
+            sols_icbb = icbb_i.bounded_sols(
+                thresh, A=Ai, t=ti, solver_status=solver_status
+            )
+            # update solver status
+            solver_status = icbb_i.solver_status
+
+        # 2. solve non-incrementally
+        cbb = self.create_cbb()
+        sols_cbb = cbb.bounded_sols(thresh, A=A, t=t)
 
         # and the output should be exactly the same
         assert set(map(tuple, sols_icbb)) == set(map(tuple, sols_cbb))

@@ -1,4 +1,5 @@
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+import copy
 
 import numpy as np
 from gmpy2 import mpz
@@ -150,7 +151,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 # here we assume that it is in the same run if and only if the length of u = the number of constraints
                 # this assumption could fail in general of course
                 if u.shape[0] != self.num_constraints:
-                    logger.debug("recalculate u, s, and z")
+                    # logger.debug("recalculate u, s, and z")
                     (
                         up,
                         sp,
@@ -208,8 +209,11 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
     ) -> Iterable:
         """generate from previously collected feasible solutions"""
         if not self.is_incremental:
-            raise RuntimeError("it is forbidden to call this method in non-incremental mode")
+            raise RuntimeError(
+                "it is forbidden to call this method in non-incremental mode"
+            )
 
+        new_feasible_nodes = []
         for node in self._feasible_nodes:
             # sol = node.get_ruleset_ids()
             u, s, z, not_unsatisfied = self._recalculate_satisfiability_vectors(node)
@@ -219,8 +223,10 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                     yield (ruleset, node.objective)
                 else:
                     yield ruleset
-        # empty _feasible_nodes
-        self._feasible_nodes = []
+                new_feasible_nodes.append(node)
+
+        # update _feasible_nodes
+        self._feasible_nodes = new_feasible_nodes
 
     def _recalculate_satisfiability_vectors(
         self, node: Node
@@ -265,18 +271,14 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         """copy the solver status into self"""
         self._is_incremental = True  # mark the run as incremental
 
-        self.queue = solver_status["queue"]
-        self.tree = solver_status["tree"]
+        self.queue = copy.deepcopy(solver_status["queue"])
+        self.tree = copy.deepcopy(solver_status["tree"])
+        self._feasible_nodes = copy.deepcopy(solver_status["feasible_nodes"])
 
+        # assume the following 3 attributes are immutable
         self._last_node = solver_status["last_node"]
         self._last_not_captured = solver_status["last_not_captured"]
         self._last_rule = solver_status["last_rule"]
-
-        # self._last_u = solver_status["last_u"]
-        # self._last_s = solver_status["last_s"]
-        # self._last_z = solver_status["last_z"]
-
-        self._feasible_nodes = solver_status["feasible_nodes"]
 
     def reset(
         self,
