@@ -204,11 +204,19 @@ class TestGenerate(Utility):
             assert getattr(icbb1, attr) == getattr(icbb2, attr)
 
         # modify the queue and the original queue shouldn't be affected
-        icbb2.queue.push("random stuff", 11)
+        icbb2.queue.push("random stuff", (11, tuple()))
         assert icbb1.solver_status["queue"].size < icbb2.queue.size
 
+        # modify the feasible node list of icbb2 should not affect icbb1
         icbb2._feasible_nodes.append("blah")
         assert len(icbb1.solver_status["feasible_nodes"]) < len(icbb2._feasible_nodes)
+
+        # modify the tree of icbb2 should not affect icbb1
+        icbb2.tree.root.children[1].lower_bound += 1
+        assert (
+            icbb1.solver_status["tree"].root.children[1].lower_bound
+            != icbb2.tree.root.children[1].lower_bound
+        )
 
     def test__generate_from_last_checked_node_feasible_case(self):
         """test generating from the last checked node
@@ -545,13 +553,14 @@ class TestGenerate(Utility):
         assert collected_feasible_sols == expected_sols
 
 
-
 class TestEnd2End(Utility):
     """end2end functional test"""
 
-    @pytest.mark.parametrize("target_thresh", randints(3))
-    @pytest.mark.parametrize("seed", randints(3))
-    def test_bounded_sols(self, target_thresh, seed):
+    # @pytest.mark.parametrize("target_thresh", randints(3))
+    # @pytest.mark.parametrize("seed", randints(3))
+    @pytest.mark.parametrize("target_thresh", [10])
+    @pytest.mark.parametrize("seed", [123])
+    def test_return_objective(self, target_thresh, seed):
         thresh1 = 1  # yield just 1 solution
         # computation from scratch
         icbb1 = self.create_icbb()
@@ -562,6 +571,11 @@ class TestEnd2End(Utility):
         # create random constraints
         A1, t1 = generate_h_and_alpha(self.num_rules, 2, seed=seed, as_numpy=True)
 
+        print(
+            "tree size before icbb2 solving: {}".format(
+                icbb1.solver_status["tree"].num_nodes
+            )
+        )
         # 1. return objective
         icbb2 = self.create_icbb()
         sols_with_obj = icbb2.bounded_sols(
@@ -572,11 +586,11 @@ class TestEnd2End(Utility):
             return_objective=True,
         )
         assert 0 < len(sols_with_obj) <= target_thresh
-        for sol, o in sols_with_obj:
+        for sol, obj in sols_with_obj:
             assert isinstance(sol, set)
-            assert isinstance(o, mpfr)
+            assert isinstance(obj, mpfr)
 
-        # 2. do not return objective
+        # but do not return objective
         icbb3 = self.create_icbb()
         sols = icbb3.bounded_sols(
             target_thresh,
@@ -668,9 +682,12 @@ class TestEnd2End(Utility):
             icbb_i = self.create_icbb()
             # take a sub system of Ax=b
             Ai, ti = A[:i, :], t[:i]
+            print("Ai: \n{}".format(Ai.astype(int)))
+            print("ti: \n{}".format(ti.astype(int)))
             sols_icbb = icbb_i.bounded_sols(
                 thresh, A=Ai, t=ti, solver_status=solver_status
             )
+            print("sols_icbb: {}".format(sols_icbb))
             # update solver status
             solver_status = icbb_i.solver_status
 

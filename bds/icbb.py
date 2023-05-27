@@ -227,6 +227,9 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
 
         # update _feasible_nodes
         self._feasible_nodes = new_feasible_nodes
+        print("filter feasible solutions: {}".format(
+            list(map(lambda n: n.get_ruleset_ids(), self._feasible_nodes))
+        ))
 
     def _recalculate_satisfiability_vectors(
         self, node: Node
@@ -259,11 +262,6 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 s,
                 z,
             )
-            # print("idx: {}".format(idx))
-            # print("u: {}".format(u))
-            # print("s: {}".format(s))
-            # print("z: {}".format(z))
-            # print("not_unsatisfied: {}".format(not_unsatisfied))
 
         return u, s, z, not_unsatisfied
 
@@ -276,9 +274,9 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         self._feasible_nodes = copy.deepcopy(solver_status["feasible_nodes"])
 
         # assume the following 3 attributes are immutable
-        self._last_node = solver_status["last_node"]
-        self._last_not_captured = solver_status["last_not_captured"]
-        self._last_rule = solver_status["last_rule"]
+        self._last_node = copy.deepcopy(solver_status["last_node"])
+        self._last_not_captured = copy.deepcopy(solver_status["last_not_captured"])
+        self._last_rule = copy.deepcopy(solver_status["last_rule"])
 
     def reset(
         self,
@@ -394,8 +392,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                         )
                         self.queue.push(
                             (child_node, not_captured, up, sp, zp),
-                            key=child_node.lower_bound,
-                            # key=self.queue.size,  # FIFO
+                            key=(child_node.lower_bound, tuple(child_node.get_ruleset_ids())),  # if the lower bound are the same for two nodes, resolve the order by the corresponding ruleset
                         )
 
                 if obj <= self.ub:
@@ -418,4 +415,6 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                         if return_objective:
                             yield (ruleset, child_node.objective)
                         else:
+                            # print("self.queue._items: {}".format(self.queue._items))
+                            print(f'yielding {ruleset} with lb {child_node.lower_bound}')
                             yield ruleset
