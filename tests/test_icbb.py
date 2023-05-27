@@ -537,7 +537,8 @@ class TestGenerate(Utility):
         assert collected_feasible_sols == expected_collected_feasible_sols
 
 
-class TestFunctional(Utility):
+class TestEnd2End(Utility):
+    """end2end functional test"""
     @pytest.mark.parametrize("target_thresh", randints(3))
     @pytest.mark.parametrize("seed", randints(3))
     def test_bounded_sols(self, target_thresh, seed):
@@ -585,13 +586,14 @@ class TestFunctional(Utility):
         count2 = icbb2.bounded_count(target_thresh, A=A1, t=t1)
         assert 0 < count2 <= target_thresh
 
-    @pytest.mark.parametrize("target_thresh", randints(3))
+    @pytest.mark.parametrize("thresh1", randints(3, vmin=1, vmax=int(2**5-1)))
+    @pytest.mark.parametrize("thresh2", randints(3, vmin=1, vmax=int(2**5-1)))
     @pytest.mark.parametrize(
         "num_constraints", [1, 2, 3, 4]
     )  # at most 4, since there are only 5 rules
     @pytest.mark.parametrize("seed", randints(3))
     def test_equivalence_to_nonincremental_solver(
-        self, target_thresh, num_constraints, seed
+        self, thresh1, thresh2, num_constraints, seed
     ):
         # the constraint system to be shared
         # create random constraints
@@ -600,22 +602,23 @@ class TestFunctional(Utility):
         )
 
         # 1. solve incrementally
-        thresh1 = 1  # yield just 1 solution
         icbb1 = self.create_icbb()
 
         # take a sub system of Ax=b
         A1, t1 = A[:1, :], t[:1]
         icbb1.bounded_sols(thresh1, A=A1, t=t1)
-
+        assert not icbb1.is_incremental
+        
         # icbb2 solves incrementally based on icbb1
         icbb2 = self.create_icbb()
         sols_icbb = icbb2.bounded_sols(
-            target_thresh, A=A, t=t, solver_status=icbb1.solver_status
+            thresh2, A=A, t=t, solver_status=icbb1.solver_status
         )
+        assert icbb2.is_incremental
 
         # 2. solve non-incrementally
         cbb = self.create_cbb()
-        sols_cbb = cbb.bounded_sols(target_thresh, A=A, t=t)
+        sols_cbb = cbb.bounded_sols(thresh2, A=A, t=t)
 
         # and the output should be exactly the same
-        assert sols_icbb == sols_cbb
+        assert set(map(tuple, sols_icbb)) == set(map(tuple, sols_cbb))
