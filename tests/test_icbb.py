@@ -2,7 +2,7 @@ import itertools
 
 import numpy as np
 import pytest
-from gmpy2 import mpz
+from gmpy2 import mpz, mpfr
 
 from bds.cache_tree import CacheTree, Node
 from bds.cbb import ConstrainedBranchAndBoundNaive
@@ -99,8 +99,8 @@ class TestRecalculateSatisfiabilityVectors:
         assert not_unsatisfied is False
 
 
-class TestGenerate:
-    """cannot find a better test name"""
+class Utility:
+    """a utility class that provides data loading, solver creation support, etc"""
 
     @property
     def num_rules(self):
@@ -140,6 +140,7 @@ class TestGenerate:
         return A, t
 
     def create_icbb(self):
+        """create incremental solver"""
         rand_rules, rand_y = generate_random_rules_and_y(
             10, self.num_rules, rand_seed=12345
         )
@@ -147,11 +148,22 @@ class TestGenerate:
             rand_rules, self.ub, rand_y, self.lmbd
         )
 
+    def create_cbb(self):
+        """create non-incremental solver"""
+        rand_rules, rand_y = generate_random_rules_and_y(
+            10, self.num_rules, rand_seed=12345
+        )
+        return ConstrainedBranchAndBoundNaive(rand_rules, self.ub, rand_y, self.lmbd)
+
     @property
     def A_and_t(self):
         return generate_h_and_alpha(
             self.num_rules, self.num_rules - 1, seed=12345, as_numpy=True
         )
+
+
+class TestGenerate(Utility):
+    """cannot find a better test name"""
 
     @pytest.mark.parametrize(
         "starting_rule, expected",
@@ -523,3 +535,87 @@ class TestGenerate:
             [tuple(n.get_ruleset_ids()) for n in icbb2._feasible_nodes]
         )
         assert collected_feasible_sols == expected_collected_feasible_sols
+
+
+class TestFunctional(Utility):
+    @pytest.mark.parametrize("target_thresh", randints(3))
+    @pytest.mark.parametrize("seed", randints(3))
+    def test_bounded_sols(self, target_thresh, seed):
+        thresh1 = 1  # yield just 1 solution
+        # computation from scratch
+        icbb1 = self.create_icbb()
+
+        A, t = self.vacuum_constraints
+        icbb1.bounded_sols(thresh1, A=A, t=t)
+
+        # create random constraints
+        A1, t1 = generate_h_and_alpha(self.num_rules, 2, seed=seed, as_numpy=True)
+
+        # enable return objective
+        icbb2 = self.create_icbb()
+        sols_with_obj = icbb2.bounded_sols(
+            target_thresh, A=A1, t=t1, return_objective=True
+        )
+        assert 0 < len(sols_with_obj) <= target_thresh
+        for sol, o in sols_with_obj:
+            assert isinstance(sol, set)
+            assert isinstance(o, mpfr)
+
+        # do not return objective
+        icbb3 = self.create_icbb()
+        sols = icbb3.bounded_sols(target_thresh, A=A1, t=t1, return_objective=False)
+        assert 0 < len(sols) <= target_thresh
+        for sol in sols:
+            assert isinstance(sol, set)
+
+    @pytest.mark.parametrize("target_thresh", randints(3))
+    @pytest.mark.parametrize("seed", randints(3))
+    def test_bounded_count(self, target_thresh, seed):
+        thresh1 = 1  # yield just 1 solution
+        # computation from scratch
+        icbb1 = self.create_icbb()
+
+        A, t = self.vacuum_constraints
+        icbb1.bounded_sols(thresh1, A=A, t=t)
+
+        # create random constraints
+        A1, t1 = generate_h_and_alpha(self.num_rules, 2, seed=seed, as_numpy=True)
+
+        icbb2 = self.create_icbb()
+        count2 = icbb2.bounded_count(target_thresh, A=A1, t=t1)
+        assert 0 < count2 <= target_thresh
+
+    @pytest.mark.parametrize("target_thresh", randints(3))
+    @pytest.mark.parametrize(
+        "num_constraints", [1, 2, 3, 4]
+    )  # at most 4, since there are only 5 rules
+    @pytest.mark.parametrize("seed", randints(3))
+    def test_equivalence_to_nonincremental_solver(
+        self, target_thresh, num_constraints, seed
+    ):
+        # the constraint system to be shared
+        # create random constraints
+        A, t = generate_h_and_alpha(
+            self.num_rules, num_constraints, seed=seed, as_numpy=True
+        )
+
+        # 1. solve incrementally
+        thresh1 = 1  # yield just 1 solution
+        icbb1 = self.create_icbb()
+
+        # take a sub system of Ax=b
+        A1, t1 = A[:1, :], t[:1]
+        icbb1.bounded_sols(thresh1, A=A1, t=t1)
+
+        # icbb2 solves incrementally based on icbb1
+        icbb2 = self.create_icbb()
+        sols_icbb = icbb2.bounded_sols(
+            target_thresh, A=A, t=t, solver_status=icbb1.solver_status
+        )
+
+        # 2. solve non-incrementally
+        cbb = self.create_cbb()
+        sols_cbb = cbb.bounded_sols(target_thresh, A=A, t=t)
+
+        # and the output should be exactly the same
+        assert sols_icbb == sols_cbb
