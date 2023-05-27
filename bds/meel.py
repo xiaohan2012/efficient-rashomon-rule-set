@@ -123,9 +123,7 @@ def log_search(
 
     # cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
 
-    cbb = IncrementalConstrainedBranchAndBound(rules, ub, y, lmbd)
-
-    cbb.set_original_constraint_system(A, t)
+    solver_status = None
 
     # we store the list of m values that are tried
     # as well as the solution size and threshold
@@ -136,9 +134,13 @@ def log_search(
 
         # obtain only the first `thresh` solutions in the random cell
         with Timer() as timer:
-            Y_size = cbb.bounded_count(thresh, num_constraints=m)
-            logger.debug(f"solving takes {timer.elapsed:.2f} secs")
-            logger.debug(f"search tree size: {cbb.tree.root.total_num_nodes}")
+            icbb = IncrementalConstrainedBranchAndBound(rules, ub, y, lmbd)
+            Y_size = icbb.bounded_count(
+                thresh, A=A[:m], t=t[:m], solver_status=solver_status
+            )
+
+        logger.debug(f"solving takes {timer.elapsed:.2f} secs")
+        logger.debug(f"search tree size: {icbb.tree.root.total_num_nodes}")
 
         Y_size_arr[m] = Y_size
 
@@ -165,8 +167,10 @@ def log_search(
             fill_array_until(big_cell, m, 1)
 
             lo = m
-
-            cbb.update_checkpoint()  # we only update the checkpoint when search lower bound is updated
+            
+            # we only update the checkpoint when search lower bound is updated
+            logger.debug(f"using the solver status for m={m} as the latest")
+            latest_solver_status = icbb.solver_status
 
             if np.abs(m - m_prev) < 3:
                 m += 1

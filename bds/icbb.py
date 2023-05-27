@@ -150,6 +150,9 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 # the node is inserted by previous run
                 # here we assume that it is in the same run if and only if the length of u = the number of constraints
                 # this assumption could fail in general of course
+                assert (
+                    self.num_constraints >= u.shape[0]
+                ), "the previous problem must be less constrained than the current one"
                 if u.shape[0] != self.num_constraints:
                     # logger.debug("recalculate u, s, and z")
                     (
@@ -227,9 +230,11 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
 
         # update _feasible_nodes
         self._feasible_nodes = new_feasible_nodes
-        print("filter feasible solutions: {}".format(
-            list(map(lambda n: n.get_ruleset_ids(), self._feasible_nodes))
-        ))
+        print(
+            "filter feasible solutions: {}".format(
+                list(map(lambda n: n.get_ruleset_ids(), self._feasible_nodes))
+            )
+        )
 
     def _recalculate_satisfiability_vectors(
         self, node: Node
@@ -392,7 +397,10 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                         )
                         self.queue.push(
                             (child_node, not_captured, up, sp, zp),
-                            key=(child_node.lower_bound, tuple(child_node.get_ruleset_ids())),  # if the lower bound are the same for two nodes, resolve the order by the corresponding ruleset
+                            key=(
+                                child_node.lower_bound,
+                                tuple(child_node.get_ruleset_ids()),
+                            ),  # if the lower bound are the same for two nodes, resolve the order by the corresponding ruleset
                         )
 
                 if obj <= self.ub:
@@ -416,5 +424,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                             yield (ruleset, child_node.objective)
                         else:
                             # print("self.queue._items: {}".format(self.queue._items))
-                            print(f'yielding {ruleset} with lb {child_node.lower_bound}')
+                            print(
+                                f"yielding {ruleset} with lb {child_node.lower_bound}"
+                            )
                             yield ruleset
