@@ -24,4 +24,4 @@ with Timer() as timer:
         prev_num_cells=2,
         rand_seed=12345
     )
-    print(f"elapsed time: {timer.elapsed}")
+    print(f"elapsed time: {timer.elapsed:.2f}s")

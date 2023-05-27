@@ -165,8 +165,6 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         self.A, self.t, rank = self._simplify_constraint_system(A, t)
         self.is_linear_system_solvable = (self.t[rank:] == 0).all()
 
-        print("reduced self.A: \n{}".format(self.A.astype(int)))
-        print("reduced self.t: \n{}".format(self.t.astype(int)))
         # auxiliary data structures for caching and better performance
         self.max_nz_idx_array = get_max_nz_idx_per_row(self.A)
 
@@ -187,8 +185,10 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         u = bin_ones(self.num_constraints)
 
         # the satisfication status constraint
-        # means unsatisified, 1 means satisfied
+        # 0 means unsatisified, 1 means satisfied
+        # by convention, it is initialized as a vector of 0s
         s = bin_zeros(self.num_constraints)
+
         # the parity status constraint
         # 0 mean an even number of rules are selected
         # 1 mean an odd number of rules are selected
@@ -295,7 +295,10 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                         self.queue.push(
                             (child_node, not_captured, up, sp, zp),
                             # if the lower bound are the same for two nodes, resolve the order by the corresponding ruleset
-                            key=(child_node.lower_bound, tuple(child_node.get_ruleset_ids())),
+                            key=(
+                                child_node.lower_bound,
+                                tuple(child_node.get_ruleset_ids()),
+                            ),
                         )
 
                 if obj <= self.ub:
@@ -317,5 +320,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                             yield (ruleset, child_node.objective)
                         else:
                             # print("self.queue._items: {}".format(self.queue._items))
-                            print(f'yielding {ruleset} with lb {child_node.lower_bound}')
+                            print(
+                                f"yielding {ruleset} with lb {child_node.lower_bound}"
+                            )
                             yield ruleset

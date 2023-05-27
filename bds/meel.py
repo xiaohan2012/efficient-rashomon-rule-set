@@ -94,7 +94,7 @@ def log_search(
       is True if returning all information relevant to the call,
       otherwise return the m value and the corresponding solution set size
     """
-    logger.debug(f"thresh: {thresh}")
+    logger.debug(f"calling log_search with thresh={thresh}")
     # TODO: cache the number of solutions and return the one corresponding to the m
     if thresh <= 1:
         raise ValueError("thresh should be at least 1")
@@ -123,21 +123,22 @@ def log_search(
 
     # cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
 
-    solver_status = None
+    latest_solver_status = None
 
     # we store the list of m values that are tried
     # as well as the solution size and threshold
     search_trajectory = []
 
     while True:
-        logger.debug(f"current m = {m}")
+        logger.debug(f"---- current m = {m} ----")
 
         # obtain only the first `thresh` solutions in the random cell
         with Timer() as timer:
             icbb = IncrementalConstrainedBranchAndBound(rules, ub, y, lmbd)
             Y_size = icbb.bounded_count(
-                thresh, A=A[:m], t=t[:m], solver_status=solver_status
+                thresh, A=A[:m], t=t[:m], solver_status=latest_solver_status
             )
+            logger.debug(f"icbb.feasible_rulesets: {icbb.feasible_rulesets}")
 
         logger.debug(f"solving takes {timer.elapsed:.2f} secs")
         logger.debug(f"search tree size: {icbb.tree.root.total_num_nodes}")
@@ -167,7 +168,7 @@ def log_search(
             fill_array_until(big_cell, m, 1)
 
             lo = m
-            
+
             # we only update the checkpoint when search lower bound is updated
             logger.debug(f"using the solver status for m={m} as the latest")
             latest_solver_status = icbb.solver_status
@@ -201,13 +202,13 @@ def log_search(
             else:
                 m = int((m + lo) / 2)
 
-        # logger.debug("big_cell: {}".format(big_cell))
-        # logger.debug("Y_size_arr: {}".format(Y_size_arr))
+        logger.debug("big_cell: {}".format(big_cell))
+        logger.debug("Y_size_arr: {}".format(Y_size_arr))
         # logger.debug(f"lo: {lo}")
         # logger.debug(f"hi: {hi}")
         # logger.debug("\n")
-    # logger.debug(f"big_cell: {big_cell}")
-    # logger.debug(f"Y_size_arr: {Y_size_arr}")
+    logger.debug(f"big_cell: {big_cell}")
+    logger.debug(f"Y_size_arr: {Y_size_arr}")
 
     # to make sure that the search trajectory is logical
     _check_log_search_trajectory(search_trajectory)

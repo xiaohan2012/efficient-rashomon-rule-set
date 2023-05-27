@@ -1,4 +1,4 @@
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Set
 import copy
 
 import numpy as np
@@ -41,6 +41,13 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
 
         # a list of nodes that correspond to discovered feasible solutions
         self._feasible_nodes = []
+
+    @property
+    def feasible_rulesets(
+        self,
+    ) -> List[Tuple]:
+        """return the collected set of rulesets"""
+        return list(map(lambda n: tuple(sorted(n.get_ruleset_ids())), self._feasible_nodes))
 
     @property
     def solver_status(self):
@@ -188,7 +195,6 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         1. the unfinished checked from previous run (if exists)
         2. and the normal search (by checking nodes in the queue)
         """
-        logger.debug("calling generate in icbb")
         if not self.is_linear_system_solvable:
             logger.debug("abort the search since the linear system is not solvable")
             yield from ()
@@ -220,6 +226,12 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         for node in self._feasible_nodes:
             # sol = node.get_ruleset_ids()
             u, s, z, not_unsatisfied = self._recalculate_satisfiability_vectors(node)
+            # logger.debug(f"checking {sol}: not_unsatisfied={not_unsatisfied}, satisfied={check_if_satisfied(u, s, z, self.t)}")
+            # logger.debug(f"u: {u.astype(int)}")
+            # logger.debug(f"s: {s.astype(int)}")
+            # logger.debug(f"z: {z.astype(int)}")
+            # logger.debug(f"self.A:\n{self.A.astype(int)}")
+            # logger.debug(f"self.t:\n{self.t.astype(int)}")
             if not_unsatisfied and check_if_satisfied(u, s, z, self.t):
                 ruleset = node.get_ruleset_ids()
                 if return_objective:
@@ -230,10 +242,8 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
 
         # update _feasible_nodes
         self._feasible_nodes = new_feasible_nodes
-        print(
-            "filter feasible solutions: {}".format(
-                list(map(lambda n: n.get_ruleset_ids(), self._feasible_nodes))
-            )
+        logger.debug(
+            "filtered feasible solutions: {}".format(self.feasible_rulesets)
         )
 
     def _recalculate_satisfiability_vectors(
@@ -260,9 +270,11 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         # print("checking satisfiability")
         # print("rule_ids: {}".format(rule_ids))
         # TODO: can we do it in one run e.g., using vectorized operation?
-        for idx in rule_ids:
+
+        # we sort the rule ids because small ids are scanned first
+        for idx in sorted(rule_ids):
             u, s, z, not_unsatisfied = self._check_if_not_unsatisfied(
-                self.rules[idx - 1],  # -1 because rule id starts from 1
+                self.rules[idx - 1],  # minus 1 because rule id starts from 1
                 u,
                 s,
                 z,
@@ -298,11 +310,13 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
 
         if solver_status is None:
             # create the tree and queue
-            logger.debug("solve from scratch, since solver_stats is None")
+            logger.debug("solve from scratch, since solver_status is None")
             self.reset_tree()
             self.reset_queue()
         else:
-            logger.debug("solve based on previous run, since solver_stats is not None")
+            logger.debug(
+                "incrementally solve based on previous run, since solver_status is not None"
+            )
             self._copy_solver_status(solver_status)
 
     def run(self, return_objective=False, **kwargs) -> Iterable:
@@ -417,14 +431,9 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                                 rule, lb, obj, captured, parent_node
                             )
                         ruleset = child_node.get_ruleset_ids()
-
                         self._record_feasible_solution(child_node)
 
                         if return_objective:
                             yield (ruleset, child_node.objective)
                         else:
-                            # print("self.queue._items: {}".format(self.queue._items))
-                            print(
-                                f"yielding {ruleset} with lb {child_node.lower_bound}"
-                            )
                             yield ruleset

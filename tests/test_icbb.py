@@ -501,8 +501,7 @@ class TestGenerate(Utility):
 
         # and the feasible node list is updated accordingly
         assert (
-            set(map(lambda n: tuple(n.get_ruleset_ids()), icbb2._feasible_nodes))
-            == sols
+            set(icbb2.feasible_rulesets) == sols
         )
 
     def test__generate_from_feasible_solutions_when_not_incremental(self):
@@ -547,10 +546,7 @@ class TestGenerate(Utility):
         assert sols == expected_sols
 
         # collected solutions should be consistent with yielded solutions
-        collected_feasible_sols = set(
-            map(lambda n: tuple(n.get_ruleset_ids()), icbb2._feasible_nodes)
-        )
-        assert collected_feasible_sols == expected_sols
+        assert set(icbb2.feasible_rulesets) == expected_sols
 
 
 class TestEnd2End(Utility):
@@ -603,7 +599,7 @@ class TestEnd2End(Utility):
         for sol in sols:
             assert isinstance(sol, set)
 
-    @pytest.mark.parametrize("target_thresh", randints(3))
+    @pytest.mark.parametrize("target_thresh", randints(3, vmin=1))
     @pytest.mark.parametrize("seed", randints(3))
     def test_bounded_count(self, target_thresh, seed):
         thresh1 = 1  # yield just 1 solution
