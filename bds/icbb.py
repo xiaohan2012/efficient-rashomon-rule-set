@@ -315,12 +315,12 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
 
         if solver_status is None:
             # create the tree and queue
-            logger.debug("solve from scratch, since solver_status is None")
+            logger.debug("solve from scratch")
             self.reset_tree()
             self.reset_queue()
         else:
             logger.debug(
-                "incrementally solve based on previous run, since solver_status is not None"
+                "solve incrementally "
             )
             self._copy_solver_status(solver_status)
 

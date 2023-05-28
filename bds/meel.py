@@ -132,7 +132,7 @@ def log_search(
     while True:
         logger.debug("---- solve m = {} {}----".format(
             m,
-            f"(based on {latest_usable_m})" if latest_usable_m else ""
+            f"(based on {latest_usable_m})" if latest_usable_m else "from scratch"
         ))
 
         # obtain only the first `thresh` solutions in the random cell
@@ -171,7 +171,7 @@ def log_search(
             lo = m
 
             # we only update the checkpoint when search lower bound is updated
-            logger.debug(f"using the solver status for m={m} as the latest")
+            logger.debug(f"using the solver status for m = {m} as the latest")
             latest_solver_status = icbb.solver_status
             latest_usable_m = m
 
