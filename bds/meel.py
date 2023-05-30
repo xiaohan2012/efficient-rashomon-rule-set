@@ -130,10 +130,12 @@ def log_search(
     search_trajectory = []
 
     while True:
-        logger.debug("---- solve m = {} {}----".format(
-            m,
-            f"(based on {latest_usable_m})" if latest_usable_m else "from scratch"
-        ))
+        logger.debug(
+            "---- solve m = {} {}----".format(
+                m,
+                f"(based on {latest_usable_m})" if latest_usable_m else "from scratch",
+            )
+        )
 
         # obtain only the first `thresh` solutions in the random cell
         with Timer() as timer:
@@ -141,7 +143,14 @@ def log_search(
             Y_size = icbb.bounded_count(
                 thresh, A=A[:m], t=t[:m], solver_status=latest_solver_status
             )
-            logger.debug(f"search tree size: {icbb.tree.num_nodes}")
+            logger.debug(
+                "search tree size: {} {}".format(
+                    icbb.tree.num_nodes,
+                    f"(changed from {latest_solver_status['tree'].num_nodes})"
+                    if latest_solver_status
+                    else "",
+                )
+            )
         logger.debug(f"solving takes {timer.elapsed:.2f} secs")
 
         Y_size_arr[m] = Y_size
