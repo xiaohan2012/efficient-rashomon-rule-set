@@ -13,3 +13,7 @@ pbb: profile_bb.py
 pcbb: profile_cbb.py
 	$(KP) profile_cbb.py
 	$(LP) profile_cbb.py.lprof
+
+p8: profile_solve_m_eq_12_based_on_8.py
+	$(KP) profile_solve_m_eq_12_based_on_8.py
+	$(LP) profile_solve_m_eq_12_based_on_8.py.lprof

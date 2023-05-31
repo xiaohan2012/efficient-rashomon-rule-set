@@ -26,4 +26,4 @@ with Timer() as timer:
     num_cells, num_sols = approx_mc2_core(
         rules, y, lmbd=lmbd, ub=ub, thresh=50, prev_num_cells=2, rand_seed=12345
     )
-    print(f"elapsed time: {timer.elapsed}")
+    print(f"elapsed time: {timer.elapsed:.2f}s")

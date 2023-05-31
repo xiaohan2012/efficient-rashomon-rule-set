@@ -151,14 +151,14 @@ class TestLogSearch:
     @pytest.mark.parametrize(
         "ub", [0.6, 0.75]  # using larger ub, e.g., 1.0 tends to run slower
     )
+    @pytest.mark.parametrize('initial_m', randints(3, vmin=1, vmax=5))
     @pytest.mark.parametrize("thresh", [5, 10])
     @pytest.mark.parametrize("rand_seed", randints(3))
-    def test_consistency_on_m(self, ub, thresh, rand_seed):
+    def test_consistency_on_m(self, ub, initial_m, thresh, rand_seed):
         """no matter what m_prev is provided, the same m should be given"""
-        random_rules, random_y, A, t = self.generate_random_input(10, 50, 1234)
+        random_rules, random_y, A, t = self.generate_random_input(10, 50, rand_seed)
 
         m = A.shape[0]
-        initial_m = int(m / 2)
 
         lmbd = 0.1
         ref_m, ref_Y_size, ref_big_cell, ref_Y_size_arr, _ = log_search(

@@ -20,6 +20,37 @@ class TestBranchAndBoundNaive:
     def create_bb_object(self, rules, y, lmbd=0.1):
         return BranchAndBoundNaive(rules, ub=10, y=y, lmbd=lmbd)
 
+    def test__create_new_node_and_add_to_tree(self, rules, y):
+        bb = self.create_bb_object(rules, y)
+        bb.reset_tree()
+        assert bb.tree.num_nodes == 1
+
+        rule1 = rules[0]
+        rule2 = rules[1]
+        child = bb._create_new_node_and_add_to_tree(
+            rule1, lb=mpfr(), obj=mpfr(), captured=mpz(), parent_node=bb.tree.root
+        )
+        assert bb.tree.num_nodes == 2  # tree is updated
+
+        grandchild = bb._create_new_node_and_add_to_tree(
+            rule2, lb=mpfr(), obj=mpfr(), captured=mpz(), parent_node=child
+        )
+        assert bb.tree.num_nodes == 3  # tree is updated
+
+        # depth should be correct
+        # parent should be correct
+        assert child.depth == 1
+        assert child.parent == bb.tree.root
+
+        assert grandchild.depth == 2
+        assert grandchild.parent == child
+
+        # add an already-added node just return the added node
+        grandchild_same = bb._create_new_node_and_add_to_tree(
+            rule2, lb=mpfr(), obj=mpfr(), captured=mpz(), parent_node=child
+        )
+        assert grandchild_same == grandchild
+
     @pytest.mark.parametrize(
         "invalid_rules",
         [

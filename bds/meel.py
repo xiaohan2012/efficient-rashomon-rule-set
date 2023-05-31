@@ -14,6 +14,7 @@ from logzero import logger
 
 from .bb import BranchAndBoundNaive
 from .cbb import ConstrainedBranchAndBoundNaive
+from .icbb import IncrementalConstrainedBranchAndBound
 from .random_hash import generate_h_and_alpha
 from .rule import Rule
 from .ray_pbar import RayProgressBar
@@ -93,7 +94,7 @@ def log_search(
       is True if returning all information relevant to the call,
       otherwise return the m value and the corresponding solution set size
     """
-    logger.debug(f"thresh: {thresh}")
+    logger.debug(f"calling log_search with thresh={thresh}")
     # TODO: cache the number of solutions and return the one corresponding to the m
     if thresh <= 1:
         raise ValueError("thresh should be at least 1")
@@ -120,27 +121,44 @@ def log_search(
 
     big_cell.fill(-1)  # -1 means not initialized
 
-    cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
+    # cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
 
+    latest_solver_status = None
+    latest_usable_m: int = None
     # we store the list of m values that are tried
     # as well as the solution size and threshold
     search_trajectory = []
 
     while True:
-        logger.debug(f"current m = {m}")
-        # solve the problem with all constraints
-        A_sub, t_sub = A[:m], t[:m]
+        logger.debug(
+            "---- solve m = {} {}----".format(
+                m,
+                f"(based on {latest_usable_m})" if latest_usable_m else "from scratch",
+            )
+        )
 
         # obtain only the first `thresh` solutions in the random cell
         with Timer() as timer:
-            Y_size = cbb.bounded_count(thresh, A=A_sub, t=t_sub)
-            logger.debug(f"solving takes {timer.elapsed:.2f} secs")
-            logger.debug(f"search tree size: {cbb.tree.root.total_num_nodes}")
+            icbb = IncrementalConstrainedBranchAndBound(rules, ub, y, lmbd)
+            Y_size = icbb.bounded_count(
+                thresh, A=A[:m], t=t[:m], solver_status=latest_solver_status
+            )
+            logger.debug(
+                "search tree size: {} {}".format(
+                    icbb.tree.num_nodes,
+                    f"(changed from {latest_solver_status['tree'].num_nodes})"
+                    if latest_solver_status
+                    else "",
+                )
+            )
+        logger.debug(f"solving takes {timer.elapsed:.2f} secs")
+
         Y_size_arr[m] = Y_size
 
         search_trajectory.append((m, Y_size, thresh))
 
         if Y_size >= thresh:
+            # not enough constraints, we increase m
             logger.debug(f"|Y| >= thresh ({Y_size} >= {thresh})")
 
             if m == num_vars - 2:
@@ -160,6 +178,12 @@ def log_search(
             fill_array_until(big_cell, m, 1)
 
             lo = m
+
+            # we only update the checkpoint when search lower bound is updated
+            logger.debug(f"using the solver status for m = {m} as the latest")
+            latest_solver_status = icbb.solver_status
+            latest_usable_m = m
+
             if np.abs(m - m_prev) < 3:
                 m += 1
             elif (2 * m < num_vars) and big_cell[
@@ -169,6 +193,7 @@ def log_search(
             else:
                 m = int((hi + m) / 2)
         else:
+            # too many constraints, we decrease m
             logger.debug(f"|Y| < thresh ({Y_size} < {thresh})")
             if m == 0:
                 big_cell[m] = 0
@@ -365,7 +390,9 @@ def approx_mc2(
         if not parallel:
             estimates = []
 
-            iter_obj = tqdm(range(max_num_calls) if show_progress else range(max_num_calls))
+            iter_obj = tqdm(
+                range(max_num_calls) if show_progress else range(max_num_calls)
+            )
 
             for trial_idx, rand_seed_next in zip(iter_obj, rand_seed_pool):
                 with Timer() as timer:
@@ -412,7 +439,9 @@ def approx_mc2(
                 for seed in rand_seed_pool[:num_available_cpus]
             ]
 
-            logger.info(f"doing 1st round of parallel execution of {len(rand_seed_pool[:num_available_cpus])} jobs")
+            logger.info(
+                f"doing 1st round of parallel execution of {len(rand_seed_pool[:num_available_cpus])} jobs"
+            )
             RayProgressBar.show(promise_1st_round)
             results_1st_round = ray.get(promise_1st_round)
             results_1st_round = list(filter(None, results_1st_round))
@@ -434,7 +463,9 @@ def approx_mc2(
                 )
                 for seed in rand_seed_pool[num_available_cpus:]
             ]
-            logger.info(f"doing 2nd round of parallel execution of {len(rand_seed_pool[num_available_cpus:])} jobs")
+            logger.info(
+                f"doing 2nd round of parallel execution of {len(rand_seed_pool[num_available_cpus:])} jobs"
+            )
             RayProgressBar.show(promise_2nd_round)
             results_2nd_round = ray.get(promise_2nd_round)
             results = list(filter(None, results_2nd_round)) + results_1st_round

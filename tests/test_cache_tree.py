@@ -58,10 +58,12 @@ class TestNode:
         child1 = create_dummy_node(1)
 
         child2 = create_dummy_node(2)
+        grand_child = create_dummy_node(3)
 
         parent.add_child(child1)
         assert child1.parent == parent
         assert parent.num_children == 1
+        assert child1.depth == 1
 
         # no duplicate is added
         with pytest.raises(KeyError, match=".*is already a child.*"):
@@ -72,11 +74,15 @@ class TestNode:
 
         parent.add_child(child2)
         assert child2.parent == parent
+        assert child2.depth == 1
         assert parent.num_children == 2
 
         assert parent.total_num_nodes == 3
         assert child1.total_num_nodes == 1
         assert child1.total_num_nodes == 1
+
+        child1.add_child(grand_child)
+        assert grand_child.depth == 2
 
     def test_make_root(self):
         num_train_pts = 10

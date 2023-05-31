@@ -143,7 +143,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
     # @profile
     def generate(self, return_objective=False) -> Iterable:
         if not self.is_linear_system_solvable:
-            logger.debug("abort the search since linear system is not solvable")
+            logger.debug("abort the search since the linear system is not solvable")
             yield from ()
         else:
             yield from super(ConstrainedBranchAndBoundNaive, self).generate(
@@ -151,15 +151,17 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
             )
 
     # @profile
-    def reset(self, A, t):
+    def reset(self, A: np.ndarray, t: np.ndarray):
         self.setup_constraint_system(A, t)
         super(ConstrainedBranchAndBoundNaive, self).reset()
 
     def setup_constraint_system(self, A: np.ndarray, t: np.ndarray):
         """set the constraint system, e.g., simplify the system"""
+        logger.debug("setting up the parity constraint system")
         assert_binary_array(t)
 
-        # simplify theconstraint system
+        # simplify the constraint system
+        # TODO: if the constraint system tends to be denser, do not use the rref version
         self.A, self.t, rank = self._simplify_constraint_system(A, t)
         self.is_linear_system_solvable = (self.t[rank:] == 0).all()
 
@@ -183,8 +185,10 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         u = bin_ones(self.num_constraints)
 
         # the satisfication status constraint
-        # means unsatisified, 1 means satisfied
+        # 0 means unsatisified, 1 means satisfied
+        # by convention, it is initialized as a vector of 0s
         s = bin_zeros(self.num_constraints)
+
         # the parity status constraint
         # 0 mean an even number of rules are selected
         # 1 mean an odd number of rules are selected
@@ -266,6 +270,8 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                 obj = lb + fn_fraction
 
                 # the following variables might be assigned later
+                # and if assigned
+                # will be assigned only once in the check of the current rule
                 child_node = None
                 up = None
 
@@ -288,9 +294,11 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                         )
                         self.queue.push(
                             (child_node, not_captured, up, sp, zp),
-                            key=child_node.lower_bound,
-                            # key=-self.queue.size  # policy = stack = FILO
-                            # key=child_node.lower_bound / child_node.num_captured,  # using the curiosity function defined in CORELS
+                            # if the lower bound are the same for two nodes, resolve the order by the corresponding ruleset
+                            key=(
+                                child_node.lower_bound,
+                                tuple(child_node.get_ruleset_ids()),
+                            ),
                         )
 
                 if obj <= self.ub:
@@ -307,7 +315,12 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                                 rule, lb, obj, captured, parent_node
                             )
                         ruleset = child_node.get_ruleset_ids()
+
                         if return_objective:
                             yield (ruleset, child_node.objective)
                         else:
+                            # print("self.queue._items: {}".format(self.queue._items))
+                            print(
+                                f"yielding {ruleset} with lb {child_node.lower_bound}"
+                            )
                             yield ruleset
