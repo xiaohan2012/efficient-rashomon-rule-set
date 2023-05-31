@@ -45,6 +45,12 @@ class TestBranchAndBoundNaive:
         assert grandchild.depth == 2
         assert grandchild.parent == child
 
+        # add an already-added node just return the added node
+        grandchild_same = bb._create_new_node_and_add_to_tree(
+            rule2, lb=mpfr(), obj=mpfr(), captured=mpz(), parent_node=child
+        )
+        assert grandchild_same == grandchild
+
     @pytest.mark.parametrize(
         "invalid_rules",
         [

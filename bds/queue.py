@@ -1,5 +1,6 @@
 import heapq
 from typing import Any, Union
+from copy import copy
 
 
 class Queue:
@@ -28,4 +29,8 @@ class Queue:
     @property
     def is_empty(self) -> bool:
         return self.size == 0
-        
+
+    def copy(self):
+        new_queue = self.__class__()
+        new_queue._items = copy(self._items)
+        return new_queue

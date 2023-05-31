@@ -36,3 +36,14 @@ class TestQueue:
             actual_item = q.pop()
             assert expected_item == actual_item
             assert q.size == total_queue_size - i - 1
+
+    def test_copy(self):
+        q = self.get_simple_queue(1234)
+        q_cp = q.copy()
+
+        assert q._items == q_cp._items
+
+        # modifying the original queue shouldn't affect the new queue
+        q.pop()
+        assert q._items != q_cp._items
+        assert q.size == (q_cp.size - 1)

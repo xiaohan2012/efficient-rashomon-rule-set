@@ -211,12 +211,13 @@ class TestGenerate(Utility):
         icbb2._feasible_nodes.append("blah")
         assert len(icbb1.solver_status["feasible_nodes"]) < len(icbb2._feasible_nodes)
 
-        # modify the tree of icbb2 should not affect icbb1
-        icbb2.tree.root.children[1].lower_bound += 1
-        assert (
-            icbb1.solver_status["tree"].root.children[1].lower_bound
-            != icbb2.tree.root.children[1].lower_bound
-        )
+        # the following does not hold anymore because we use shallow copy (for performance reasons)
+        # # modify the tree of icbb2 should not affect icbb1
+        # icbb2.tree.root.children[1].lower_bound += 1
+        # assert (
+        #     icbb1.solver_status["tree"].root.children[1].lower_bound
+        #     != icbb2.tree.root.children[1].lower_bound
+        # )
 
     def test__generate_from_last_checked_node_feasible_case(self):
         """test generating from the last checked node

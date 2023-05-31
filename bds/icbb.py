@@ -291,14 +291,14 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         """copy the solver status into self"""
         self._is_incremental = True  # mark the run as incremental
 
-        self.queue = copy.deepcopy(solver_status["queue"])
-        self.tree = copy.deepcopy(solver_status["tree"])
-        self._feasible_nodes = copy.deepcopy(solver_status["feasible_nodes"])
+        self.queue = solver_status["queue"].copy()
+        self.tree = copy.copy(solver_status["tree"])
+        self._feasible_nodes = copy.copy(solver_status["feasible_nodes"])
 
         # assume the following 3 attributes are immutable
-        self._last_node = copy.deepcopy(solver_status["last_node"])
-        self._last_not_captured = copy.deepcopy(solver_status["last_not_captured"])
-        self._last_rule = copy.deepcopy(solver_status["last_rule"])
+        self._last_node = copy.copy(solver_status["last_node"])
+        self._last_not_captured = copy.copy(solver_status["last_not_captured"])
+        self._last_rule = copy.copy(solver_status["last_rule"])
 
     def reset(
         self,

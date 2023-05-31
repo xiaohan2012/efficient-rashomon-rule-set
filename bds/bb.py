@@ -153,15 +153,17 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
     ) -> Node:
         """create a node using information provided by rule, lb, obj, and captured
         and add it as a child of parent"""
-        child_node = Node(
-            rule_id=rule.id,
-            lower_bound=lb,
-            objective=obj,
-            num_captured=gmp.popcount(captured),
-        )
-
-        self.tree.add_node(child_node, parent_node)
-        return child_node
+        if rule.id not in parent_node.children:
+            child_node = Node(
+                rule_id=rule.id,
+                lower_bound=lb,
+                objective=obj,
+                num_captured=gmp.popcount(captured),
+            )
+            self.tree.add_node(child_node, parent_node)
+            return child_node
+        else:
+            return parent_node.children[rule.id]
 
     def _incremental_update_lb(self, v: mpz, y: np.ndarray) -> mpfr:
         return incremental_update_lb(v, y, self.num_train_pts)
