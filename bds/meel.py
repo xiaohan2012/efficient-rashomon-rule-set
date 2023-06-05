@@ -129,6 +129,7 @@ def log_search(
     # as well as the solution size and threshold
     search_trajectory = []
 
+    time_cost_info = []  # time cost for each tried m
     while True:
         logger.debug(
             "---- solve m = {} {}----".format(
@@ -152,6 +153,7 @@ def log_search(
                 )
             )
         logger.debug(f"solving takes {timer.elapsed:.2f} secs")
+        time_cost_info.append((m, timer.elapsed))
 
         Y_size_arr[m] = Y_size
 
@@ -224,8 +226,9 @@ def log_search(
     # to make sure that the search trajectory is logical
     _check_log_search_trajectory(search_trajectory)
 
+    print("time_cost_info: {}".format(time_cost_info))
     if return_full:
-        return m, Y_size_arr[m], big_cell, Y_size_arr, search_trajectory
+        return m, Y_size_arr[m], big_cell, Y_size_arr, search_trajectory, time_cost_info
     else:
         return m, Y_size_arr[m]
 
@@ -368,15 +371,11 @@ def approx_mc2(
     # take at most thresh_floor solutions
     with Timer() as timer:
         Y_bounded_size = bb.bounded_count(thresh_floor)
-        logger.debug(f"BB solving takes {timer.elapsed:.2f} secs")
-
-    logger.debug(
-        f"initial solving with thresh={thresh_floor} gives {Y_bounded_size} solutions"
-    )
+        logger.debug(f"BB solving (thresh={thresh_floor}) takes {timer.elapsed:.2f} secs\nand gave {Y_bounded_size} solutions")
 
     if Y_bounded_size < thresh_floor:
         logger.debug(
-            f"terminate since number of solutions {Y_bounded_size} < {thresh_floor}"
+            f"exit since number of solutions {Y_bounded_size} < {thresh_floor}"
         )
         final_estimate = Y_bounded_size
     else:
@@ -419,7 +418,9 @@ def approx_mc2(
             def approx_mc2_core_wrapper(log_level, *args, **kwargs):
                 # reset the loglevel since the function runs in a separate process
                 logger.setLevel(log_level)
-                num_cells, num_sols = approx_mc2_core(*args, **kwargs)
+                with Timer() as timer:
+                    num_cells, num_sols = approx_mc2_core(*args, **kwargs)
+                    logger.debug(f"running approx_mc2_core takes {timer.elapsed:.2f}s")
                 if num_cells is not None:
                     return (num_cells, num_sols)
                 else:

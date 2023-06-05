@@ -68,7 +68,7 @@ class TestLogSearch:
         ub = float("inf")
         A, t = generate_h_and_alpha(n, m, seed=rand_seed, as_numpy=True)
         # test statements
-        m, Y_size, big_cell, Y_size_arr, _ = log_search(
+        m, Y_size, big_cell, Y_size_arr, _, _ = log_search(
             rules, y, lmbd, ub, A, t, thresh, m_prev, return_full=True
         )
 
@@ -88,7 +88,7 @@ class TestLogSearch:
         random_rules, random_y, A, t = self.generate_random_input(10, 50, 1234)
 
         lmbd = 0.1
-        m, Y_size, big_cell, Y_size_arr, _ = log_search(
+        m, Y_size, big_cell, Y_size_arr, _, _ = log_search(
             random_rules,
             random_y,
             lmbd,
@@ -110,7 +110,7 @@ class TestLogSearch:
         random_rules, random_y, A, t = self.generate_random_input(20, 50, 1234)
 
         lmbd = 0.1
-        m, Y_size, big_cell, Y_size_arr, search_trajectory = log_search(
+        m, Y_size, big_cell, Y_size_arr, search_trajectory, _ = log_search(
             random_rules,
             random_y,
             lmbd,
@@ -161,7 +161,7 @@ class TestLogSearch:
         m = A.shape[0]
 
         lmbd = 0.1
-        ref_m, ref_Y_size, ref_big_cell, ref_Y_size_arr, _ = log_search(
+        ref_m, ref_Y_size, ref_big_cell, ref_Y_size_arr, _, _ = log_search(
             random_rules,
             random_y,
             lmbd,
@@ -180,7 +180,7 @@ class TestLogSearch:
                 actual_Y_size,
                 actual_big_cell,
                 actual_Y_size_arr,
-                _,
+                _, _
             ) = log_search(
                 random_rules,
                 random_y,

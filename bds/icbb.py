@@ -383,6 +383,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             )
 
             # prune by ruleset length
+            assert parent_node.num_rules == (len(parent_node.get_ruleset_ids()) - 1)
             if (parent_node.num_rules + 1) > length_ub:
                 continue
 

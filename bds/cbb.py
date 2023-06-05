@@ -263,7 +263,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                 + self._incremental_update_lb(captured, self.y_mpz)
                 + self.lmbd
             )
-            if lb <= self.ub:
+            if lb <= self.ub:  # parent + current rule
                 fn_fraction, not_captured = self._incremental_update_obj(
                     parent_not_captured, captured
                 )
@@ -276,6 +276,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                 up = None
 
                 # apply look-ahead bound
+                # parent + current rule + any next rule
                 lookahead_lb = (
                     lb
                     # equivalent point bound disabled for now, due to slower speed
