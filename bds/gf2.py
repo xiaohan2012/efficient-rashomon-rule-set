@@ -10,7 +10,11 @@ def extended_rref(A: GF, b: GF, verbose: bool = False) -> Tuple[GF, GF, int]:
     """
     given a 2D matrix A and a vector b, both in GF2,
     obtain the reduced row echelon form of a matrix A and repeat the reduction process on a column vector b
-    return the transformed A and b as well as the rank of A
+    return:
+
+    - the transformed A and b
+    - the rank of A
+    - the indices of the pivot columns 
     """
     if b.ndim == 1:
         b = b.reshape(-1, 1)  # transform it to column vector
@@ -29,6 +33,7 @@ def extended_rref(A: GF, b: GF, verbose: bool = False) -> Tuple[GF, GF, int]:
     A_rre = A.copy()
     b_rre = b.copy()
     p = 0  # The pivot
+    pivot_columns = []
 
     if verbose:
         print(f"A:\n{A_rre}")
@@ -55,6 +60,9 @@ def extended_rref(A: GF, b: GF, verbose: bool = False) -> Tuple[GF, GF, int]:
             print("b:")
             print(f"{b_rre}")
 
+        # the pivot of row p is the first non-zero column index)
+        pivot_columns.append(A_rre[p, :].nonzero()[0][0])
+
         idxs = np.nonzero(A_rre[:, j])[0].tolist()
         idxs.remove(p)
         A_rre[idxs, :] -= A_rre[p, :]
@@ -72,7 +80,7 @@ def extended_rref(A: GF, b: GF, verbose: bool = False) -> Tuple[GF, GF, int]:
         if p == A_rre.shape[0]:
             break
 
-    return A_rre, b_rre.flatten(), p
+    return A_rre, b_rre.flatten(), p, np.asarray(pivot_columns, dtype=int)
 
 
 def eye(rank: int) -> GF:

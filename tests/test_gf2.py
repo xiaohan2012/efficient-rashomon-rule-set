@@ -25,7 +25,7 @@ class TestExtendedRref:
             extended_rref(A, b)
 
     @pytest.mark.parametrize(
-        "A, b, exp_A, exp_b, exp_p",
+        "A, b, exp_A, exp_b, exp_p, pivots",
         [
             # expected reduction process and per-step output
             # 1. at column 0
@@ -62,6 +62,7 @@ class TestExtendedRref:
                 gf2_eye(3),  # expected A
                 GF([1, 1, 1]),  # expected b
                 3,  # rank
+                np.asarray([0, 1, 2]),  # pivots
             ),
             # ---------------------------
             # 1. at column 0
@@ -76,7 +77,7 @@ class TestExtendedRref:
             #    there is no pivot
             # done
             # we return with p = 1 and A is eye matrix
-            (GF([[0, 0], [1, 1]]), GF([1, 0]), GF([[1, 1], [0, 0]]), GF([0, 1]), 1),
+            (GF([[0, 0], [1, 1]]), GF([1, 0]), GF([[1, 1], [0, 0]]), GF([0, 1]), 1, np.asarray([0])),
             # ---------------------------
             # 1. at column 0
             #    swap row 0 and row 1
@@ -108,6 +109,7 @@ class TestExtendedRref:
                 GF([[1, 0, 0], [0, 0, 1]]),
                 GF([1, 1]),
                 2,
+                np.asarray([0, 2]),
             ),
             # ---------------------------
             # 1. at column 0
@@ -137,14 +139,17 @@ class TestExtendedRref:
                 GF([[1, 0], [0, 1], [0, 0]]),
                 GF([0, 0, 1]),
                 2,
+                np.asarray([0, 1])
             ),
         ],
     )
-    def test_valid_inputs(self, A, b, exp_A, exp_b, exp_p):
-        A_rref, b_rref, p = extended_rref(A, b, verbose=False)
+    def test_valid_inputs(self, A, b, exp_A, exp_b, exp_p, pivots):
+        A_rref, b_rref, p, actual_pivots = extended_rref(A, b, verbose=False)
         assert (A_rref == exp_A).all()
         assert (b_rref == exp_b).all()
         assert p == exp_p
+        assert p == len(actual_pivots)
+        np.testing.assert_allclose(actual_pivots, pivots)
 
 
 @pytest.mark.parametrize(
@@ -166,11 +171,12 @@ def test_fix_variables_to_one(which, expected_t):
 
 
 @pytest.mark.parametrize(
-    'A, b, expected',
+    "A, b, expected",
     [
         (GF([[1, 0], [0, 0]]), GF([0, 0]), 2),
         (GF([[1, 0], [0, 0]]), GF([0, 1]), 0),
-        (GF([[1, 1], [0, 1]]), GF([1, 1]), 1)
-    ])
+        (GF([[1, 1], [0, 1]]), GF([1, 1]), 1),
+    ],
+)
 def test_num_of_solutions(A, b, expected):
     assert num_of_solutions(A, b) == expected

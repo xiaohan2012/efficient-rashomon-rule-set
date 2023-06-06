@@ -127,7 +127,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
     ) -> Tuple[np.ndarray, np.ndarray]:
         """simplify the constraint system using reduced row echelon form"""
         logger.debug("simplifying A x = t using rref")
-        A_rref, t_rref, rank = extended_rref(
+        A_rref, t_rref, rank, _ = extended_rref(
             GF(A.astype(int)), GF(t.astype(int)), verbose=False
         )
 
