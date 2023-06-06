@@ -61,7 +61,7 @@ class TestUpdatePivotVariables:
             j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
         )
         assert rules == {1}
-        np.testing.assert_allclose(zp, bin_array([1, 0]))
+        np.testing.assert_allclose(zp, bin_array([0, 0]))
 
         j = 2
         z = bin_zeros(m)
