@@ -92,12 +92,12 @@ def assign_pivot_variables(
 
     # print("cst_idxs: {}".format(cst_idxs))
     selected_rules = set()
-    for i in range(rank):
+    for i in range(rank):  # loop up to rank
         max_nz_idx = max_nz_idx_array[i]
-        print("i: {}".format(i))
-        print("max_nz_idx: {}".format(max_nz_idx))
-        print("z[i]: {}".format(z[i]))
-        print("t[i]: {}".format(t[i]))
+        # print("i: {}".format(i))
+        # print("max_nz_idx: {}".format(max_nz_idx))
+        # print("z[i]: {}".format(z[i]))
+        # print("t[i]: {}".format(t[i]))
         # this constraint is not determined yet or the added rule is not relevant
         if ((j < (max_nz_idx + 1)) or (i not in cst_idxs)) and (z[i] != t[i]):
             selected_rules.add(row2pivot_column[i] + 1)  # +1 because rule is 1-indexed
@@ -145,9 +145,9 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         )
         # mapping from row index to the pivot column index
         self.row2pivot_column = np.array(self.pivot_columns, dtype=int)
-        print("self.row2pivot_column: {}".format(self.row2pivot_column))
-        print("self.A:\n {}".format(self.A.astype(int)))
-        print("self.t:\n {}".format(self.t.astype(int)))
+        # print("self.row2pivot_column: {}".format(self.row2pivot_column))
+        # print("self.A:\n {}".format(self.A.astype(int)))
+        # print("self.t:\n {}".format(self.t.astype(int)))
 
     def reset_queue(self):
         self.queue: Queue = Queue()

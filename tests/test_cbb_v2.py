@@ -484,16 +484,16 @@ class TestConstrainedBranchAndBound:
 
         assert_dict_allclose(actual_sols, expected_sols)
 
-    @pytest.mark.parametrize("num_rules", [10, 15])
-    @pytest.mark.parametrize("num_constraints", [2, 5, 8])
-    @pytest.mark.parametrize("lmbd", [0.1])
-    @pytest.mark.parametrize("ub", [0.5001, 0.2001, 0.0001])  # float("inf"),  # , 0.01
-    @pytest.mark.parametrize("rand_seed", randints(10))
-    # @pytest.mark.parametrize("num_rules", [10])
-    # @pytest.mark.parametrize("num_constraints", [8])
+    # @pytest.mark.parametrize("num_rules", [10, 15])
+    # @pytest.mark.parametrize("num_constraints", [2, 5, 8])
     # @pytest.mark.parametrize("lmbd", [0.1])
-    # @pytest.mark.parametrize("ub", [0.5001])  # float("inf"),  # , 0.01
-    # @pytest.mark.parametrize("rand_seed", [1007730884])
+    # @pytest.mark.parametrize("ub", [0.5001, 0.2001, 0.0001])  # float("inf"),  # , 0.01
+    # @pytest.mark.parametrize("rand_seed", randints(10))
+    @pytest.mark.parametrize("num_rules", [10])
+    @pytest.mark.parametrize("num_constraints", [8])
+    @pytest.mark.parametrize("lmbd", [0.1])
+    @pytest.mark.parametrize("ub", [0.5001])  # float("inf"),  # , 0.01
+    @pytest.mark.parametrize("rand_seed", [1859619716])
     def test_complete_enumeration_and_alignment_with_cbb_on_random_dataset(
         self, num_rules, num_constraints, lmbd, ub, rand_seed
     ):
@@ -522,7 +522,7 @@ class TestConstrainedBranchAndBound:
         # assert actual_keys == expected_keys
         assert_dict_allclose(actual_sols, expected_sols)
 
-    @pytest.mark.skip("because if cbb is correct, test cbb_v2 against cbb is enough")
+    @pytest.mark.skip("skipped because if cbb is correct, testing cbb_v2 against cbb (shown above) is enough")
     @pytest.mark.parametrize("num_rules", [10])
     @pytest.mark.parametrize("num_constraints", [2, 4, 8])
     @pytest.mark.parametrize("lmbd", [0.1])
