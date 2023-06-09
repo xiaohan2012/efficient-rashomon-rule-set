@@ -85,8 +85,6 @@ class BranchAndBoundGeneric:
         """return the captured array for the rule in the context of parent"""
         return parent_not_captured & rule.truthtable
 
-        self.reset()
-
     # @profile
     def generate(self, return_objective=False) -> Iterable:
         while not self.queue.is_empty:

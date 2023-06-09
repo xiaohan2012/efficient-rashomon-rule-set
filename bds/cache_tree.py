@@ -14,9 +14,14 @@ class Node:
     children: Dict[int, "Node"] = field(default_factory=dict)
     depth: int = 0
     parent: Optional["Node"] = None
+
     equivalent_lower_bound: Optional[
         float
     ] = None  # it should default to none if not given
+
+    pivot_rule_ids: List[int] = field(
+        default_factory=list
+    )  # a list of ids of the pivod rules that are added due to the addition of rule_id
 
     def __post_init__(self):
         """if parent is not None, 'bind' self and parent by upting children and depth accordingly"""
@@ -55,7 +60,7 @@ class Node:
 
     def get_ruleset_ids(self):
         """get the rule ids of the rule set associated with this node/rule"""
-        ret = {self.rule_id}
+        ret = {self.rule_id} | set(self.pivot_rule_ids)
         if self.parent is not None:
             ret |= self.parent.get_ruleset_ids()
         return ret

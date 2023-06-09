@@ -27,14 +27,14 @@ def incremental_update_lb(v: mpz, y: mpz, num_pts: mpz) -> mpfr:
 def incremental_update_obj(u: mpz, v: mpz, y: mpz, num_pts: mpz) -> Tuple[mpfr, mpz]:
     """
     return the incremental false negative fraction for a rule set (prefix + current rule)
-    and the indicator vector of false negatives
+    and the indicator vector of predicted negatives
 
     u: points not captured by the prefix
     v: points captured by the current rule (in the context of the prefix)
     y: true labels
     num_pts: the total number
     """
-    f = u & (~v)  # points not captured by both prefix and the rule
+    f = u & (~v)  # predicted negatives -- points not captured by either prefix or the rule
     g = f & y  # false negatives
     return gmp.popcount(g) / num_pts, f
 

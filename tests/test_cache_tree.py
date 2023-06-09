@@ -99,13 +99,29 @@ class TestNode:
         leaf = create_dummy_node(
             2, parent=create_dummy_node(1, parent=create_dummy_node(0))
         )
-        assert leaf.get_ruleset_ids() == {0, 1, 2}
-
         parent = leaf.parent
-        assert parent.get_ruleset_ids() == {0, 1}
-
         grand_parent = leaf.parent.parent
+
+        assert leaf.get_ruleset_ids() == {0, 1, 2}
+        assert parent.get_ruleset_ids() == {0, 1}
         assert grand_parent.get_ruleset_ids() == {0}
+
+    def test_get_ruleset_ids_with_pivot_rule_ids(self):
+        leaf = create_dummy_node(
+            2, parent=create_dummy_node(1, parent=create_dummy_node(0))
+        )
+        parent = leaf.parent
+        grand_parent = leaf.parent.parent
+
+        # add some pivots
+        leaf.pivot_rule_ids = [3, 4]
+        parent.pivot_rule_ids = [5]
+        grand_parent.pivot_rule_ids = [6]
+        assert leaf.get_ruleset_ids() == {0, 1, 2, 3, 4, 5, 6}
+
+        assert parent.get_ruleset_ids() == {0, 1, 5, 6}
+
+        assert grand_parent.get_ruleset_ids() == {0, 6}
 
 
 class TestCacheTree:

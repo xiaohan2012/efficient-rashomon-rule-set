@@ -127,7 +127,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
     ) -> Tuple[np.ndarray, np.ndarray]:
         """simplify the constraint system using reduced row echelon form"""
         logger.debug("simplifying A x = t using rref")
-        A_rref, t_rref, rank, _ = extended_rref(
+        A_rref, t_rref, rank, pivot_columns = extended_rref(
             GF(A.astype(int)), GF(t.astype(int)), verbose=False
         )
 
@@ -138,7 +138,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                 bin_array(A_rref).sum() / n_total_entries, A.sum() / n_total_entries
             )
         )
-        return bin_array(A_rref), bin_array(t_rref), rank
+        return bin_array(A_rref), bin_array(t_rref), rank, pivot_columns
 
     # @profile
     def generate(self, return_objective=False) -> Iterable:
@@ -162,8 +162,10 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
         # simplify the constraint system
         # TODO: if the constraint system tends to be denser, do not use the rref version
-        self.A, self.t, rank = self._simplify_constraint_system(A, t)
-        self.is_linear_system_solvable = (self.t[rank:] == 0).all()
+        self.A, self.t, self.rank, self.pivot_columns = self._simplify_constraint_system(
+            A, t
+        )
+        self.is_linear_system_solvable = (self.t[self.rank:] == 0).all()
 
         # auxiliary data structures for caching and better performance
         self.max_nz_idx_array = get_max_nz_idx_per_row(self.A)

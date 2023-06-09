@@ -3,7 +3,7 @@ import gmpy2 as gmp
 from gmpy2 import mpz
 import numpy as np
 
-from bds.rule import Rule, RuleEntry, RuleSet
+from bds.rule import Rule, lor_of_truthtable
 from bds.utils import randints, mpz_set_bits
 
 
@@ -35,38 +35,56 @@ class TestRule:
         assert r == r_copy
 
 
-class TestRuleEntry:
-    def test_init(self):
-        n_samples = 200
-        rule_id = 0
-        n_captured = 10
+def make_rule(idx, truthtable: mpz):
+    return Rule(idx, "", 1, truthtable)
 
-        ids = np.random.permutation(n_samples)[:n_captured]
-        captured = np.zeros(n_samples)
-        captured[ids] = 1
+class TestLOROfTruthtable:
+    @pytest.mark.parametrize(
+        'rules, expected',
+        [
+            ([], mpz()),
+            ([make_rule(1, mpz("0b001010"))], mpz("0b001010")),
+            ([make_rule(1, mpz("0b001010")),
+              make_rule(2, mpz("0b001101"))],
+             mpz("0b001111"))]
+    )
+    def test(self, rules, expected):
+        assert lor_of_truthtable(rules) == expected
 
-        entry = RuleEntry(rule_id, n_captured, captured)
+    
+    
+# class TestRuleEntry:
+#     def test_init(self):
+#         n_samples = 200
+#         rule_id = 0
+#         n_captured = 10
 
-        assert entry.rule_id == rule_id
-        assert entry.n_captured == n_captured
-        np.testing.assert_allclose(entry.captured, captured)
+#         ids = np.random.permutation(n_samples)[:n_captured]
+#         captured = np.zeros(n_samples)
+#         captured[ids] = 1
+
+#         entry = RuleEntry(rule_id, n_captured, captured)
+
+#         assert entry.rule_id == rule_id
+#         assert entry.n_captured == n_captured
+#         np.testing.assert_allclose(entry.captured, captured)
 
 
-class TestRuleSet:
-    def random_rule_entry(self, rule_id=0):
-        n_samples = 200
-        n_captured = 10
+# class TestRuleSet:
+#     def random_rule_entry(self, rule_id=0):
+#         n_samples = 200
+#         n_captured = 10
 
-        ids = np.random.permutation(n_samples)[:n_captured]
-        captured = np.zeros(n_samples)
-        captured[ids] = 1
+#         ids = np.random.permutation(n_samples)[:n_captured]
+#         captured = np.zeros(n_samples)
+#         captured[ids] = 1
 
-        return RuleEntry(rule_id, n_captured, captured)
+#         return RuleEntry(rule_id, n_captured, captured)
 
-    def test_init(self):
-        n_rules = 5
-        rs = RuleSet([self.random_rule_entry(i) for i in range(n_rules)])
-        assert rs.n_rules == n_rules
+#     def test_init(self):
+#         n_rules = 5
+#         rs = RuleSet([self.random_rule_entry(i) for i in range(n_rules)])
+#         assert rs.n_rules == n_rules
 
-        for entry in rs:
-            assert isinstance(entry, RuleEntry)
+#         for entry in rs:
+#             assert isinstance(entry, RuleEntry)

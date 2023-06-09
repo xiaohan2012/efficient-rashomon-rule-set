@@ -3,6 +3,7 @@ import gmpy2 as gmp
 from gmpy2 import mpz
 from typing import Optional, List, Dict, Tuple, Union
 from dataclasses import dataclass
+from functools import reduce
 from .utils import bin_zeros, assert_binary_array, mpz_set_bits
 
 
@@ -45,28 +46,34 @@ class Rule:
         )
 
 
-@dataclass
-class RuleEntry:
-    """a rule inside a rule set"""
-
-    rule_id: int
-    n_captured: int  # Number of 1's in bit vector.
-    captured: np.ndarray  # a binary array indicating whether a sample is captured by he rule
+def lor_of_truthtable(rules: List[Rule]) -> mpz:
+    """take the logical OR of rules' truth tables"""
+    bit_vec_list = [r.truthtable for r in rules]
+    return reduce(lambda x, y: x | y, bit_vec_list, mpz())
 
 
-@dataclass
-class RuleSet:
-    rule_entries: List[RuleEntry]
+# @dataclass
+# class RuleEntry:
+#     """a rule inside a rule set"""
 
-    @property
-    def n_rules(self):
-        return len(self.rule_entries)
-
-    def __iter__(self):
-        return (ent for ent in self.rule_entries)
+#     rule_id: int
+#     n_captured: int  # Number of 1's in bit vector.
+#     captured: np.ndarray  # a binary array indicating whether a sample is captured by he rule
 
 
-# void rule_vand(VECTOR, VECTOR, VECTOR, int, int *);
-# void rule_vandnot(VECTOR, VECTOR, VECTOR, int, int *);
-# void rule_vor(VECTOR, VECTOR, VECTOR, int, int *);
-# void rule_not(VECTOR, VECTOR, int, int *);
+# @dataclass
+# class RuleSet:
+#     rule_entries: List[RuleEntry]
+
+#     @property
+#     def n_rules(self):
+#         return len(self.rule_entries)
+
+#     def __iter__(self):
+#         return (ent for ent in self.rule_entries)
+
+
+# # void rule_vand(VECTOR, VECTOR, VECTOR, int, int *);
+# # void rule_vandnot(VECTOR, VECTOR, VECTOR, int, int *);
+# # void rule_vor(VECTOR, VECTOR, VECTOR, int, int *);
+# # void rule_not(VECTOR, VECTOR, int, int *);
