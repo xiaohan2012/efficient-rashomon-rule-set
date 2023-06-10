@@ -82,7 +82,7 @@ class UniGen:
 
         if self.presolve_callback.solution_count >= self.hi_thresh:
             # we will not return immediately
-3            # so we estimate the number of solutions
+            # so we estimate the number of solutions
             if self.verbose > 0:
                 print(f"which is >= hi_thresh: {self.hi_thresh}")
 

@@ -47,7 +47,6 @@ def test_incremental_update_obj():
     assert f == actual_f, bin(actual_f)
     assert fn == (mpz(2) / 7)
     assert isinstance(fn, mpfr)
-    raise
 
 
 def test_prefix_specific_length_upperbound():
