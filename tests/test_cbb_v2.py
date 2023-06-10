@@ -27,6 +27,7 @@ from .utils import (
     generate_random_rules_and_y,
     assert_dict_allclose,
     brute_force_enumeration,
+    calculate_obj
 )
 from .fixtures import rules, y
 
@@ -484,22 +485,22 @@ class TestConstrainedBranchAndBound:
 
         assert_dict_allclose(actual_sols, expected_sols)
 
-    # @pytest.mark.parametrize("num_rules", [10, 15])
-    # @pytest.mark.parametrize("num_constraints", [2, 5, 8])
-    # @pytest.mark.parametrize("lmbd", [0.1])
-    # @pytest.mark.parametrize("ub", [0.5001, 0.2001, 0.0001])  # float("inf"),  # , 0.01
-    # @pytest.mark.parametrize("rand_seed", randints(10))
-    @pytest.mark.parametrize("num_rules", [10])
-    @pytest.mark.parametrize("num_constraints", [8])
+    @pytest.mark.parametrize("num_rules", [10, 15, 20])
+    @pytest.mark.parametrize("num_constraints", [2, 5, 8])
     @pytest.mark.parametrize("lmbd", [0.1])
-    @pytest.mark.parametrize("ub", [0.5001])  # float("inf"),  # , 0.01
-    @pytest.mark.parametrize("rand_seed", [1859619716])
+    @pytest.mark.parametrize("ub", [0.5001, 0.2001, 0.0001])  # float("inf"),  # , 0.01
+    @pytest.mark.parametrize("rand_seed", randints(10))
+    # @pytest.mark.parametrize("num_rules", [10])
+    # @pytest.mark.parametrize("num_constraints", [2])
+    # @pytest.mark.parametrize("lmbd", [0.1])
+    # @pytest.mark.parametrize("ub", [0.501])  # float("inf"),  # , 0.01
+    # @pytest.mark.parametrize("rand_seed", [162140838])
     def test_complete_enumeration_and_alignment_with_cbb_on_random_dataset(
         self, num_rules, num_constraints, lmbd, ub, rand_seed
     ):
         """the output should be the same as cbb"""
         rand_rules, rand_y = generate_random_rules_and_y(10, num_rules, rand_seed)
-        # print("rand_y: {}".format(rand_y[::-1].astype(int)))
+        # print("rand_y: {}".format(''.join(map(str, rand_y[::-1].astype(int)))))
         # for r in rand_rules:
         #     print(f"{r.name}: {bin(r.truthtable)}")
 
@@ -517,17 +518,22 @@ class TestConstrainedBranchAndBound:
             list(cbb_v2.run(return_objective=True, A=A, t=t))
         )
 
-        # actual_keys = set(actual_sols.keys())
-        # expected_keys = set(expected_sols.keys())
-        # assert actual_keys == expected_keys
+        # print("actual_sols: {}".format(actual_sols))
+        # print(calculate_obj(cbb_v2.rules, cbb_v2.y_np, cbb_v2.y_mpz, (0, 2, 6, 10), lmbd))
+        
+        actual_keys = set(actual_sols.keys())
+        expected_keys = set(expected_sols.keys())
+        assert actual_keys == expected_keys
         assert_dict_allclose(actual_sols, expected_sols)
+
+        
 
     @pytest.mark.skip("skipped because if cbb is correct, testing cbb_v2 against cbb (shown above) is enough")
     @pytest.mark.parametrize("num_rules", [10])
-    @pytest.mark.parametrize("num_constraints", [2, 4, 8])
+    @pytest.mark.parametrize("num_constraints", [8])
     @pytest.mark.parametrize("lmbd", [0.1])
-    @pytest.mark.parametrize("ub", [0.5001])  # float("inf"),  # , 0.01
-    @pytest.mark.parametrize("rand_seed", [895595566])
+    @pytest.mark.parametrize("ub", [1.0])  # float("inf"),  # , 0.01
+    @pytest.mark.parametrize("rand_seed", [1859619716])
     def test_corretness(self, num_rules, num_constraints, lmbd, ub, rand_seed):
         """the output should be the same as ground truth"""
         rand_rules, rand_y = generate_random_rules_and_y(10, num_rules, rand_seed)
@@ -540,8 +546,15 @@ class TestConstrainedBranchAndBound:
         actual = solutions_to_dict(list(cbb.run(return_objective=True, A=A, t=t)))
 
         expected = solutions_to_dict(
-            list(brute_force_enumeration(rand_rules, rand_y, A, t, ub, lmbd))
+            list(brute_force_enumeration(rand_rules, rand_y, cbb.A, cbb.t, ub, lmbd))
         )
 
+        # print("A:\n {}".format(cbb.A.astype(int)))
+        # print("t:\n {}".format(cbb.t.astype(int)))
+        
+        # print("actual: {}".format(actual))
+        # print("expected: {}".format(expected))
+        # print('obj((0, 2, 6, 10)):', calculate_obj(cbb.rules, cbb.y_np, cbb.y_mpz, (0, 2, 6, 10), lmbd))
         assert set(actual.keys()) == set(expected.keys())
         assert_dict_allclose(actual, expected)
+        # raise

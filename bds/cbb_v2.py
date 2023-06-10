@@ -1,13 +1,13 @@
 from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 
-import numpy as np
 import gmpy2 as gmp
+import numpy as np
 from gmpy2 import mpfr, mpz
 from logzero import logger
 
-from .cbb import ConstrainedBranchAndBoundNaive
 from .bounds import prefix_specific_length_upperbound
 from .cache_tree import Node
+from .cbb import ConstrainedBranchAndBoundNaive
 from .gf2 import GF, extended_rref
 from .queue import Queue
 from .rule import Rule, lor_of_truthtable
@@ -214,16 +214,20 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 yield sol
 
     def generate(self, return_objective=False) -> Iterable:
-        yield from self.generate_solution_at_root(return_objective)
+        if not self.is_linear_system_solvable:
+            logger.debug("abort the search since the linear system is not solvable")
+            yield from ()
+        else:
+            yield from self.generate_solution_at_root(return_objective)
 
-        while not self.queue.is_empty:
-            queue_item = self.queue.pop()
-            yield from self._loop(*queue_item, return_objective=return_objective)
+            while not self.queue.is_empty:
+                queue_item = self.queue.pop()
+                yield from self._loop(*queue_item, return_objective=return_objective)
 
     def _loop(
         self,
         parent_node: Node,
-        parent_not_captured: mpz,
+        u: mpz,
         z: np.ndarray,
         return_objective=False,
     ):
@@ -231,9 +235,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         check one node in the search tree, update the queue, and yield feasible solution if exists
         parent_node: the current node/prefix to check
         parent_not_captured: postives not captured by the current prefix
-        u: the undetermined vector
-        s: the satisfifaction state vector
-        z: the parity state vector
+        z: the parity states vector
         return_objective: True if return the objective of the evaluated node
         """
         parent_lb = parent_node.lower_bound
@@ -253,75 +255,71 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             if (parent_node.num_rules + 1) > length_ub:
                 continue
 
-            pivot_rule_idxs_1, zp = self._update_pivot_variables(rule, z)
-            pivot_rules_to_add_1 = self._get_rules_by_idxs(pivot_rule_idxs_1)
-            rules_to_add = [rule] + pivot_rules_to_add_1
+            e1_idxs, zp = self._update_pivot_variables(rule, z)
+            e1 = [rule] + self._get_rules_by_idxs(e1_idxs)
 
-            logger.debug(f"adding rule {rule.id}")
+            logger.debug(f"adding free rule {rule.id}")
             logger.debug(
-                "[update_pivot_variables]: indices of pivot rules to add: {}".format(
-                    pivot_rule_idxs_1
-                )
+                "[update_pivot_variables] e1 = {}".format(list(e1_idxs) + [rule.id])
             )
-            captured_1 = lor_of_truthtable(rules_to_add)
-
+            # consider the captured points not captured by the prefix
+            v1 = lor_of_truthtable(e1) & u
+            for r in e1:
+                logger.debug(f"r{r.id:2d}: {bin(r.truthtable)[2:]:>25}")
+            # logger.debug(f"v1: {bin(v1)[2:]:>26}")
+            # logger.debug(f"y: {bin(self.y_mpz)[2:]:>27}")
             lb = (
                 parent_lb
-                + self._incremental_update_lb(
-                    # consider the captured points not captured by the prefix
-                    captured_1 & parent_not_captured,
-                    self.y_mpz,
-                )
-                + len(rules_to_add) * self.lmbd
+                + self._incremental_update_lb(v1, self.y_mpz)
+                + len(e1) * self.lmbd
             )
-            logger.debug(f"parent_lb: {parent_lb}")
-            logger.debug(
-                f"addition to lb: {self._incremental_update_lb(captured_1 & parent_not_captured, self.y_mpz)}"
-            )
-            logger.debug(f"lb: {lb}")
-            logger.debug(f"len(rules_to_add): {len(rules_to_add)}")
+            # logger.debug(f"parent_lb: {parent_lb}")
+            # logger.debug(
+            #     f"addition to lb: {self._incremental_update_lb(v1, self.y_mpz)}"
+            # )
+            # logger.debug(f"lb: {lb}")
+            # logger.debug(f"len(e1): {len(e1)}")
             if lb <= self.ub:  # parent + current rule
-                pivot_rule_idxs_2 = self._assign_pivot_variables(rule, zp)
-                pivot_rules_to_add_2 = self._get_rules_by_idxs(pivot_rule_idxs_2)
+                e2_idxs = self._assign_pivot_variables(rule, zp)
+                e2 = self._get_rules_by_idxs(e2_idxs)
 
-                logger.debug(
-                    "[assign_pivot_variables] indices of pivot rules to add: {}".format(
-                        pivot_rule_idxs_2
-                    )
-                )
-                captured_previously = captured_1 | (
-                    ~parent_not_captured
-                )  # captured by the prefix, current rule, and rules introduced by update_pivot_variables
-                not_captured_previously = ~captured_previously
+                logger.debug("[assign_pivot_variables] e2 = {}".format(e2_idxs))
+                # captured by the prefix, current rule, and rules introduced by update_pivot_variables
 
-                # captured by the rules introduced by assign_pivot_variables
-                # but not by the previously added rules
-                captured_2 = (
-                    lor_of_truthtable(pivot_rules_to_add_2) & not_captured_previously
-                )
+                # a verbose way to do bitwise inverse on u
+                # the ~ operator returns a negative number, e.g., -0b1000000000
+                # and applying lor gives weird result
+                # TODO: is there a way to do bitwise inverse in the "expected" way
+                # def mpz_comp(v):
+                #     not_v = v
+                #     for i in range(len(self.rules)):
+                #         not_v = gmp.bit_flip(not_v, i)
+                #     return not_v
 
-                logger.debug(f"bin(~captured_previously): {bin(~captured_previously)}")
-                logger.debug(f"bin(captured_2): {bin(captured_2)}")
-                # captured = (captured_1 | captured_2) & parent_not_captured
-                # the FP mistakes incurred by adding pivot_rules_to_add_2
-                fp_fraction = self._incremental_update_lb(
-                    captured_2,
-                    self.y_mpz,
-                )
+                not_u = ~u
+                w = v1 | not_u
 
-                # the FN mistakes incurred by adding pivot_rules_to_add_2
-                fn_fraction, _ = self._incremental_update_obj(
-                    not_captured_previously, captured_2
-                )
-                logger.debug(f"fp_fraction: {fp_fraction}")
-                logger.debug(f"fn_fraction: {fn_fraction}")
-                logger.debug(f"len(pivot_rule_idxs_2): {len(pivot_rule_idxs_2)}")
-                obj = (
-                    lb
-                    + fn_fraction
-                    + fp_fraction
-                    + (self.lmbd * len(pivot_rule_idxs_2))
-                )
+                # logger.debug(f"v1: {bin(v1)[2:]:>26}")
+                # logger.debug(f"not_u: {bin(not_u)[2:]:>23}")
+                # logger.debug(f"w: {bin(w)[2:]:>27}")
+
+                not_w = ~w
+                # logger.debug(f"not_w: {bin(not_w)[2:]:>23}")
+                # logger.debug(f"e2: {bin(lor_of_truthtable(e2))[2:]:>26}")
+                # captured by e2 but not by e1 + d'
+                v2 = lor_of_truthtable(e2) & not_w
+
+                # logger.debug(f"v2: {bin(v2)[2:]:>26}")
+                # logger.debug(f"y: {bin(self.y_mpz)[2:]:>27}")
+                # the FP mistakes incurred by e2
+                fp_fraction = self._incremental_update_lb(v2, self.y_mpz)
+
+                # the FN mistakes incurred by e2
+                fn_fraction, _ = self._incremental_update_obj(not_w, v2)
+                # logger.debug(f"fp_fraction: {fp_fraction}")
+                # logger.debug(f"fn_fraction: {fn_fraction}")
+                # logger.debug(f"len(e2): {len(e2)}")
+                obj = lb + fn_fraction + fp_fraction + (self.lmbd * len(e2))
 
                 # the child_node might be assigned later
                 # and if assigned
@@ -332,20 +330,16 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 # parent + current rule + any next rule
                 lookahead_lb = lb + self.lmbd
                 if lookahead_lb <= self.ub:
-                    # TODO: what is captured, by whom?
-                    # by current rule and updated pivot rules
                     child_node = self._create_new_node_and_add_to_tree(
                         rule,
                         lb,
                         obj,
-                        captured_previously,
+                        w,
                         parent_node,
-                        pivot_rules_to_add_1,
+                        e1,
                     )
-                    # TODO: what is not_captured, by whom? by current rule and udpated pivot rules
                     self.queue.push(
-                        (child_node, not_captured_previously, zp),
-                        # if the lower bound are the same for two nodes, resolve the order by the corresponding ruleset
+                        (child_node, not_w, zp),
                         key=child_node.lower_bound,
                     )
 
@@ -356,11 +350,11 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                             rule,
                             lb,
                             obj,
-                            captured_previously,
+                            w,
                             parent_node,
-                            pivot_rules_to_add_1,
+                            e1,
                         )
-                    ruleset = child_node.get_ruleset_ids() | pivot_rule_idxs_2
+                    ruleset = child_node.get_ruleset_ids() | e2_idxs
 
                     logger.debug(f"yielding {ruleset} with obj {obj:.2f}")
                     if return_objective:

@@ -16,7 +16,7 @@ from bds.bounds import (
 
 @pytest.mark.parametrize("seed", randints(5))
 @pytest.mark.parametrize("num_fp", np.arange(6))
-def test_incremental_update_obj(seed, num_fp):
+def test_incremental_update_lb(seed, num_fp):
     np.random.seed(seed)
 
     num_pts = 10
@@ -32,17 +32,22 @@ def test_incremental_update_obj(seed, num_fp):
     assert isinstance(actual, mpfr)
 
 
-def test_incremental_update_lb():
+def test_incremental_update_obj():
     u = mpz_set_bits(mpz(), [1, 2, 5])  # points not captured by prefix
     v = mpz_set_bits(mpz(), [1, 4])  # captured by rule
+    # not captured by either rule or prefix
+    # {2, 3, 5, 6, 7}
+    # {2, 3, 5, 6, 7} & {1, 2, 5} -> f = {2, 5}
     f = mpz_set_bits(mpz(), [2, 5])  # not captured by the rule and prefix
     y = mpz_set_bits(mpz(), [1, 2, 4, 5])  # the true labels
+    # false negatives: {1, 4}
     num_pts = mpz(7)
     fn, actual_f = incremental_update_obj(u, v, y, num_pts)
 
-    assert f == actual_f
+    assert f == actual_f, bin(actual_f)
     assert fn == (mpz(2) / 7)
     assert isinstance(fn, mpfr)
+    raise
 
 
 def test_prefix_specific_length_upperbound():

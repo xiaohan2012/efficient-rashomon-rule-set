@@ -56,7 +56,7 @@ def calculate_obj(
     # print("bin(pred): {}".format(bin(pred)))
     # print("bin(y_mpz): {}".format(bin(y_mpz)))
     num_mistakes = gmp.popcount(y_mpz ^ pred)
-    # print("num_mistakes: {}".format(num_mistakes))
+    print("num_mistakes: {}".format(num_mistakes))
     obj = len(sol[1:]) * lmbd + num_mistakes / y_np.shape[0]
     return float(obj)
 
@@ -74,7 +74,7 @@ def brute_force_enumeration(
             sol_arr = np.zeros(num_rules, dtype=int)
             sol_arr[np.asarray(sol) - 1] = 1
             prod = A_gf @ GF(sol_arr)
-            # Ax=b is satisfied
+            # Ax=b is satisfied                
             if (prod == b_gf).all():
                 sol = (0, ) + sol
                 obj = calculate_obj(rules, y, y_mpz, sol, lmbd)

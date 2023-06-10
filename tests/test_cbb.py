@@ -307,11 +307,11 @@ class TestConstrainedBranchAndBoundNaive:
         assert isinstance(sols, list)
         assert len(sols) == count
 
-    @pytest.mark.parametrize("num_rules", [10, 12])
+    @pytest.mark.parametrize("num_rules", [10])
     @pytest.mark.parametrize("num_constraints", [2, 4, 8])
     @pytest.mark.parametrize("lmbd", [0.1])
-    @pytest.mark.parametrize("ub", [0.501, 0.201, 0.001])  # float("inf"),  # , 0.01
-    @pytest.mark.parametrize("rand_seed", randints(3))
+    @pytest.mark.parametrize("ub", [0.801, 0.501, 0.001])  # float("inf"),  # , 0.01
+    @pytest.mark.parametrize("rand_seed", randints(5))
     def test_solution_correctness(self, num_rules, num_constraints, lmbd, ub, rand_seed):
         """the output should be the same as ground truth"""
         rand_rules, rand_y = generate_random_rules_and_y(10, num_rules, rand_seed)
