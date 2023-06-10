@@ -77,7 +77,7 @@ class BranchAndBoundGeneric:
         raise NotImplementedError()
 
     def reset(self):
-        logger.debug("initializing search tree and priority queue")
+        # logger.debug("initializing search tree and priority queue")
         self.reset_tree()
         self.reset_queue()
 

@@ -20,7 +20,7 @@ ub = 0.8
 lmbd = 0.1
 
 thresh = 72
-prev_m = 2
+prev_m = 1
 
 with Timer() as timer:
     num_cells, num_sols = approx_mc2_core(

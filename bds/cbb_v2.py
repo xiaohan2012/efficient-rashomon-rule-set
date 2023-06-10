@@ -206,7 +206,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         obj = num_mistakes / self.num_train_pts + len(rule_idxs) * self.lmbd
         # print("num_mistakes: {}".format(num_mistakes))
         sol = {0} | rule_idxs
-        logger.debug(f"solution at root: {sol} (obj={obj:.2f})")
+        # logger.debug(f"solution at root: {sol} (obj={obj:.2f})")
         if len(sol) > 1 and obj <= self.ub:
             if return_objective:
                 yield sol, obj
@@ -243,7 +243,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             parent_lb, parent_node.num_rules, self.lmbd, self.ub
         )
 
-        logger.debug(f"parent node: {parent_node.get_ruleset_ids()}")
+        # logger.debug(f"parent node: {parent_node.get_ruleset_ids()}")
         # here we assume the rule ids are consecutive integers
         for rule in self.rules[parent_node.rule_id :]:
             # consider adding only free rules
@@ -258,14 +258,14 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             e1_idxs, zp = self._update_pivot_variables(rule, z)
             e1 = [rule] + self._get_rules_by_idxs(e1_idxs)
 
-            logger.debug(f"adding free rule {rule.id}")
-            logger.debug(
-                "[update_pivot_variables] e1 = {}".format(list(e1_idxs) + [rule.id])
-            )
+            # logger.debug(f"adding free rule {rule.id}")
+            # logger.debug(
+            #     "[update_pivot_variables] e1 = {}".format(list(e1_idxs) + [rule.id])
+            # )
             # consider the captured points not captured by the prefix
             v1 = lor_of_truthtable(e1) & u
-            for r in e1:
-                logger.debug(f"r{r.id:2d}: {bin(r.truthtable)[2:]:>25}")
+            # for r in e1:
+            #     logger.debug(f"r{r.id:2d}: {bin(r.truthtable)[2:]:>25}")
             # logger.debug(f"v1: {bin(v1)[2:]:>26}")
             # logger.debug(f"y: {bin(self.y_mpz)[2:]:>27}")
             lb = (
@@ -283,7 +283,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 e2_idxs = self._assign_pivot_variables(rule, zp)
                 e2 = self._get_rules_by_idxs(e2_idxs)
 
-                logger.debug("[assign_pivot_variables] e2 = {}".format(e2_idxs))
+                # logger.debug("[assign_pivot_variables] e2 = {}".format(e2_idxs))
                 # captured by the prefix, current rule, and rules introduced by update_pivot_variables
 
                 # a verbose way to do bitwise inverse on u
@@ -356,7 +356,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                         )
                     ruleset = child_node.get_ruleset_ids() | e2_idxs
 
-                    logger.debug(f"yielding {ruleset} with obj {obj:.2f}")
+                    # logger.debug(f"yielding {ruleset} with obj {obj:.2f}")
                     if return_objective:
                         yield (ruleset, child_node.objective)
                     else:
