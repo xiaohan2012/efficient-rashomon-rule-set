@@ -14,6 +14,10 @@ pcbb: profile_cbb.py
 	$(KP) profile_cbb.py
 	$(LP) profile_cbb.py.lprof
 
+pcbbv2: profile_cbb_v2.py
+	$(KP) profile_cbb_v2.py
+	$(LP) profile_cbb_v2.py.lprof
+
 picbb: profile_icbb.py
 	$(KP) profile_icbb.py
 	$(LP) profile_icbb.py.lprof

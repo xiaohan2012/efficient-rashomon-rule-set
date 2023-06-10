@@ -27,12 +27,15 @@ from .utils import (
     generate_random_rules_and_y,
     assert_dict_allclose,
     brute_force_enumeration,
-    calculate_obj
+    calculate_obj,
 )
 from .fixtures import rules, y
 
 
 class TestUpdatePivotVariables:
+    @pytest.mark.skip(
+        "skipped because numba (nonpython) does not support raise ValueError"
+    )
     def test_trying_to_set_pivot_variable(self):
         A = np.array([[1, 0, 0, 0]], dtype=bool)
         t = np.array([0], dtype=bool)
@@ -65,7 +68,8 @@ class TestUpdatePivotVariables:
         rules, zp = update_pivot_variables(
             j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
         )
-        assert rules == {3}
+        np.testing.assert_allclose(rules, np.array([3], dtype=int))
+        # assert rules == {3}
         np.testing.assert_allclose(zp, bin_array([1, 1, 0]))
 
     def test_basic_2(self):
@@ -82,7 +86,8 @@ class TestUpdatePivotVariables:
         rules, zp = update_pivot_variables(
             j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
         )
-        assert rules == {1}
+
+        np.testing.assert_allclose(rules, np.array([1], dtype=int))
         np.testing.assert_allclose(zp, bin_array([0, 0]))
 
         j = 2
@@ -90,15 +95,15 @@ class TestUpdatePivotVariables:
         rules, zp = update_pivot_variables(
             j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
         )
-        assert rules == set()
+        np.testing.assert_allclose(rules, np.array([], dtype=int))
         np.testing.assert_allclose(zp, bin_array([0, 0]))
 
-        # cannot set rule-4 because it is pivot
-        with pytest.raises(ValueError, match="cannot set pivot variable of column 3"):
-            j = 4
-            rules, zp = update_pivot_variables(
-                j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
-            )
+        # # cannot set rule-4 because it is pivot
+        # with pytest.raises(ValueError, match="cannot set pivot variable of column 3"):
+        #     j = 4
+        #     rules, zp = update_pivot_variables(
+        #         j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
+        #     )
 
     @pytest.mark.parametrize(
         "j, z, z_expected",
@@ -128,6 +133,9 @@ class TestUpdatePivotVariables:
 
 
 class TestAssignPivotVariables:
+    @pytest.mark.skip(
+        "skipped because numba (nonpython) does not support raise ValueError"
+    )
     @pytest.mark.parametrize(
         "A, t, j",
         [
@@ -172,7 +180,7 @@ class TestAssignPivotVariables:
                 [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]],
                 [1, 1, 0],
                 4,
-                set(),
+                [],
             ),
             (
                 # j = 3
@@ -183,7 +191,7 @@ class TestAssignPivotVariables:
                 [[1, 0, 1, 1], [0, 1, 1, 0]],
                 [0, 1],
                 3,
-                {1},
+                [1],
             ),
             (
                 # j = 3
@@ -195,7 +203,7 @@ class TestAssignPivotVariables:
                 [[1, 0, 1, 1], [0, 1, 0, 0]],
                 [0, 1],
                 3,
-                {1, 2},
+                [1, 2],
             ),
             (
                 # j = 4
@@ -205,7 +213,7 @@ class TestAssignPivotVariables:
                 [[1, 0, 1, 1], [0, 1, 0, 0]],
                 [0, 1],
                 4,
-                {2},
+                [2],
             ),
             (
                 # j = 0 (adding the default rule)
@@ -217,7 +225,7 @@ class TestAssignPivotVariables:
                 [[1, 0, 1, 1], [0, 1, 0, 0]],
                 [1, 1],
                 0,
-                {1, 2},
+                [1, 2],
             ),
             (
                 # j = 0 (adding the default rule)
@@ -229,7 +237,7 @@ class TestAssignPivotVariables:
                 [[1, 0, 1, 1], [0, 0, 1, 0]],
                 [0, 1],
                 0,
-                {1, 3},  # 1 is added because t becomes [1, 1] due to rref
+                [1, 3],  # 1 is added because t becomes [1, 1] due to rref
             ),
             (
                 # j = 0 (adding the default rule)
@@ -241,7 +249,7 @@ class TestAssignPivotVariables:
                 [[1, 0, 1, 1], [0, 0, 1, 0]],
                 [1, 1],
                 0,
-                {3},  # 1 is added because t becomes [0, 1] due to rref
+                [3],  # 1 is added because t becomes [0, 1] due to rref
             ),
             (
                 # (the last row has no pivot variable, thus should not be checked
@@ -253,7 +261,7 @@ class TestAssignPivotVariables:
                 [[1, 0, 1, 1], [0, 0, 0, 0]],
                 [0, 0],
                 4,
-                set(),
+                [],
             ),
         ],
     )
@@ -275,9 +283,9 @@ class TestAssignPivotVariables:
         )
 
         rules = assign_pivot_variables(
-            j, rank, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
+            j, rank, z, t, A, max_nz_idx_array, row2pivot_column  # A_indices, A_indptr,
         )
-        assert rules == expected_rules
+        np.testing.assert_allclose(rules, np.array(expected_rules, dtype=int))
 
 
 class TestConstrainedBranchAndBound:
@@ -520,15 +528,15 @@ class TestConstrainedBranchAndBound:
 
         # print("actual_sols: {}".format(actual_sols))
         # print(calculate_obj(cbb_v2.rules, cbb_v2.y_np, cbb_v2.y_mpz, (0, 2, 6, 10), lmbd))
-        
+
         actual_keys = set(actual_sols.keys())
         expected_keys = set(expected_sols.keys())
         assert actual_keys == expected_keys
         assert_dict_allclose(actual_sols, expected_sols)
 
-        
-
-    @pytest.mark.skip("skipped because if cbb is correct, testing cbb_v2 against cbb (shown above) is enough")
+    @pytest.mark.skip(
+        "skipped because if cbb is correct, testing cbb_v2 against cbb (shown above) is enough"
+    )
     @pytest.mark.parametrize("num_rules", [10])
     @pytest.mark.parametrize("num_constraints", [8])
     @pytest.mark.parametrize("lmbd", [0.1])
@@ -551,7 +559,7 @@ class TestConstrainedBranchAndBound:
 
         # print("A:\n {}".format(cbb.A.astype(int)))
         # print("t:\n {}".format(cbb.t.astype(int)))
-        
+
         # print("actual: {}".format(actual))
         # print("expected: {}".format(expected))
         # print('obj((0, 2, 6, 10)):', calculate_obj(cbb.rules, cbb.y_np, cbb.y_mpz, (0, 2, 6, 10), lmbd))

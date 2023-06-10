@@ -4,6 +4,7 @@ import gmpy2 as gmp
 import numpy as np
 from gmpy2 import mpfr, mpz
 from logzero import logger
+from numba import jit
 
 from .bounds import prefix_specific_length_upperbound
 from .cache_tree import Node
@@ -21,6 +22,7 @@ from .utils import (
 )
 
 
+@jit(nopython=True, cache=True)
 def update_pivot_variables(
     j: int,
     z: np.ndarray,
@@ -29,15 +31,16 @@ def update_pivot_variables(
     A_indptr: np.ndarray,
     max_nz_idx_array: np.ndarray,
     row2pivot_column: np.ndarray,
-) -> Tuple[Set[int], np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray]:
     """
-    determine the set of selected pivot rules after adding the jth rule to the current prefix
+    return:
+
+    - selected pivot rule indices after adding the jth rule to the current prefix
+    - the function also returns the updated parity states vector
 
     note that the rule index must correspond to a non-pivot column
 
     the parity states vector is provided for the current prefix
-
-    the function also returns the updated parity states vector
 
     row2pivot_column is the mapping from row id to the corresponding pivot column
 
@@ -46,14 +49,17 @@ def update_pivot_variables(
     A_indices and A_indptr: where the non-zero row indices for column/rule i are stored in A_indices[A_indptr[i-1]:A_indptr[i]]
     max_nz_idx_array: the array of largest non-zero idx per constraint
     """
-    if (j - 1) in set(row2pivot_column):
-        raise ValueError(f"cannot set pivot variable of column {j - 1}")
+    # commented out the raise statement because numba does not allow it
+    # if (j - 1) in row2pivot_column:
+    #     raise ValueError(f"cannot set pivot variable of column {j - 1}")
 
     cst_idxs = A_indices[
         A_indptr[j - 1] : A_indptr[j]
     ]  # get the constraint (row) indices corresponind to rule j
-    selected_rules = set()
     zp: np.ndarray = z.copy()
+
+    selected_rules = np.empty(A_indices.shape, np.int_)
+    num_rules_selected = 0
     for i in cst_idxs:
         zp[i] = not zp[i]  # flip the parity value
         max_nz_idx = max_nz_idx_array[i]
@@ -63,45 +69,58 @@ def update_pivot_variables(
         if (j == (max_nz_idx + 1)) and (zp[i] != t[i]):
             # flip again because due to the addition of pivot rule
             zp[i] = not zp[i]
-            selected_rules.add(row2pivot_column[i] + 1)  # +1 because rule is 1-indexed
-    return selected_rules, zp
+            # +1 because rule is 1-indexed
+            selected_rules[num_rules_selected] = row2pivot_column[i] + 1
+            num_rules_selected += 1
+    return selected_rules[:num_rules_selected], zp
 
 
+@jit(nopython=True, cache=True)
 def assign_pivot_variables(
     j: int,
     rank: int,
     z: np.ndarray,
     t: np.ndarray,
-    A_indices: np.ndarray,
-    A_indptr: np.ndarray,
+    A: np.ndarray,
+    # A_indices: np.ndarray,
+    # A_indptr: np.ndarray,
     max_nz_idx_array: np.ndarray,
     row2pivot_column: np.ndarray,
-) -> Set[int]:
+) -> np.ndarray:
     """
-    return the set of pivot variables that are assigned to 1s if no rules with index larger than j are added further.
+    return the pivot variables that are assigned to 1s if no rules with index larger than j are added further.
     """
-    if (j - 1) in set(row2pivot_column):
-        raise ValueError(f"cannot set pivot variable of column {j - 1}")
+    # if (j - 1) in set(row2pivot_column):
+    #     raise ValueError(f"cannot set pivot variable of column {j - 1}")
 
-    if j > 0:
-        cst_idxs = A_indices[
-            A_indptr[j - 1] : A_indptr[j]
-        ]  # get the constraint (row) indices corresponind to rule j
-    else:
-        cst_idxs = np.array([], dtype=int)
+    # if j > 0:
+    #     cst_idxs = A_indices[
+    #         A_indptr[j - 1] : A_indptr[j]
+    #     ]  # get the constraint (row) indices corresponind to rule j
+    # else:
+    #     cst_idxs = np.array([], dtype=int)
 
     # print("cst_idxs: {}".format(cst_idxs))
-    selected_rules = set()
+    selected_rules = np.empty(A.shape[0], np.int_)
+    num_rules_selected = 0
+
     for i in range(rank):  # loop up to rank
         max_nz_idx = max_nz_idx_array[i]
         # print("i: {}".format(i))
         # print("max_nz_idx: {}".format(max_nz_idx))
         # print("z[i]: {}".format(z[i]))
         # print("t[i]: {}".format(t[i]))
-        # this constraint is not determined yet or the added rule is not relevant
-        if ((j < (max_nz_idx + 1)) or (i not in cst_idxs)) and (z[i] != t[i]):
-            selected_rules.add(row2pivot_column[i] + 1)  # +1 because rule is 1-indexed
-    return selected_rules
+
+        if (
+            # the ith constraint is not finalized by j
+            (j < (max_nz_idx + 1))
+            # j is not the default rule and jth rule is not relevant for the ith constraint
+            or (j > 0 and A[i][j - 1] == 0)
+        ) and (z[i] != t[i]):
+            # +1 because rule is 1-indexed
+            selected_rules[num_rules_selected] = row2pivot_column[i] + 1
+            num_rules_selected += 1
+    return selected_rules[:num_rules_selected]
 
 
 class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
@@ -124,8 +143,9 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             self.rank,
             z,
             self.t,
-            self.A_indices,
-            self.A_indptr,
+            self.A,
+            # self.A_indices,
+            # self.A_indptr,
             self.max_nz_idx_array,
             self.row2pivot_column,
         )
@@ -205,7 +225,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         # print("bin(captured): {}".format(bin(captured)))
         obj = num_mistakes / self.num_train_pts + len(rule_idxs) * self.lmbd
         # print("num_mistakes: {}".format(num_mistakes))
-        sol = {0} | rule_idxs
+        sol = {0} | set(rule_idxs)
         # logger.debug(f"solution at root: {sol} (obj={obj:.2f})")
         if len(sol) > 1 and obj <= self.ub:
             if return_objective:
@@ -224,6 +244,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 queue_item = self.queue.pop()
                 yield from self._loop(*queue_item, return_objective=return_objective)
 
+    # @profile
     def _loop(
         self,
         parent_node: Node,
@@ -256,6 +277,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 continue
 
             e1_idxs, zp = self._update_pivot_variables(rule, z)
+            e1_idxs = set(e1_idxs)
             e1 = [rule] + self._get_rules_by_idxs(e1_idxs)
 
             # logger.debug(f"adding free rule {rule.id}")
@@ -280,7 +302,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             # logger.debug(f"lb: {lb}")
             # logger.debug(f"len(e1): {len(e1)}")
             if lb <= self.ub:  # parent + current rule
-                e2_idxs = self._assign_pivot_variables(rule, zp)
+                e2_idxs = set(self._assign_pivot_variables(rule, zp))
                 e2 = self._get_rules_by_idxs(e2_idxs)
 
                 # logger.debug("[assign_pivot_variables] e2 = {}".format(e2_idxs))
