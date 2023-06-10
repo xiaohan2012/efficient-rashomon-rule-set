@@ -13,8 +13,11 @@ from tqdm import tqdm
 from logzero import logger
 
 from .bb import BranchAndBoundNaive
-from .cbb import ConstrainedBranchAndBoundNaive
-from .icbb import IncrementalConstrainedBranchAndBound
+
+# from .cbb import ConstrainedBranchAndBoundNaive
+from .cbb_v2 import ConstrainedBranchAndBound
+
+# from .icbb import IncrementalConstrainedBranchAndBound
 from .random_hash import generate_h_and_alpha
 from .rule import Rule
 from .ray_pbar import RayProgressBar
@@ -24,7 +27,6 @@ from .utils import (
     fill_array_until,
     int_ceil,
     int_floor,
-    logger,
     randints,
 )
 
@@ -123,35 +125,36 @@ def log_search(
 
     # cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
 
-    latest_solver_status = None
-    latest_usable_m: int = None
+    # latest_solver_status = None
+    # latest_usable_m: int = None
     # we store the list of m values that are tried
     # as well as the solution size and threshold
     search_trajectory = []
 
     time_cost_info = []  # time cost for each tried m
+
+    cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
     while True:
         logger.debug(
-            "---- solve m = {} {}----".format(
+            "---- solve m = {}----".format(
                 m,
-                f"(based on {latest_usable_m})" if latest_usable_m else "from scratch",
+                # f"(based on {latest_usable_m})" if latest_usable_m else "from scratch",
             )
         )
 
         # obtain only the first `thresh` solutions in the random cell
         with Timer() as timer:
-            icbb = IncrementalConstrainedBranchAndBound(rules, ub, y, lmbd)
-            Y_size = icbb.bounded_count(
-                thresh, A=A[:m], t=t[:m], solver_status=latest_solver_status
+            Y_size = cbb.bounded_count(
+                thresh, A=A[:m], t=t[:m]  # , solver_status=latest_solver_status
             )
-            logger.debug(
-                "search tree size: {} {}".format(
-                    icbb.tree.num_nodes,
-                    f"(changed from {latest_solver_status['tree'].num_nodes})"
-                    if latest_solver_status
-                    else "",
-                )
-            )
+            # logger.debug(
+            #     "search tree size: {} {}".format(
+            #         cbb.tree.num_nodes,
+            #         f"(changed from {latest_solver_status['tree'].num_nodes})"
+            #         if latest_solver_status
+            #         else "",
+            #     )
+            # )
         logger.debug(f"solving takes {timer.elapsed:.2f} secs")
         time_cost_info.append((m, timer.elapsed))
 
@@ -182,9 +185,9 @@ def log_search(
             lo = m
 
             # we only update the checkpoint when search lower bound is updated
-            logger.debug(f"using the solver status for m = {m} as the latest")
-            latest_solver_status = icbb.solver_status
-            latest_usable_m = m
+            # logger.debug(f"using the solver status for m = {m} as the latest")
+            # latest_solver_status = cbb.solver_status
+            # latest_usable_m = m
 
             if np.abs(m - m_prev) < 3:
                 m += 1
@@ -275,7 +278,7 @@ def approx_mc2_core(
         )
 
     # try to find at most thresh solutions using all constraints
-    cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
+    cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
     logger.debug(f"initial solving under {A.shape[0]} constraints")
     with Timer() as timer:
         Y_size = cbb.bounded_count(thresh, A=A, t=t)
@@ -371,7 +374,9 @@ def approx_mc2(
     # take at most thresh_floor solutions
     with Timer() as timer:
         Y_bounded_size = bb.bounded_count(thresh_floor)
-        logger.debug(f"BB solving (thresh={thresh_floor}) takes {timer.elapsed:.2f} secs\nand gave {Y_bounded_size} solutions")
+        logger.debug(
+            f"BB solving (thresh={thresh_floor}) takes {timer.elapsed:.2f} secs\nand gave {Y_bounded_size} solutions"
+        )
 
     if Y_bounded_size < thresh_floor:
         logger.debug(
@@ -516,7 +521,7 @@ class UniGen:
     def _create_solvers(self):
         """create the branch-and-bound solvers for both complete and constrained enumeration"""
         self.bb = BranchAndBoundNaive(self.rules, self.ub, self.y, self.lmbd)
-        self.cbb = ConstrainedBranchAndBoundNaive(
+        self.cbb = ConstrainedBranchAndBound(
             self.rules, self.ub, self.y, self.lmbd
         )
 
