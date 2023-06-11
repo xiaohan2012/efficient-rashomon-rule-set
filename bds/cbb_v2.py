@@ -269,9 +269,10 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         for rule in self.rules[parent_node.rule_id :]:
             # consider adding only free rules
             # since the addition of pivot rules are determined "automatically" by Ax=b
-            self.num_prefix_evaluations += 1
             if rule.id in self.pivot_rule_idxs:
                 continue
+
+            self.num_prefix_evaluations += 1
 
             # prune by ruleset length
             if (parent_node.num_rules + 1) > length_ub:
