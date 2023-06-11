@@ -269,6 +269,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         for rule in self.rules[parent_node.rule_id :]:
             # consider adding only free rules
             # since the addition of pivot rules are determined "automatically" by Ax=b
+            self.num_prefix_evaluations += 1
             if rule.id in self.pivot_rule_idxs:
                 continue
 
@@ -277,7 +278,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 continue
 
             e1_idxs, zp = self._update_pivot_variables(rule, z)
-            e1_idxs = set(e1_idxs)
+            # e1_idxs = set(e1_idxs)
             e1 = [rule] + self._get_rules_by_idxs(e1_idxs)
 
             # logger.debug(f"adding free rule {rule.id}")
@@ -302,7 +303,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             # logger.debug(f"lb: {lb}")
             # logger.debug(f"len(e1): {len(e1)}")
             if lb <= self.ub:  # parent + current rule
-                e2_idxs = set(self._assign_pivot_variables(rule, zp))
+                e2_idxs = self._assign_pivot_variables(rule, zp)
                 e2 = self._get_rules_by_idxs(e2_idxs)
 
                 # logger.debug("[assign_pivot_variables] e2 = {}".format(e2_idxs))
@@ -376,7 +377,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                             parent_node,
                             e1,
                         )
-                    ruleset = child_node.get_ruleset_ids() | e2_idxs
+                    ruleset = child_node.get_ruleset_ids() | set(e2_idxs)
 
                     # logger.debug(f"yielding {ruleset} with obj {obj:.2f}")
                     if return_objective:

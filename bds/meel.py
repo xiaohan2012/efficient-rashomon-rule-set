@@ -147,14 +147,9 @@ def log_search(
             Y_size = cbb.bounded_count(
                 thresh, A=A[:m], t=t[:m]  # , solver_status=latest_solver_status
             )
-            # logger.debug(
-            #     "search tree size: {} {}".format(
-            #         cbb.tree.num_nodes,
-            #         f"(changed from {latest_solver_status['tree'].num_nodes})"
-            #         if latest_solver_status
-            #         else "",
-            #     )
-            # )
+            logger.debug(f"search tree size: {cbb.tree.num_nodes}")
+            logger.debug(f"number of prefix evaluations: {cbb.num_prefix_evaluations}")
+
         logger.debug(f"solving takes {timer.elapsed:.2f} secs")
         time_cost_info.append((m, timer.elapsed))
 
@@ -521,9 +516,7 @@ class UniGen:
     def _create_solvers(self):
         """create the branch-and-bound solvers for both complete and constrained enumeration"""
         self.bb = BranchAndBoundNaive(self.rules, self.ub, self.y, self.lmbd)
-        self.cbb = ConstrainedBranchAndBound(
-            self.rules, self.ub, self.y, self.lmbd
-        )
+        self.cbb = ConstrainedBranchAndBound(self.rules, self.ub, self.y, self.lmbd)
 
     def _find_kappa(self, eps: float) -> float:
         """given eps, find kappa using binary search"""

@@ -57,6 +57,7 @@ class BranchAndBoundGeneric:
         # false negative rate of the default rule = fraction of positives
         self.default_rule_fnr = mpz(gmp.popcount(self.y_mpz)) / self.num_train_pts
 
+        self.num_prefix_evaluations = 0
         self._check_rule_ids()
 
         self.__post_init__()
