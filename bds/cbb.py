@@ -162,10 +162,13 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
         # simplify the constraint system
         # TODO: if the constraint system tends to be denser, do not use the rref version
-        self.A, self.t, self.rank, self.pivot_columns = self._simplify_constraint_system(
-            A, t
-        )
-        self.is_linear_system_solvable = (self.t[self.rank:] == 0).all()
+        (
+            self.A,
+            self.t,
+            self.rank,
+            self.pivot_columns,
+        ) = self._simplify_constraint_system(A, t)
+        self.is_linear_system_solvable = (self.t[self.rank :] == 0).all()
 
         # auxiliary data structures for caching and better performance
         self.max_nz_idx_array = get_max_nz_idx_per_row(self.A)
@@ -255,10 +258,10 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
         # here we assume the rule ids are consecutive integers
         for rule in self.rules[parent_node.rule_id :]:
+            self.num_prefix_evaluations += 1
             # prune by ruleset length
             if (parent_node.num_rules + 1) > length_ub:
                 continue
-
             captured = self._captured_by_rule(rule, parent_not_captured)
             lb = (
                 parent_lb
@@ -323,7 +326,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                             yield (ruleset, child_node.objective)
                         else:
                             # print("self.queue._items: {}".format(self.queue._items))
-                            print(
-                                f"yielding {ruleset} with lb {child_node.lower_bound}"
-                            )
+                            # print(
+                            #     f"yielding {ruleset} with lb {child_node.lower_bound}"
+                            # )
                             yield ruleset

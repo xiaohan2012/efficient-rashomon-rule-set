@@ -1,3 +1,4 @@
+import functools
 from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import gmpy2 as gmp
@@ -52,12 +53,20 @@ def update_pivot_variables(
     # commented out the raise statement because numba does not allow it
     # if (j - 1) in row2pivot_column:
     #     raise ValueError(f"cannot set pivot variable of column {j - 1}")
-
     cst_idxs = A_indices[
         A_indptr[j - 1] : A_indptr[j]
     ]  # get the constraint (row) indices corresponind to rule j
     zp: np.ndarray = z.copy()
 
+    # # flip the value of relevant constraints
+    # zp[cst_idxs] = ~zp[cst_idxs]
+
+    # # this constraint can be determined
+    # # and we should select the correponding pivot rule
+    # mask = np.logical_and(j == (max_nz_idx_array[cst_idxs] + 1), zp[cst_idxs] != t[cst_idxs])
+    # # flip again due to the addition of pivot rule
+    # zp[cst_idxs[mask]] = ~zp[cst_idxs[mask]]
+    # return row2pivot_column[cst_idxs[mask]] + 1
     selected_rules = np.empty(A_indices.shape, np.int_)
     num_rules_selected = 0
     for i in cst_idxs:
@@ -82,8 +91,6 @@ def assign_pivot_variables(
     z: np.ndarray,
     t: np.ndarray,
     A: np.ndarray,
-    # A_indices: np.ndarray,
-    # A_indptr: np.ndarray,
     max_nz_idx_array: np.ndarray,
     row2pivot_column: np.ndarray,
 ) -> np.ndarray:
@@ -123,7 +130,16 @@ def assign_pivot_variables(
     return selected_rules[:num_rules_selected]
 
 
+def lor(vs: List[mpz]) -> mpz:
+    """logical OR over a list of bit arrays"""
+    return functools.reduce(lambda x, y: x | y, vs, mpz())
+
+
 class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
+    def __post_init__(self):
+        # pad None in front so that self.truthtable_list is 1-indexed
+        self.truthtable_list = [None] + [r.truthtable for r in self.rules]
+
     def _update_pivot_variables(self, rule: Rule, z: np.ndarray):
         """a wrapper around update_pivot_variables"""
         return update_pivot_variables(
@@ -163,11 +179,15 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         self.free_rule_idxs = (
             set(map(lambda v: v + 1, range(self.num_vars))) - self.pivot_rule_idxs
         )
+        # a rule j is unconstrained if it is not involved in any constraint, i.e., A[i, j-1] == 0 for all i
+        # print("self.A.astype(int):\n{}".format(self.A.astype(int)))
+        self.unconstrained_rule_idxs = set((self.A.sum(axis=0) == 0).nonzero()[0] + 1)
         # mapping from row index to the pivot column index
         self.row2pivot_column = np.array(self.pivot_columns, dtype=int)
         # print("self.row2pivot_column: {}".format(self.row2pivot_column))
         # print("self.A:\n {}".format(self.A.astype(int)))
         # print("self.t:\n {}".format(self.t.astype(int)))
+        logger.debug(f"num. unconstrained rules: {len(self.unconstrained_rule_idxs)}")
 
     def reset_queue(self):
         self.queue: Queue = Queue()
@@ -188,7 +208,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         obj: mpfr,
         captured: mpz,
         parent_node: Node,
-        pivot_rules_to_add: List[Rule] = [],
+        pivot_rule_idxs_to_add: List[Rule] = [],
     ) -> Node:
         """create a node using information provided by rule, lb, obj, and captured
         and add it as a child of parent"""
@@ -198,7 +218,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 lower_bound=lb,
                 objective=obj,
                 num_captured=gmp.popcount(captured),
-                pivot_rule_ids=[r.id for r in pivot_rules_to_add],
+                pivot_rule_ids=pivot_rule_idxs_to_add,
             )
             self.tree.add_node(child_node, parent_node)
             return child_node
@@ -269,25 +289,41 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         for rule in self.rules[parent_node.rule_id :]:
             # consider adding only free rules
             # since the addition of pivot rules are determined "automatically" by Ax=b
+            # print("parent_node.num_rules: {}".format(parent_node.num_rules))
+            # print("self.pivot_rule_idxs: {}".format(self.pivot_rule_idxs))
+            # print("rule.id: {}".format(rule.id))
             if rule.id in self.pivot_rule_idxs:
                 continue
 
             self.num_prefix_evaluations += 1
 
+            # if (parent_node.num_rules + 1) > length_ub:
+            #     continue
+
+            if rule.id not in self.unconstrained_rule_idxs:
+                e1_idxs, zp = self._update_pivot_variables(rule, z)
+                # e1_idxs = list(e1_idxs)
+                extention_size = len(e1_idxs) + 1
+                e1_lor = lor([self.truthtable_list[rule_id] for rule_id in e1_idxs])
+                v1 = (e1_lor | rule.truthtable) & u
+            else:
+                e1_idxs = np.array([], dtype=int)
+                extention_size = 1
+                v1 = rule.truthtable & u
+                # since rule is not involved in any constraint, parity state vector does not change
+                zp = z.copy()
+                # e1 = [rule] + self._get_rules_by_idxs(e1_idxs)
+
             # prune by ruleset length
-            if (parent_node.num_rules + 1) > length_ub:
+            if (parent_node.num_rules + extention_size) > length_ub:
                 continue
-
-            e1_idxs, zp = self._update_pivot_variables(rule, z)
-            # e1_idxs = set(e1_idxs)
-            e1 = [rule] + self._get_rules_by_idxs(e1_idxs)
-
+            # print("len(e1): {}".format(len(e1)))
             # logger.debug(f"adding free rule {rule.id}")
             # logger.debug(
             #     "[update_pivot_variables] e1 = {}".format(list(e1_idxs) + [rule.id])
             # )
             # consider the captured points not captured by the prefix
-            v1 = lor_of_truthtable(e1) & u
+            # v1 = lor_of_truthtable(e1) & u
             # for r in e1:
             #     logger.debug(f"r{r.id:2d}: {bin(r.truthtable)[2:]:>25}")
             # logger.debug(f"v1: {bin(v1)[2:]:>26}")
@@ -295,7 +331,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             lb = (
                 parent_lb
                 + self._incremental_update_lb(v1, self.y_mpz)
-                + len(e1) * self.lmbd
+                + extention_size * self.lmbd
             )
             # logger.debug(f"parent_lb: {parent_lb}")
             # logger.debug(
@@ -360,7 +396,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                         obj,
                         w,
                         parent_node,
-                        e1,
+                        e1_idxs,
                     )
                     self.queue.push(
                         (child_node, not_w, zp),
@@ -376,7 +412,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                             obj,
                             w,
                             parent_node,
-                            e1,
+                            e1_idxs,
                         )
                     ruleset = child_node.get_ruleset_ids() | set(e2_idxs)
 
