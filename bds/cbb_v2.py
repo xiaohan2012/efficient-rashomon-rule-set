@@ -140,6 +140,13 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         # pad None in front so that self.truthtable_list is 1-indexed
         self.truthtable_list = [None] + [r.truthtable for r in self.rules]
 
+    def _lor(self, idxs: np.ndarray) -> mpz:
+        """given a set of rule idxs, return the logical OR over the truthtables of the corresponding rules"""
+        r = mpz()
+        for i in idxs:
+            r |= self.truthtable_list[i]
+        return r
+
     def _update_pivot_variables(self, rule: Rule, z: np.ndarray):
         """a wrapper around update_pivot_variables"""
         return update_pivot_variables(
@@ -304,7 +311,8 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 e1_idxs, zp = self._update_pivot_variables(rule, z)
                 # e1_idxs = list(e1_idxs)
                 extention_size = len(e1_idxs) + 1
-                e1_lor = lor([self.truthtable_list[rule_id] for rule_id in e1_idxs])
+                e1_lor = self._lor(e1_idxs)
+                # lor([self.truthtable_list[rule_id] for rule_id in e1_idxs])
                 v1 = (e1_lor | rule.truthtable) & u
             else:
                 e1_idxs = np.array([], dtype=int)
