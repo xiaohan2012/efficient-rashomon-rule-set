@@ -175,6 +175,12 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
         self.A_indices, self.A_indptr = get_indices_and_indptr(self.A)
 
+        # mapping from rule id to array of indices of relevant constraints
+        self.ruleid2cst_idxs = {
+            rule.id: self.A_indices[self.A_indptr[rule.id - 1] : self.A_indptr[rule.id]]
+            for rule in self.rules
+        }
+
         assert (
             self.A.shape[0] == self.t.shape[0]
         ), f"dimension mismatch: {self.A.shape[0]} != {self.t.shape[0]}"

@@ -135,6 +135,15 @@ def lor(vs: List[mpz]) -> mpz:
     return functools.reduce(lambda x, y: x | y, vs, mpz())
 
 
+@jit(nopython=True, cache=True)
+def negate_at_idxs(v: np.ndarray, idxs: np.ndarray) -> np.ndarray:
+    """negate the values of v at idxs"""
+    vp = v.copy()
+    for i in idxs:
+        vp[i] = ~vp[i]
+    return vp
+
+
 class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
     def __post_init__(self):
         # pad None in front so that self.truthtable_list is 1-indexed
@@ -147,7 +156,46 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             r |= self.truthtable_list[i]
         return r
 
-    def _update_pivot_variables(self, rule: Rule, z: np.ndarray):
+    # @profile
+    def _lazy_update_pivot_variables(
+        self, rule: Rule, z: np.ndarray, u: mpz
+    ) -> Tuple[np.ndarray, np.ndarray, mpz, int]:
+        """call update pivot variable the rule determines at least one constraints
+
+        params:
+
+        rule: the free rule to be added
+        z: current parity state vector
+        u: not captured vector by the current prefix
+
+        return
+
+        - the indices of selected pivot rules (maybe empty)
+        - the updated parity state vector
+        - the captured vector in the context of the current prefix
+        - the extension size (size of selected pivot rules + current rule)
+        """
+        rule_idx = rule.id
+        if rule_idx in self.border_rule_idxs:
+            # pivot rules maybe selected
+            e1_idxs, zp = self.__update_pivot_variables(rule, z)
+            return (
+                e1_idxs,
+                zp,
+                (self._lor(e1_idxs) | rule.truthtable) & u,
+                len(e1_idxs) + 1,
+            )
+        else:
+            # no pivot rules can be selected
+            # we simply update the parity state vector
+            return (
+                [],
+                negate_at_idxs(z, self.ruleid2cst_idxs[rule_idx]),
+                (rule.truthtable & u),
+                1,
+            )
+
+    def __update_pivot_variables(self, rule: Rule, z: np.ndarray):
         """a wrapper around update_pivot_variables"""
         return update_pivot_variables(
             rule.id,
@@ -186,15 +234,18 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         self.free_rule_idxs = (
             set(map(lambda v: v + 1, range(self.num_vars))) - self.pivot_rule_idxs
         )
-        # a rule j is unconstrained if it is not involved in any constraint, i.e., A[i, j-1] == 0 for all i
-        # print("self.A.astype(int):\n{}".format(self.A.astype(int)))
-        self.unconstrained_rule_idxs = set((self.A.sum(axis=0) == 0).nonzero()[0] + 1)
+        # # a rule j is unconstrained if it is not involved in any constraint, i.e., A[i, j-1] == 0 for all i
+        # # print("self.A.astype(int):\n{}".format(self.A.astype(int)))
+        # self.unconstrained_rule_idxs = set((self.A.sum(axis=0) == 0).nonzero()[0] + 1)
         # mapping from row index to the pivot column index
         self.row2pivot_column = np.array(self.pivot_columns, dtype=int)
+
+        # a rule is a border rule if it appears as the last rule in at least one constraint
+        self.border_rule_idxs = set(self.max_nz_idx_array + 1) - {0}
         # print("self.row2pivot_column: {}".format(self.row2pivot_column))
         # print("self.A:\n {}".format(self.A.astype(int)))
         # print("self.t:\n {}".format(self.t.astype(int)))
-        logger.debug(f"num. unconstrained rules: {len(self.unconstrained_rule_idxs)}")
+        # logger.debug(f"num. unconstrained rules: {len(self.unconstrained_rule_idxs)}")
 
     def reset_queue(self):
         self.queue: Queue = Queue()
@@ -304,23 +355,13 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
 
             self.num_prefix_evaluations += 1
 
+            # should we call it?
             # if (parent_node.num_rules + 1) > length_ub:
             #     continue
 
-            if rule.id not in self.unconstrained_rule_idxs:
-                e1_idxs, zp = self._update_pivot_variables(rule, z)
-                # e1_idxs = list(e1_idxs)
-                extention_size = len(e1_idxs) + 1
-                e1_lor = self._lor(e1_idxs)
-                # lor([self.truthtable_list[rule_id] for rule_id in e1_idxs])
-                v1 = (e1_lor | rule.truthtable) & u
-            else:
-                e1_idxs = np.array([], dtype=int)
-                extention_size = 1
-                v1 = rule.truthtable & u
-                # since rule is not involved in any constraint, parity state vector does not change
-                zp = z.copy()
-                # e1 = [rule] + self._get_rules_by_idxs(e1_idxs)
+            e1_idxs, zp, v1, extention_size = self._lazy_update_pivot_variables(
+                rule, z, u
+            )
 
             # prune by ruleset length
             if (parent_node.num_rules + extention_size) > length_ub:

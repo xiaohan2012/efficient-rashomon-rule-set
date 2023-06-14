@@ -403,12 +403,12 @@ class TestConstrainedBranchAndBound:
         assert set(map(tuple, sols)) == set(map(tuple, expected_sols))
 
     @pytest.mark.parametrize(
-        "A, t, exp_pivot_rule_idxs, exp_free_rule_idxs, exp_unconstrained_rule_idxs, exp_row2pivot_column",
+        "A, t, exp_pivot_rule_idxs, exp_free_rule_idxs, exp_row2pivot_column, exp_border_rule_idxs",
         [
-            ([[1, 0, 1], [0, 1, 0]], [0, 1], {1, 2}, {3}, set(), [0, 1]),
-            ([[1, 0, 1], [0, 0, 1]], [0, 1], {1, 3}, {2}, {2}, [0, 2]),
-            ([[1, 0, 1]], [0], {1}, {2, 3}, {2}, [0]),
-            ([[1, 0, 0], [1, 0, 0], [1, 0, 0]], [0, 0, 0], {1}, {2, 3}, {2, 3}, [0]),
+            ([[1, 0, 1], [0, 1, 0]], [0, 1], {1, 2}, {3}, [0, 1], {2, 3}),
+            ([[1, 0, 1], [0, 0, 1]], [0, 1], {1, 3}, {2}, [0, 2], {1, 3}),
+            ([[1, 0, 1]], [0], {1}, {2, 3}, [0], {3}),
+            ([[1, 0, 0], [1, 0, 0], [1, 0, 0]], [0, 0, 0], {1}, {2, 3}, [0], {1}),
         ],
     )
     def test_setup_constraint_system(
@@ -417,8 +417,8 @@ class TestConstrainedBranchAndBound:
         t,
         exp_pivot_rule_idxs,
         exp_free_rule_idxs,
-        exp_unconstrained_rule_idxs,
         exp_row2pivot_column,
+        exp_border_rule_idxs,
     ):
         rules, y = generate_random_rules_and_y(10, 3, 12345)
         cbb = ConstrainedBranchAndBound(rules, float("inf"), y, 0.1)
@@ -429,7 +429,7 @@ class TestConstrainedBranchAndBound:
 
         assert cbb.pivot_rule_idxs == exp_pivot_rule_idxs
         assert cbb.free_rule_idxs == exp_free_rule_idxs
-        assert cbb.unconstrained_rule_idxs == exp_unconstrained_rule_idxs
+        assert cbb.border_rule_idxs == exp_border_rule_idxs
         np.testing.assert_allclose(
             cbb.row2pivot_column, np.array(exp_row2pivot_column, dtype=int)
         )
@@ -478,6 +478,59 @@ class TestConstrainedBranchAndBound:
             rules[4], lb=mpfr(), obj=mpfr(), captured=mpz(), parent_node=child
         )
         assert grandchild_same == grandchild
+
+    @pytest.mark.parametrize(
+        "case_name, A, t, z, rule_idx, exp_e1_idxs, exp_extention_size, exp_zp",
+        [
+            # bordering rules are {3}
+            # parity vector is [0, 0]
+            # adding rule 3 includes rule 1 and 2
+            ("case1", [[1, 0, 1], [0, 1, 1]], [0, 0], [0, 0], 3, [1, 2], 3, [0, 0]),
+            # bordering rules are {3}
+            # parity vector is [1, 0]
+            # adding rule 3 includes rule 2
+            ("case2", [[1, 0, 1], [0, 1, 1]], [0, 0], [1, 0], 3, [2], 2, [0, 0]),
+            # bordering rules are {3}
+            # parity vector is [0, 0]
+            # adding rule 3
+            #            t  z
+            # [1, 0, 1]  0  0
+            # [0, 1, 1]  1  0
+            # parity state update:
+            # c1: not updated
+            # c2: flipped once
+            ("case3", [[1, 0, 1], [0, 1, 1]], [0, 1], [0, 0], 3, [1], 2, [0, 1]),
+            # the added rule is not bordering
+            ("case4", [[1, 1, 1]], [0], [0], 2, [], 1, [1]),
+            # added rule is not relevant
+            # p vector not updated
+            ("case5", [[1, 0, 1]], [0], [0], 2, [], 1, [0]),
+        ],
+    )
+    def test__lazy_update_pivot_variables(
+        self,
+        rules,
+        y,
+        case_name,
+        A,
+        t,
+        z,
+        rule_idx,
+        exp_e1_idxs,
+        exp_extention_size,
+        exp_zp,
+    ):
+        cbb = ConstrainedBranchAndBound(rules, float("inf"), y, 0.1)
+        A = bin_array(A)
+        t = bin_array(t)
+
+        cbb.setup_constraint_system(A, t)
+        e1_idxs, zp, v1, extention_size = cbb._lazy_update_pivot_variables(
+            rules[rule_idx - 1], bin_array(z), mpz()
+        )
+        np.testing.assert_allclose(e1_idxs, exp_e1_idxs)
+        assert extention_size == exp_extention_size
+        np.testing.assert_allclose(zp, exp_zp)
 
     @pytest.mark.parametrize("ub", [float("inf"), 0.5, 0.01])
     def test_complete_enumeration_and_alignment_with_cbb_on_toy_data(
