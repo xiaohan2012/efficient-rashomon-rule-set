@@ -6,7 +6,7 @@ from bds.rule import Rule
 from bds.utils import bin_random, randints
 
 num_pts = 1000
-num_rules = 30
+num_rules = 150
 seed = 12345
 np.random.seed(seed)
 rand_seeds = randints(num_rules)
