@@ -356,22 +356,12 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             )
             if lb <= self.ub:  # parent + current rule
                 e2_idxs = self._assign_pivot_variables(rule, zp)
-                # if (parent_node.num_rules + extention_size + len(e2_idxs)) > length_ub:
-                #     continue
 
                 e2_lor = self._lor(e2_idxs)
                 # logger.debug("[assign_pivot_variables] e2 = {}".format(e2_idxs))
                 not_u = ~u
-                w = v1 | not_u
+                w = v1 | not_u  # captured by e1 but not by d'
                 not_w = ~w
-                # captured by e2 but not by e1 + d'
-                v2 = e2_lor & not_w
-                # the FP mistakes incurred by e2
-                fp_fraction = self._incremental_update_lb(v2, self.y_mpz)
-
-                # the FN mistakes incurred by e2
-                fn_fraction, _ = self._incremental_update_obj(not_w, v2)
-                obj = lb + fn_fraction + fp_fraction + (self.lmbd * len(e2_idxs))
 
                 # the child_node might be assigned later
                 # and if assigned
@@ -384,8 +374,8 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                     child_node = self._create_new_node_and_add_to_tree(
                         rule,
                         lb,
-                        obj,  # is obj used by the current rule?
-                        w,  # what is w?
+                        -1,  # set obj to -1 temporarily, will be updated later (if the node is feasible)
+                        w,
                         parent_node,
                         e1_idxs,
                     )
@@ -393,6 +383,18 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                         (child_node, not_w, zp),
                         key=child_node.lower_bound,
                     )
+
+                # calculate the obj for the current node
+                # if (parent_node.num_rules + extention_size + len(e2_idxs)) > length_ub:
+                #     continue
+                # captured by e2 but not by e1 + d'
+                v2 = e2_lor & not_w
+                # the FP mistakes incurred by e2
+                fp_fraction = self._incremental_update_lb(v2, self.y_mpz)
+
+                # the FN mistakes incurred by e2
+                fn_fraction, _ = self._incremental_update_obj(not_w, v2)
+                obj = lb + fn_fraction + fp_fraction + (self.lmbd * len(e2_idxs))
 
                 if obj <= self.ub:
                     if child_node is None:
@@ -405,6 +407,8 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                             parent_node,
                             e1_idxs,
                         )
+                    else:
+                        child_node.objective = obj  # update the obj
                     ruleset = child_node.get_ruleset_ids() | set(e2_idxs)
 
                     # logger.debug(f"yielding {ruleset} with obj {obj:.2f}")
