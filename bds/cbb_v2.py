@@ -333,9 +333,6 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         for rule in self.rules[parent_node.rule_id :]:
             # consider adding only free rules
             # since the addition of pivot rules are determined "automatically" by Ax=b
-            # print("parent_node.num_rules: {}".format(parent_node.num_rules))
-            # print("self.pivot_rule_idxs: {}".format(self.pivot_rule_idxs))
-            # print("rule.id: {}".format(rule.id))
             if rule.id in self.pivot_rule_idxs:
                 continue
 
@@ -352,65 +349,34 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             # prune by ruleset length
             if (parent_node.num_rules + extention_size) > length_ub:
                 continue
-            # print("len(e1): {}".format(len(e1)))
-            # logger.debug(f"adding free rule {rule.id}")
-            # logger.debug(
-            #     "[update_pivot_variables] e1 = {}".format(list(e1_idxs) + [rule.id])
-            # )
-            # consider the captured points not captured by the prefix
-            # v1 = lor_of_truthtable(e1) & u
-            # for r in e1:
-            #     logger.debug(f"r{r.id:2d}: {bin(r.truthtable)[2:]:>25}")
-            # logger.debug(f"v1: {bin(v1)[2:]:>26}")
-            # logger.debug(f"y: {bin(self.y_mpz)[2:]:>27}")
             lb = (
                 parent_lb
                 + self._incremental_update_lb(v1, self.y_mpz)
                 + extention_size * self.lmbd
             )
-            # logger.debug(f"parent_lb: {parent_lb}")
-            # logger.debug(
-            #     f"addition to lb: {self._incremental_update_lb(v1, self.y_mpz)}"
-            # )
-            # logger.debug(f"lb: {lb}")
-            # logger.debug(f"len(e1): {len(e1)}")
             if lb <= self.ub:  # parent + current rule
                 e2_idxs = self._assign_pivot_variables(rule, zp)
-                e2 = self._get_rules_by_idxs(e2_idxs)
+                # if (parent_node.num_rules + extention_size + len(e2_idxs)) > length_ub:
+                #     continue
 
+                e2_lor = self._lor(e2_idxs)
                 # logger.debug("[assign_pivot_variables] e2 = {}".format(e2_idxs))
-                # captured by the prefix, current rule, and rules introduced by update_pivot_variables
-
                 not_u = ~u
                 w = v1 | not_u
-
-                # logger.debug(f"v1: {bin(v1)[2:]:>26}")
-                # logger.debug(f"not_u: {bin(not_u)[2:]:>23}")
-                # logger.debug(f"w: {bin(w)[2:]:>27}")
-
                 not_w = ~w
-                # logger.debug(f"not_w: {bin(not_w)[2:]:>23}")
-                # logger.debug(f"e2: {bin(lor_of_truthtable(e2))[2:]:>26}")
                 # captured by e2 but not by e1 + d'
-                v2 = lor_of_truthtable(e2) & not_w
-
-                # logger.debug(f"v2: {bin(v2)[2:]:>26}")
-                # logger.debug(f"y: {bin(self.y_mpz)[2:]:>27}")
+                v2 = e2_lor & not_w
                 # the FP mistakes incurred by e2
                 fp_fraction = self._incremental_update_lb(v2, self.y_mpz)
 
                 # the FN mistakes incurred by e2
                 fn_fraction, _ = self._incremental_update_obj(not_w, v2)
-                # logger.debug(f"fp_fraction: {fp_fraction}")
-                # logger.debug(f"fn_fraction: {fn_fraction}")
-                # logger.debug(f"len(e2): {len(e2)}")
-                obj = lb + fn_fraction + fp_fraction + (self.lmbd * len(e2))
+                obj = lb + fn_fraction + fp_fraction + (self.lmbd * len(e2_idxs))
 
                 # the child_node might be assigned later
                 # and if assigned
                 # will be assigned only once during the the check of the current rule
                 child_node = None
-
                 # apply look-ahead bound
                 # parent + current rule + any next rule
                 lookahead_lb = lb + self.lmbd
@@ -418,8 +384,8 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                     child_node = self._create_new_node_and_add_to_tree(
                         rule,
                         lb,
-                        obj,
-                        w,
+                        obj,  # is obj used by the current rule?
+                        w,  # what is w?
                         parent_node,
                         e1_idxs,
                     )
