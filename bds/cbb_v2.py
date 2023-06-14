@@ -357,7 +357,6 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             if lb <= self.ub:  # parent + current rule
                 e2_idxs = self._assign_pivot_variables(rule, zp)
 
-                e2_lor = self._lor(e2_idxs)
                 # logger.debug("[assign_pivot_variables] e2 = {}".format(e2_idxs))
                 not_u = ~u
                 w = v1 | not_u  # captured by e1 but not by d'
@@ -385,10 +384,10 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                     )
 
                 # calculate the obj for the current node
-                # if (parent_node.num_rules + extention_size + len(e2_idxs)) > length_ub:
-                #     continue
+                if (parent_node.num_rules + extention_size + len(e2_idxs)) > length_ub:
+                    continue
                 # captured by e2 but not by e1 + d'
-                v2 = e2_lor & not_w
+                v2 = self._lor(e2_idxs) & not_w
                 # the FP mistakes incurred by e2
                 fp_fraction = self._incremental_update_lb(v2, self.y_mpz)
 
