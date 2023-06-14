@@ -149,9 +149,9 @@ class TestAssignPivotVariables:
         A = bin_array(A).astype(int)
         t = bin_array(t).astype(int)
 
+        A, t, rank, row2pivot_column = extended_rref(A, t)
         A_indices, A_indptr = get_indices_and_indptr(A)
         max_nz_idx_array = get_max_nz_idx_per_row(A)
-        A, t, rank, row2pivot_column = extended_rref(A, t)
         m, n = A.shape
 
         j = 1

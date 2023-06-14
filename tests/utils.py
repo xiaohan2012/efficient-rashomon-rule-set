@@ -19,7 +19,11 @@ def assert_dict_allclose(actual: Dict[Any, Number], expected: [Any, Number]):
     assert actual_keys == expected_keys, f"{actual_keys} != {expected_keys}"
 
     for k in actual.keys():
-        np.testing.assert_allclose(float(actual[k]), float(expected[k]), err_msg=k)
+        np.testing.assert_allclose(
+            np.array(actual[k], dtype=float),
+            np.array(expected[k], dtype=float),
+            err_msg=k
+        )
 
 
 def generate_random_rule_list(num_pts: int, num_rules: int, rand_seed: int = None):

@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from bds import gf2
-from bds.gf2 import GF, extended_rref, fix_variables_to_one, num_of_solutions
+from bds.gf2 import GF, extended_rref, fix_variables_to_one, num_of_solutions, negate_all
 from bds.gf2 import eye as gf2_eye
 from bds.utils import randints
 
@@ -180,3 +180,22 @@ def test_fix_variables_to_one(which, expected_t):
 )
 def test_num_of_solutions(A, b, expected):
     assert num_of_solutions(A, b) == expected
+
+@pytest.mark.parametrize(
+    'A, expected',
+    [
+        (np.array([0, 0, 1], dtype=int), GF([1, 1, 0])),
+        (np.array([1, 1, 1], dtype=int), GF([0, 0, 0])),
+        (np.array([0, 0, 0], dtype=int), GF([1, 1, 1])),
+        (GF([0, 0, 1]), GF([1, 1, 0])),
+        (GF([1, 1, 1]), GF([0, 0, 0])),
+        (GF([0, 0, 0]), GF([1, 1, 1])),
+        (np.array([[1, 1, 1], [1, 1, 1]], dtype=int), GF([[0, 0, 0], [0, 0, 0]]))
+    ]
+)  
+def test_negate_all(A, expected):
+    assert isinstance(expected, GF)
+    np.testing.assert_allclose(
+        np.array(negate_all(A), dtype=int),
+        np.array(expected, dtype=int)
+    )

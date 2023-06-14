@@ -91,6 +91,8 @@ def assign_pivot_variables(
     z: np.ndarray,
     t: np.ndarray,
     A: np.ndarray,
+    # neg_A_indices: np.ndarray,
+    # neg_A_indptr: np.ndarray,
     max_nz_idx_array: np.ndarray,
     row2pivot_column: np.ndarray,
 ) -> np.ndarray:
@@ -100,30 +102,22 @@ def assign_pivot_variables(
     # if (j - 1) in set(row2pivot_column):
     #     raise ValueError(f"cannot set pivot variable of column {j - 1}")
 
-    # if j > 0:
-    #     cst_idxs = A_indices[
-    #         A_indptr[j - 1] : A_indptr[j]
-    #     ]  # get the constraint (row) indices corresponind to rule j
-    # else:
-    #     cst_idxs = np.array([], dtype=int)
+    # irrelevant_cst_idxs = neg_A_indices[
+    #     neg_A_indptr[j - 1] : neg_A_indptr[j]
+    # ]  # get the constraint (row) indices where rule j is absent/irrelevant
 
-    # print("cst_idxs: {}".format(cst_idxs))
-    selected_rules = np.empty(A.shape[0], np.int_)
+    selected_rules = np.empty(A.shape[1], np.int_)
     num_rules_selected = 0
 
     for i in range(rank):  # loop up to rank
         max_nz_idx = max_nz_idx_array[i]
-        # print("i: {}".format(i))
-        # print("max_nz_idx: {}".format(max_nz_idx))
-        # print("z[i]: {}".format(z[i]))
-        # print("t[i]: {}".format(t[i]))
 
-        if (
-            # the ith constraint is not finalized by j
-            (j < (max_nz_idx + 1))
-            # j is not the default rule and jth rule is not relevant for the ith constraint
-            or (j > 0 and A[i][j - 1] == 0)
-        ) and (z[i] != t[i]):
+        if (z[i] != t[i]) and (
+            # the rule is not relevant
+            (A[i][j - 1] == 0)
+            # the ith constraint is not interior
+            or (j < (max_nz_idx + 1))
+        ):
             # +1 because rule is 1-indexed
             selected_rules[num_rules_selected] = row2pivot_column[i] + 1
             num_rules_selected += 1
@@ -233,18 +227,11 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         self.free_rule_idxs = (
             set(map(lambda v: v + 1, range(self.num_vars))) - self.pivot_rule_idxs
         )
-        # # a rule j is unconstrained if it is not involved in any constraint, i.e., A[i, j-1] == 0 for all i
-        # # print("self.A.astype(int):\n{}".format(self.A.astype(int)))
-        # self.unconstrained_rule_idxs = set((self.A.sum(axis=0) == 0).nonzero()[0] + 1)
         # mapping from row index to the pivot column index
         self.row2pivot_column = np.array(self.pivot_columns, dtype=int)
 
         # a rule is a border rule if it appears as the last rule in at least one constraint
         self.border_rule_idxs = set(self.max_nz_idx_array + 1) - {0}
-        # print("self.row2pivot_column: {}".format(self.row2pivot_column))
-        # print("self.A:\n {}".format(self.A.astype(int)))
-        # print("self.t:\n {}".format(self.t.astype(int)))
-        # logger.debug(f"num. unconstrained rules: {len(self.unconstrained_rule_idxs)}")
 
     def reset_queue(self):
         self.queue: Queue = Queue()
@@ -393,16 +380,6 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
 
                 # logger.debug("[assign_pivot_variables] e2 = {}".format(e2_idxs))
                 # captured by the prefix, current rule, and rules introduced by update_pivot_variables
-
-                # a verbose way to do bitwise inverse on u
-                # the ~ operator returns a negative number, e.g., -0b1000000000
-                # and applying lor gives weird result
-                # TODO: is there a way to do bitwise inverse in the "expected" way
-                # def mpz_comp(v):
-                #     not_v = v
-                #     for i in range(len(self.rules)):
-                #         not_v = gmp.bit_flip(not_v, i)
-                #     return not_v
 
                 not_u = ~u
                 w = v1 | not_u

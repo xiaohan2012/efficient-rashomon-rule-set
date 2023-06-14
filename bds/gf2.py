@@ -6,7 +6,9 @@ from typing import Tuple, Union, Optional, List
 GF = galois.GF(2)
 
 
-def extended_rref(A: GF, b: GF, verbose: bool = False) -> Tuple[GF, GF, int, np.ndarray]:
+def extended_rref(
+    A: GF, b: GF, verbose: bool = False
+) -> Tuple[GF, GF, int, np.ndarray]:
     """
     given a 2D matrix A and a vector b, both in GF2,
     obtain the reduced row echelon form of a matrix A and repeat the reduction process on a column vector b
@@ -119,7 +121,7 @@ def is_piecewise_linear(arr: GF):
 
 def num_of_solutions(A: GF, b: GF) -> int:
     """return the number of solutions to a linear system Ax=b in GF2"""
-    R, t, rank = extended_rref(A, b)
+    R, t, rank, _ = extended_rref(A, b)
     if not (t[rank:] == 0).all():
         # the system is not solvable
         return 0
@@ -148,3 +150,10 @@ def fix_variables_to_one(A: GF, b: GF, which: List[int]) -> Tuple[GF, GF]:
     Ap = np.delete(A, which, axis=1)
 
     return Ap, bp
+
+
+def negate_all(A: Union[GF, np.ndarray]) -> GF:
+    """negate the all entries in the array-like object A"""
+    if isinstance(A, np.ndarray):
+        A = GF(A)
+    return GF(np.ones(A.shape, dtype=int)) + A

@@ -19,7 +19,7 @@ from .bounds import (
 from .bounds_utils import *
 from .bounds_v2 import equivalent_points_bounds, rule_set_size_bound_with_default
 from .cache_tree import CacheTree, Node
-from .gf2 import GF, extended_rref
+from .gf2 import GF, extended_rref, negate_all
 from .queue import Queue
 from .rule import Rule
 from .utils import (
@@ -170,20 +170,33 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         ) = self._simplify_constraint_system(A, t)
         self.is_linear_system_solvable = (self.t[self.rank :] == 0).all()
 
+        assert (
+            self.A.shape[0] == self.t.shape[0]
+        ), f"dimension mismatch: {self.A.shape[0]} != {self.t.shape[0]}"
+        
         # auxiliary data structures for caching and better performance
         self.max_nz_idx_array = get_max_nz_idx_per_row(self.A)
 
+        # mapping from rule id to array of indices of relevant constraints        
         self.A_indices, self.A_indptr = get_indices_and_indptr(self.A)
-
-        # mapping from rule id to array of indices of relevant constraints
         self.ruleid2cst_idxs = {
             rule.id: self.A_indices[self.A_indptr[rule.id - 1] : self.A_indptr[rule.id]]
             for rule in self.rules
         }
 
-        assert (
-            self.A.shape[0] == self.t.shape[0]
-        ), f"dimension mismatch: {self.A.shape[0]} != {self.t.shape[0]}"
+        # TOD: remove the neg caching since it is unused
+        # mapping from rule id to array of indices of irrelevant constraints        
+        # flip all the entries in A
+        neg_A = bin_array(negate_all(self.A.astype(int)))
+        self.neg_A_indices, self.neg_A_indptr = get_indices_and_indptr(neg_A)
+        
+        self.neg_ruleid2cst_idxs = {
+            rule.id: self.neg_A_indices[
+                self.neg_A_indptr[rule.id - 1] : self.neg_A_indptr[rule.id]
+            ]
+            for rule in self.rules
+        }
+
 
         self.num_constraints = int(self.A.shape[0])
 

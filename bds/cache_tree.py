@@ -28,10 +28,31 @@ class Node:
         if self.parent is not None:
             assert isinstance(self.parent, Node)
             self.parent.add_child(self)
+        self._num_rules = None
+
+    def _get_num_rules(self):
+        """return and update the num_rules of the node"""
+        if self._num_rules is not None:
+            # computed already
+            return self._num_rules
+
+        # otherwise, compute from scratch
+        if self.parent is None:
+            num_rules = len(self.pivot_rule_ids)
+        else:
+            num_rules = self.parent._get_num_rules() + len(self.pivot_rule_ids) + 1
+
+        # cache the result
+        self._num_rules = num_rules
+        return self._num_rules
 
     @property
     def num_rules(self):
-        return self.depth
+        """lazily calculate the number of rules"""
+        if self._num_rules is None:
+            self._num_rules = self._get_num_rules()
+
+        return self._num_rules
 
     @property
     def num_children(self):
