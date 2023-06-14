@@ -135,7 +135,7 @@ def lor(vs: List[mpz]) -> mpz:
     return functools.reduce(lambda x, y: x | y, vs, mpz())
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, nogil=True)
 def negate_at_idxs(v: np.ndarray, idxs: np.ndarray) -> np.ndarray:
     """negate the values of v at idxs"""
     vp = v.copy()
@@ -156,11 +156,10 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             r |= self.truthtable_list[i]
         return r
 
-    # @profile
     def _lazy_update_pivot_variables(
         self, rule: Rule, z: np.ndarray, u: mpz
     ) -> Tuple[np.ndarray, np.ndarray, mpz, int]:
-        """call update pivot variable the rule determines at least one constraints
+        """lazily call update_pivot_variables if the rule is a bordering one
 
         params:
 
