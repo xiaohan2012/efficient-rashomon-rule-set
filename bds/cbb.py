@@ -199,6 +199,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
 
         self.num_constraints = int(self.A.shape[0])
+        self.num_rules = int(self.A.shape[1])
 
     def reset_queue(self):
         self.queue: Queue = Queue()

@@ -87,6 +87,22 @@ def ensure_no_violation(
 
 
 @jit(nopython=True, cache=True)
+def count_added_pivots(j: int, A: np.ndarray, t: np.ndarray, z: np.ndarray) -> int:
+    """count the number of added pivot rules
+
+    rationale:
+
+    we basically count the number of which passes one of the conditions below:
+
+    - A[i][j-1] is False and (z[i] == t[i]) is False
+    - A[i][j-1] is True and (z[i] == t[i]) is True
+
+    equivalently, we count the number entries in A[:, j-1] == (z == t) that are true
+    """
+    return (A[:, j - 1] == (z == t)).sum()
+
+
+@jit(nopython=True, cache=True)
 def ensure_satisfiability(
     j: int,
     rank: int,
@@ -98,25 +114,45 @@ def ensure_satisfiability(
 ) -> np.ndarray:
     """
     return the pivot variables that are assigned to 1s if no rules with index larger than j are added further.
+
+    j must corresponds to a free variable, meaning:
+
+    1. it is not the default one (j=0)
+    2. and it does not correspond to any pivot variable
     """
     selected_rules = np.empty(A.shape[1], np.int_)
     num_rules_selected = 0
 
     for i in range(rank):  # loop up to rank
-        if j == 0:
-            if z[i] != t[i]:
-                # j is the default rule
-                selected_rules[num_rules_selected] = row2pivot_column[i] + 1
-                num_rules_selected += 1
-        else:
-            if (A[i][j - 1] == 0) and (z[i] != t[i]):
-                # the rule is irrelevant
-                selected_rules[num_rules_selected] = row2pivot_column[i] + 1
-                num_rules_selected += 1
-            elif (A[i][j - 1] == 1) and (z[i] == t[i]):
-                # the rule is relevant
-                selected_rules[num_rules_selected] = row2pivot_column[i] + 1
-                num_rules_selected += 1
+        if (A[i][j - 1] == 0) and (z[i] != t[i]):
+            # the rule is irrelevant
+            selected_rules[num_rules_selected] = row2pivot_column[i] + 1
+            num_rules_selected += 1
+        elif (A[i][j - 1] == 1) and (z[i] == t[i]):
+            # the rule is relevant
+            selected_rules[num_rules_selected] = row2pivot_column[i] + 1
+            num_rules_selected += 1
+    return selected_rules[:num_rules_selected]
+
+
+def ensure_satisfiability_at_root(
+    rank: int,
+    z: np.ndarray,
+    t: np.ndarray,
+    num_rules: int,
+    row2pivot_column: np.ndarray,
+) -> np.ndarray:
+    """
+    return the pivot variables that are assigned to 1s if no free rules are added
+    """
+    selected_rules = np.empty(num_rules, np.int_)
+    num_rules_selected = 0
+
+    for i in range(rank):  # loop up to rank
+        if z[i] != t[i]:
+            # j is the default rule
+            selected_rules[num_rules_selected] = row2pivot_column[i] + 1
+            num_rules_selected += 1
     return selected_rules[:num_rules_selected]
 
 
@@ -272,10 +308,17 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
     def generate_solution_at_root(self, return_objective=False) -> Iterable:
         """check the solution at the root, e.g., all free variables assigned to zero"""
         # add more rules if needed to satistify Ax=b
-        default_rule = Rule(0, "rule-0", 0, mpz())
-        rule_idxs = self._ensure_satisfiability(
-            default_rule, bin_zeros(self.num_constraints)
+        # default_rule = Rule(0, "rule-0", 0, mpz())
+        rule_idxs = ensure_satisfiability_at_root(
+            self.rank,
+            bin_zeros(self.num_constraints),
+            self.t,
+            self.num_rules,
+            self.row2pivot_column,
         )
+        # rule_idxs = self._ensure_satisfiability(
+        #     default_rule, bin_zeros(self.num_constraints)
+        # )
         rules_to_add = self._get_rules_by_idxs(rule_idxs)
 
         # calculate the objective
@@ -314,7 +357,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
     ):
         """
         check one node in the search tree, update the queue, and yield feasible solution if exists
-        parent_node: the current node/prefix to check
+        parente_node: the current node/prefix to check
         u: postives not captured by the current prefix
         z: the parity states vector
         return_objective: True if return the objective of the evaluated node
@@ -395,11 +438,17 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
 
                 # next we consider the feasibility d + r + the extension rules needed to satisfy Ax=b
                 # note that ext_idxs exclude the current rule
-                ext_idxs = self._ensure_satisfiability(rule, z)
+
+                # we first check the solution length exceeds the length bound
+                # the number of added pivots are calcualted in a fast way
+                pvt_count = count_added_pivots(rule.id, self.A, self.t, z)
 
                 # add 1 for the current rule, because ext_idx does not include the current rule
-                if (parent_node.num_rules + 1 + len(ext_idxs)) > length_ub:
+                if (parent_node.num_rules + 1 + pvt_count) > length_ub:
                     continue
+
+                # then we get the actual of added pivots to calculate the objective
+                ext_idxs = self._ensure_satisfiability(rule, z)
 
                 # prepare to calculate the obj of the final solution
                 # v_ext: points captured by extention + current rule in the context of the prefix

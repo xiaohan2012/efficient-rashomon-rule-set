@@ -20,6 +20,7 @@ from bds.cbb_v2 import (
     ensure_no_violation,
     ensure_satisfiability,
     ConstrainedBranchAndBound,
+    count_added_pivots
 )
 from bds.rule import Rule, lor_of_truthtable
 from bds.random_hash import generate_h_and_alpha
@@ -214,39 +215,39 @@ class TestEnsureSatisfiability:
                 4,
                 [1, 2],
             ),
-            (
-                # adding rule 0 (the default rule)
-                # x1 = x2 = 1
-                "case-5",
-                [[1, 0, 1, 1], [0, 1, 0, 0]],
-                [1, 1],
-                0,
-                [1, 2],
-            ),
-            (
-                # j = 0 (adding the default rule)
-                # x1 + x4 = 1 (due to rref) -> x1 = 1
-                # x3 = 1
-                "case-6",
-                [[1, 0, 1, 1], [0, 0, 1, 0]],
-                [0, 1],
-                0,
-                [1, 3],  # 1 is added because t becomes [1, 1] due to rref
-            ),
-            (
-                # adding default rule
-                # x1 + x3 + x4 = 0
-                # x3 = 1
-                "case-7",
-                [[1, 0, 1, 1], [0, 0, 1, 0]],
-                [1, 1],
-                0,
-                [3], 
-            ),
+            # (
+            #     # adding rule 0 (the default rule)
+            #     # x1 = x2 = 1
+            #     "case-5",
+            #     [[1, 0, 1, 1], [0, 1, 0, 0]],
+            #     [1, 1],
+            #     0,
+            #     [1, 2],
+            # ),
+            # (
+            #     # j = 0 (adding the default rule)
+            #     # x1 + x4 = 1 (due to rref) -> x1 = 1
+            #     # x3 = 1
+            #     "case-6",
+            #     [[1, 0, 1, 1], [0, 0, 1, 0]],
+            #     [0, 1],
+            #     0,
+            #     [1, 3],  # 1 is added because t becomes [1, 1] due to rref
+            # ),
+            # (
+            #     # adding default rule
+            #     # x1 + x3 + x4 = 0
+            #     # x3 = 1
+            #     "case-7",
+            #     [[1, 0, 1, 1], [0, 0, 1, 0]],
+            #     [1, 1],
+            #     0,
+            #     [3], 
+            # ),
             (
                 # adding 4
                 # x1 + x3 + x4 = 0 -> x1 = 1
-                "case-8",
+                "case-5",
                 [[1, 0, 1, 1], [0, 0, 0, 0]],
                 [0, 0],
                 4,
@@ -273,6 +274,8 @@ class TestEnsureSatisfiability:
         )
         np.testing.assert_allclose(rules, np.array(expected_rules, dtype=int))
 
+        # take a free ride and test count_added_pivots as well
+        assert count_added_pivots(j, A, t, z) == len(rules)
 
 class TestConstrainedBranchAndBound:
     @pytest.mark.parametrize(
