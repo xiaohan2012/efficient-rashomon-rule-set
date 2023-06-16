@@ -48,7 +48,7 @@ class BranchAndBoundGeneric:
         self.y_mpz = mpz_set_bits(
             mpz(), y.nonzero()[0]
         )  # convert y from np.array to mpz
-        self.lmbd = mpfr(lmbd)
+        self.lmbd = lmbd
 
         logger.debug(f"calling {self.__class__.__name__} with ub={ub}, lmbd={lmbd}")
 
@@ -158,16 +158,17 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
                 lower_bound=lb,
                 objective=obj,
                 num_captured=gmp.popcount(captured),
+                # pivot_rule_ids=[]
             )
             self.tree.add_node(child_node, parent_node)
             return child_node
         else:
             return parent_node.children[rule.id]
 
-    def _incremental_update_lb(self, v: mpz, y: np.ndarray) -> mpfr:
+    def _incremental_update_lb(self, v: mpz, y: np.ndarray) -> float:
         return incremental_update_lb(v, y, self.num_train_pts)
 
-    def _incremental_update_obj(self, u: mpz, v: mpz) -> Tuple[mpfr, mpz]:
+    def _incremental_update_obj(self, u: mpz, v: mpz) -> Tuple[float, mpz]:
         return incremental_update_obj(u, v, self.y_mpz, self.num_train_pts)
 
     # @profile

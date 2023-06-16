@@ -8,9 +8,11 @@ from .cache_tree import Node
 from .rule import Rule
 from .utils import mpz2bag, mpz_set_bits
 from logzero import logger
+from numba import jit
 
 
-def incremental_update_lb(v: mpz, y: mpz, num_pts: mpz) -> mpfr:
+# @jit(nopython=False, cache=True)
+def incremental_update_lb(v: mpz, y: mpz, num_pts: mpz) -> float:
     """
     return the incremental false positive fraction for a given rule
 
@@ -22,10 +24,10 @@ def incremental_update_lb(v: mpz, y: mpz, num_pts: mpz) -> mpfr:
     w = v & y  # true positives
 
     t = gmp.popcount(w)
-    return (n - t) / num_pts
+    return float((n - t) / num_pts)
 
 
-def incremental_update_obj(u: mpz, v: mpz, y: mpz, num_pts: mpz) -> Tuple[mpfr, mpz]:
+def incremental_update_obj(u: mpz, v: mpz, y: mpz, num_pts: mpz) -> Tuple[float, mpz]:
     """
     return the incremental false negative fraction for a rule set (prefix + current rule)
     and the indicator vector of predicted negatives
@@ -47,7 +49,7 @@ def incremental_update_obj(u: mpz, v: mpz, y: mpz, num_pts: mpz) -> Tuple[mpfr, 
     # logger.debug(f"bin(f): {bin(f):>20} (predicted negatives)")
     # logger.debug(f"bin(y): {bin(y):>20}")
     g = f & y  # false negatives
-    return gmp.popcount(g) / num_pts, f
+    return float(gmp.popcount(g) / num_pts), f
 
 
 def rule_set_size_bound_with_default(

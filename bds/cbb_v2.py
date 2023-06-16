@@ -170,6 +170,18 @@ def negate_at_idxs(v: np.ndarray, idxs: np.ndarray) -> np.ndarray:
     return vp
 
 
+@jit(nopython=True, cache=True)
+def check_look_ahead_bound(lb: float, lmbd: float, ub: float) -> bool:
+    return (lb + lmbd) <= ub
+
+
+@jit(nopython=True, cache=True)
+def check_pivot_length_bound(
+    prefix_length: int, pvt_count: int, length_ub: int
+) -> bool:
+    return (prefix_length + 1 + pvt_count) > length_ub
+
+
 class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
     def __post_init__(self):
         # pad None in front so that self.truthtable_list is 1-indexed
@@ -363,8 +375,9 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         return_objective: True if return the objective of the evaluated node
         """
         parent_lb = parent_node.lower_bound
+        prefix_length = parent_node.num_rules
         length_ub = prefix_specific_length_upperbound(
-            parent_lb, parent_node.num_rules, self.lmbd, self.ub
+            parent_lb, prefix_length, self.lmbd, self.ub
         )
 
         # logger.debug(f"parent node: {parent_node.get_ruleset_ids()}")
@@ -378,7 +391,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             self.num_prefix_evaluations += 1
 
             # prune by ruleset length
-            if (parent_node.num_rules + 1) > length_ub:
+            if (prefix_length + 1) > length_ub:
                 continue
 
             lb = (
@@ -395,9 +408,8 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 child_node = None
                 # apply look-ahead bound
                 # parent + current rule + any next rule
-                lookahead_lb = lb + self.lmbd
 
-                if lookahead_lb <= self.ub:
+                if check_look_ahead_bound(lb, self.lmbd, self.ub):
                     # ensure that Ax=b is not unsatisfied
                     # v1 and not_w are updated here
                     e1_idxs, zp, v1, extension_size = self._lazy_ensure_no_violation(
@@ -409,7 +421,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
 
                     # update the hierarchical lower bound only if at least one pivot rules are added
                     if extension_size > 1:
-                        if (parent_node.num_rules + extension_size) > length_ub:
+                        if (prefix_length + extension_size) > length_ub:
                             continue
 
                         # check new hierarchical lower bound
@@ -444,7 +456,11 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 pvt_count = count_added_pivots(rule.id, self.A, self.t, z)
 
                 # add 1 for the current rule, because ext_idx does not include the current rule
-                if (parent_node.num_rules + 1 + pvt_count) > length_ub:
+
+                # (prefix_length + 1 + pvt_count) > length_ub:
+                if check_pivot_length_bound(
+                    prefix_length, pvt_count, length_ub
+                ):
                     continue
 
                 # then we get the actual of added pivots to calculate the objective

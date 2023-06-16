@@ -29,7 +29,7 @@ def test_incremental_update_lb(seed, num_fp):
     true_inc_fp = num_fp / mpz(num_pts)
     actual = incremental_update_lb(v, y, mpz(num_pts))
     assert actual == true_inc_fp
-    assert isinstance(actual, mpfr)
+    assert isinstance(actual, float)
 
 
 def test_incremental_update_obj():
@@ -46,7 +46,7 @@ def test_incremental_update_obj():
 
     assert f == actual_f, bin(actual_f)
     assert fn == (mpz(2) / 7)
-    assert isinstance(fn, mpfr)
+    assert isinstance(fn, float)
 
 
 def test_prefix_specific_length_upperbound():
