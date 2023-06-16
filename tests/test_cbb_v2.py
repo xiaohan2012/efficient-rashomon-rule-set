@@ -17,8 +17,8 @@ from bds.utils import (
 )
 from bds.cbb import ConstrainedBranchAndBoundNaive
 from bds.cbb_v2 import (
-    update_pivot_variables,
-    assign_pivot_variables,
+    ensure_no_violation,
+    ensure_satisfiability,
     ConstrainedBranchAndBound,
 )
 from bds.rule import Rule, lor_of_truthtable
@@ -32,7 +32,7 @@ from .utils import (
 from .fixtures import rules, y
 
 
-class TestUpdatePivotVariables:
+class TestEnsureNoViolation:
     @pytest.mark.skip(
         "skipped because numba (nonpython) does not support raise ValueError"
     )
@@ -50,7 +50,7 @@ class TestUpdatePivotVariables:
         # because rule-1 is a pivot varable
         z = bin_zeros(m)
         with pytest.raises(ValueError, match="cannot set pivot variable of column 0"):
-            rules, zp = update_pivot_variables(
+            rules, zp = ensure_no_violation(
                 j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
             )
 
@@ -65,7 +65,7 @@ class TestUpdatePivotVariables:
 
         j = 4
         z = bin_zeros(m)
-        rules, zp = update_pivot_variables(
+        rules, zp = ensure_no_violation(
             j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
         )
         np.testing.assert_allclose(rules, np.array([3], dtype=int))
@@ -83,7 +83,7 @@ class TestUpdatePivotVariables:
 
         j = 3
         z = bin_zeros(m)
-        rules, zp = update_pivot_variables(
+        rules, zp = ensure_no_violation(
             j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
         )
 
@@ -92,7 +92,7 @@ class TestUpdatePivotVariables:
 
         j = 2
         z = bin_zeros(m)
-        rules, zp = update_pivot_variables(
+        rules, zp = ensure_no_violation(
             j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
         )
         np.testing.assert_allclose(rules, np.array([], dtype=int))
@@ -126,13 +126,13 @@ class TestUpdatePivotVariables:
 
         j = 2
         z = bin_array(z)
-        rules, zp = update_pivot_variables(
+        rules, zp = ensure_no_violation(
             j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
         )
         np.testing.assert_allclose(zp, bin_array(z_expected))
 
 
-class TestAssignPivotVariables:
+class TestEnsureSatisfiability:
     @pytest.mark.skip(
         "skipped because numba (nonpython) does not support raise ValueError"
     )
@@ -159,7 +159,7 @@ class TestAssignPivotVariables:
         with pytest.raises(
             ValueError, match=f"cannot set pivot variable of column {j-1}"
         ):
-            assign_pivot_variables(
+            ensure_satisfiability(
                 j,
                 rank,
                 bin_zeros(m),
@@ -174,19 +174,20 @@ class TestAssignPivotVariables:
         "name, A, t, j, expected_rules",
         [
             (
-                # update_pivot_variables determines all constraints
-                # therefore assign_pivot_variables changes nothing
+                # rule 4 added
+                # x1 + x4 = 1 -> x1 = 0
+                # x2 + x4 = 1 -> x2 = 0
+                # x3 + x4 = 0 -> x3 = 1
                 "case-1",
                 [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]],
                 [1, 1, 0],
                 4,
-                [],
+                [3],
             ),
             (
-                # j = 3
-                # update_pivot_variables determines the 2nd constraint and x2 = 0
-                # assign_pivot_variables determines the 1st constraint, setting x4 = 0
-                # and further sets x1 = 1
+                # rule 3 added
+                # x1 + x3 + x4 = 0 -> x1 = 1
+                # x2 + x3 = 1 -> x2 = 0
                 "case-2",
                 [[1, 0, 1, 1], [0, 1, 1, 0]],
                 [0, 1],
@@ -195,10 +196,8 @@ class TestAssignPivotVariables:
             ),
             (
                 # j = 3
-                # update_pivot_variables determines no constraint
-                # assign_pivot_variables determines the 1st and 2nd constraint
-                # for the 1st constraint: x1 = 1
-                # for the 2nd constraint: x2 = 1
+                # x1 + x3 + x4 = 0 -> x1 = 1
+                # x2 = 1
                 "case-3",
                 [[1, 0, 1, 1], [0, 1, 0, 0]],
                 [0, 1],
@@ -207,19 +206,16 @@ class TestAssignPivotVariables:
             ),
             (
                 # j = 4
-                # update_pivot_variables determines the 1st constraint: x1 = 1
-                # assign_pivot_variables determines the 2nd constraint: x2 = 1
+                # x1 + x3 + x4 = 0 -> x1 = 1
+                # x2 = 1
                 "case-4",
                 [[1, 0, 1, 1], [0, 1, 0, 0]],
                 [0, 1],
                 4,
-                [2],
+                [1, 2],
             ),
             (
-                # j = 0 (adding the default rule)
-                # all free rules are excludeda
-                # update_pivot_variables does nothing
-                # assign_pivot_variables determines both constraints:
+                # adding rule 0 (the default rule)
                 # x1 = x2 = 1
                 "case-5",
                 [[1, 0, 1, 1], [0, 1, 0, 0]],
@@ -229,9 +225,7 @@ class TestAssignPivotVariables:
             ),
             (
                 # j = 0 (adding the default rule)
-                # all free rules are excluded
-                # update_pivot_variables does nothing
-                # assign_pivot_variables determines both constraints:
+                # x1 + x4 = 1 (due to rref) -> x1 = 1
                 # x3 = 1
                 "case-6",
                 [[1, 0, 1, 1], [0, 0, 1, 0]],
@@ -240,28 +234,23 @@ class TestAssignPivotVariables:
                 [1, 3],  # 1 is added because t becomes [1, 1] due to rref
             ),
             (
-                # j = 0 (adding the default rule)
-                # all free rules are excluded
-                # update_pivot_variables does nothing
-                # assign_pivot_variables determines both constraints:
+                # adding default rule
+                # x1 + x3 + x4 = 0
                 # x3 = 1
                 "case-7",
                 [[1, 0, 1, 1], [0, 0, 1, 0]],
                 [1, 1],
                 0,
-                [3],  # 1 is added because t becomes [0, 1] due to rref
+                [3], 
             ),
             (
-                # (the last row has no pivot variable, thus should not be checked
-                # j = 4
-                # update_pivot_variables sets x1=1
-                # assign_pivot_variables does nothing
-                # x1 = x3 = 1
+                # adding 4
+                # x1 + x3 + x4 = 0 -> x1 = 1
                 "case-8",
                 [[1, 0, 1, 1], [0, 0, 0, 0]],
                 [0, 0],
                 4,
-                [],
+                [1],
             ),
         ],
     )
@@ -278,11 +267,8 @@ class TestAssignPivotVariables:
         max_nz_idx_array = get_max_nz_idx_per_row(A)
         m, n = A.shape
 
-        _, z = update_pivot_variables(
-            j, bin_zeros(m), t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
-        )
-
-        rules = assign_pivot_variables(
+        z = bin_zeros(m)
+        rules = ensure_satisfiability(
             j, rank, z, t, A, max_nz_idx_array, row2pivot_column  # A_indices, A_indptr,
         )
         np.testing.assert_allclose(rules, np.array(expected_rules, dtype=int))
@@ -525,7 +511,7 @@ class TestConstrainedBranchAndBound:
         t = bin_array(t)
 
         cbb.setup_constraint_system(A, t)
-        e1_idxs, zp, v1, extention_size = cbb._lazy_update_pivot_variables(
+        e1_idxs, zp, v1, extention_size = cbb._lazy_ensure_no_violation(
             rules[rule_idx - 1], bin_array(z), mpz()
         )
         np.testing.assert_allclose(e1_idxs, exp_e1_idxs)

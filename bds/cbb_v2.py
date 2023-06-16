@@ -24,7 +24,7 @@ from .utils import (
 
 
 @jit(nopython=True, cache=True)
-def update_pivot_variables(
+def ensure_no_violation(
     j: int,
     z: np.ndarray,
     t: np.ndarray,
@@ -34,10 +34,12 @@ def update_pivot_variables(
     row2pivot_column: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
+    add a set of pivot rules to ensure that Ax=b is not violated
+
     return:
 
     - selected pivot rule indices after adding the jth rule to the current prefix
-    - the function also returns the updated parity states vector
+    - the updated parity states vector
 
     note that the rule index must correspond to a non-pivot column
 
@@ -85,42 +87,36 @@ def update_pivot_variables(
 
 
 @jit(nopython=True, cache=True)
-def assign_pivot_variables(
+def ensure_satisfiability(
     j: int,
     rank: int,
     z: np.ndarray,
     t: np.ndarray,
     A: np.ndarray,
-    # neg_A_indices: np.ndarray,
-    # neg_A_indptr: np.ndarray,
     max_nz_idx_array: np.ndarray,
     row2pivot_column: np.ndarray,
 ) -> np.ndarray:
     """
     return the pivot variables that are assigned to 1s if no rules with index larger than j are added further.
     """
-    # if (j - 1) in set(row2pivot_column):
-    #     raise ValueError(f"cannot set pivot variable of column {j - 1}")
-
-    # irrelevant_cst_idxs = neg_A_indices[
-    #     neg_A_indptr[j - 1] : neg_A_indptr[j]
-    # ]  # get the constraint (row) indices where rule j is absent/irrelevant
-
     selected_rules = np.empty(A.shape[1], np.int_)
     num_rules_selected = 0
 
     for i in range(rank):  # loop up to rank
-        max_nz_idx = max_nz_idx_array[i]
-
-        if (z[i] != t[i]) and (
-            # the rule is not relevant
-            (A[i][j - 1] == 0)
-            # the ith constraint is not interior
-            or (j < (max_nz_idx + 1))
-        ):
-            # +1 because rule is 1-indexed
-            selected_rules[num_rules_selected] = row2pivot_column[i] + 1
-            num_rules_selected += 1
+        if j == 0:
+            if z[i] != t[i]:
+                # j is the default rule
+                selected_rules[num_rules_selected] = row2pivot_column[i] + 1
+                num_rules_selected += 1
+        else:
+            if (A[i][j - 1] == 0) and (z[i] != t[i]):
+                # the rule is irrelevant
+                selected_rules[num_rules_selected] = row2pivot_column[i] + 1
+                num_rules_selected += 1
+            elif (A[i][j - 1] == 1) and (z[i] == t[i]):
+                # the rule is relevant
+                selected_rules[num_rules_selected] = row2pivot_column[i] + 1
+                num_rules_selected += 1
     return selected_rules[:num_rules_selected]
 
 
@@ -150,10 +146,10 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             r |= self.truthtable_list[i]
         return r
 
-    def _lazy_update_pivot_variables(
+    def _lazy_ensure_no_violation(
         self, rule: Rule, z: np.ndarray, u: mpz
     ) -> Tuple[np.ndarray, np.ndarray, mpz, int]:
-        """lazily call update_pivot_variables if the rule is a bordering one
+        """lazily call ensure_no_violation if the rule is a bordering one
 
         params:
 
@@ -171,7 +167,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         rule_idx = rule.id
         if rule_idx in self.border_rule_idxs:
             # pivot rules maybe selected
-            e1_idxs, zp = self.__update_pivot_variables(rule, z)
+            e1_idxs, zp = self.__ensure_no_violation(rule, z)
             return (
                 e1_idxs,
                 zp,
@@ -188,9 +184,9 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 1,
             )
 
-    def __update_pivot_variables(self, rule: Rule, z: np.ndarray):
+    def __ensure_no_violation(self, rule: Rule, z: np.ndarray):
         """a wrapper around update_pivot_variables"""
-        return update_pivot_variables(
+        return ensure_no_violation(
             rule.id,
             z,
             self.t,
@@ -200,9 +196,9 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             self.row2pivot_column,
         )
 
-    def _assign_pivot_variables(self, rule: Rule, z: np.ndarray):
+    def _ensure_satisfiability(self, rule: Rule, z: np.ndarray):
         """a wrapper around assign_pivot_variables"""
-        return assign_pivot_variables(
+        return ensure_satisfiability(
             rule.id,
             self.rank,
             z,
@@ -277,7 +273,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         """check the solution at the root, e.g., all free variables assigned to zero"""
         # add more rules if needed to satistify Ax=b
         default_rule = Rule(0, "rule-0", 0, mpz())
-        rule_idxs = self._assign_pivot_variables(
+        rule_idxs = self._ensure_satisfiability(
             default_rule, bin_zeros(self.num_constraints)
         )
         rules_to_add = self._get_rules_by_idxs(rule_idxs)
@@ -319,7 +315,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         """
         check one node in the search tree, update the queue, and yield feasible solution if exists
         parent_node: the current node/prefix to check
-        parent_not_captured: postives not captured by the current prefix
+        u: postives not captured by the current prefix
         z: the parity states vector
         return_objective: True if return the objective of the evaluated node
         """
@@ -338,21 +334,19 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
 
             self.num_prefix_evaluations += 1
 
-            # should we call it?
-            # if (parent_node.num_rules + 1) > length_ub:
-            #     continue
-
             # prune by ruleset length
-
             if (parent_node.num_rules + 1) > length_ub:
                 continue
-            v1 = rule.truthtable & u
-            not_w = u  # to be used later by assign and maybe updated if look-ahead check passes
 
-            lb = parent_lb + self._incremental_update_lbv(v1, self.y_mpz) + self.lmbd
+            lb = (
+                parent_lb
+                + self._incremental_update_lb(rule.truthtable & u, self.y_mpz)
+                + self.lmbd
+            )
 
-            if lb <= self.ub:  # parent + current rule
-                # the child_node might be assigned later
+            # check hierarchical lower bound
+            if lb <= self.ub:
+                # child_node might be assigned later
                 # and if assigned
                 # will be assigned only once during the the check of the current rule
                 child_node = None
@@ -362,25 +356,27 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
 
                 if lookahead_lb <= self.ub:
                     # ensure that Ax=b is not unsatisfied
-                    e1_idxs, zp, v1, extention_size = self._lazy_update_pivot_variables(
+                    # v1 and not_w are updated here
+                    e1_idxs, zp, v1, extension_size = self._lazy_ensure_no_violation(
                         rule, z, u
                     )
 
-                    w = v1 | ~u  # captured by d, e1, and r
+                    w = v1 | ~u  # captured by the current rule set, i.e., d, e1, and r
                     not_w = ~w  # not captured by the above
-                    # check the bounds only if some pivot rules are added
-                    if extention_size > 1:
-                        # update and check lower bound
-                        # note that we have to update the lower bound in any case
+
+                    # update the hierarchical lower bound only if at least one pivot rules are added
+                    if extension_size > 1:
+                        if (parent_node.num_rules + extension_size) > length_ub:
+                            continue
+
+                        # check new hierarchical lower bound
                         lb = (
                             parent_lb
                             + self._incremental_update_lb(v1, self.y_mpz)
-                            + extention_size * self.lmbd
+                            + extension_size * self.lmbd
                         )
 
-                        if ((parent_node.num_rules + extention_size) > length_ub) or (
-                            lb > self.ub
-                        ):
+                        if lb > self.ub:
                             continue
 
                     # all checks are passed and we add the new node
@@ -397,50 +393,48 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                         key=child_node.lower_bound,
                     )
 
-                # assuming rule i is the final rule
-                obj_without_e2 = lb + self._incremental_update_obj(not_w, v1)
+                # next we consider the feasibility d + r + the extension rules needed to satisfy Ax=b
+                # note that ext_idxs exclude the current rule
+                ext_idxs = self._ensure_satisfiability(rule, z)
 
-                if obj_without_e2 > self.ub:
+                # add 1 for the current rule, because ext_idx does not include the current rule
+                if (parent_node.num_rules + 1 + len(ext_idxs)) > length_ub:
                     continue
 
-                e2_idxs = self._assign_pivot_variables(rule, zp)
-
-                if (parent_node.num_rules + extention_size + len(e2_idxs)) > length_ub:
-                    continue
-
-                # prepare to calculate the obj
-                not_u = ~u
-                w = v1 | not_u  # captured by e1 but not by d'
-                not_w = ~w
-                # captured by e2 but not by e1 + d'
-                v2 = self._lor(e2_idxs) & not_w
-                # the FP mistakes incurred by e2
-                fp_fraction = self._incremental_update_lb(v2, self.y_mpz)
+                # prepare to calculate the obj of the final solution
+                # v_ext: points captured by extention + current rule in the context of the prefix
+                v_ext = (rule.truthtable | self._lor(ext_idxs)) & u
+                # the FP mistakes incurred by extension
+                fp_fraction = self._incremental_update_lb(v_ext, self.y_mpz)
 
                 # check if adding fp mistakes exceeds the ub
-                obj_with_fp = lb + fp_fraction + (self.lmbd * len(e2_idxs))
+                obj_with_fp = (
+                    parent_lb + fp_fraction + (self.lmbd * (1 + len(ext_idxs)))
+                )
                 if obj_with_fp > self.ub:
                     continue
 
                 # calculate the true obj
-                # by adding the FN mistakes incurred by e2
-                fn_fraction, _ = self._incremental_update_obj(not_w, v2)
+                # by adding the FN mistakes incurred by extention rules
+                fn_fraction, _ = self._incremental_update_obj(u, v_ext)
                 obj = obj_with_fp + fn_fraction
 
                 if obj <= self.ub:
                     if child_node is None:
                         # compute child_node if not done
+                        # call _lazy_ensure_no_violation again to obtain e1_idxs
+                        e1_idxs, _, _, _ = self._lazy_ensure_no_violation(rule, z, u)
                         child_node = self._create_new_node_and_add_to_tree(
                             rule,
                             lb,
                             obj,
-                            w,
+                            v_ext | (~u),
                             parent_node,
                             e1_idxs,
                         )
                     else:
                         child_node.objective = obj  # update the obj
-                    ruleset = child_node.get_ruleset_ids() | set(e2_idxs)
+                    ruleset = child_node.get_ruleset_ids() | set(ext_idxs)
 
                     # logger.debug(f"yielding {ruleset} with obj {obj:.2f}")
                     if return_objective:
