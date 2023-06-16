@@ -342,26 +342,16 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             # if (parent_node.num_rules + 1) > length_ub:
             #     continue
 
-            e1_idxs, zp, v1, extention_size = self._lazy_update_pivot_variables(
-                rule, z, u
-            )
-
             # prune by ruleset length
-            if (parent_node.num_rules + extention_size) > length_ub:
+
+            if (parent_node.num_rules + 1) > length_ub:
                 continue
-            lb = (
-                parent_lb
-                + self._incremental_update_lb(v1, self.y_mpz)
-                + extention_size * self.lmbd
-            )
+            v1 = rule.truthtable & u
+            not_w = u  # to be used later by assign and maybe updated if look-ahead check passes
+
+            lb = parent_lb + self._incremental_update_lbv(v1, self.y_mpz) + self.lmbd
+
             if lb <= self.ub:  # parent + current rule
-                e2_idxs = self._assign_pivot_variables(rule, zp)
-
-                # logger.debug("[assign_pivot_variables] e2 = {}".format(e2_idxs))
-                not_u = ~u
-                w = v1 | not_u  # captured by e1 but not by d'
-                not_w = ~w
-
                 # the child_node might be assigned later
                 # and if assigned
                 # will be assigned only once during the the check of the current rule
@@ -369,7 +359,31 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 # apply look-ahead bound
                 # parent + current rule + any next rule
                 lookahead_lb = lb + self.lmbd
+
                 if lookahead_lb <= self.ub:
+                    # ensure that Ax=b is not unsatisfied
+                    e1_idxs, zp, v1, extention_size = self._lazy_update_pivot_variables(
+                        rule, z, u
+                    )
+
+                    w = v1 | ~u  # captured by d, e1, and r
+                    not_w = ~w  # not captured by the above
+                    # check the bounds only if some pivot rules are added
+                    if extention_size > 1:
+                        # update and check lower bound
+                        # note that we have to update the lower bound in any case
+                        lb = (
+                            parent_lb
+                            + self._incremental_update_lb(v1, self.y_mpz)
+                            + extention_size * self.lmbd
+                        )
+
+                        if ((parent_node.num_rules + extention_size) > length_ub) or (
+                            lb > self.ub
+                        ):
+                            continue
+
+                    # all checks are passed and we add the new node
                     child_node = self._create_new_node_and_add_to_tree(
                         rule,
                         lb,
@@ -383,17 +397,35 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                         key=child_node.lower_bound,
                     )
 
-                # calculate the obj for the current node
+                # assuming rule i is the final rule
+                obj_without_e2 = lb + self._incremental_update_obj(not_w, v1)
+
+                if obj_without_e2 > self.ub:
+                    continue
+
+                e2_idxs = self._assign_pivot_variables(rule, zp)
+
                 if (parent_node.num_rules + extention_size + len(e2_idxs)) > length_ub:
                     continue
+
+                # prepare to calculate the obj
+                not_u = ~u
+                w = v1 | not_u  # captured by e1 but not by d'
+                not_w = ~w
                 # captured by e2 but not by e1 + d'
                 v2 = self._lor(e2_idxs) & not_w
                 # the FP mistakes incurred by e2
                 fp_fraction = self._incremental_update_lb(v2, self.y_mpz)
 
-                # the FN mistakes incurred by e2
+                # check if adding fp mistakes exceeds the ub
+                obj_with_fp = lb + fp_fraction + (self.lmbd * len(e2_idxs))
+                if obj_with_fp > self.ub:
+                    continue
+
+                # calculate the true obj
+                # by adding the FN mistakes incurred by e2
                 fn_fraction, _ = self._incremental_update_obj(not_w, v2)
-                obj = lb + fn_fraction + fp_fraction + (self.lmbd * len(e2_idxs))
+                obj = obj_with_fp + fn_fraction
 
                 if obj <= self.ub:
                     if child_node is None:
