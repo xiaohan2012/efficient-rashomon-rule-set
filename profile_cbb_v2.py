@@ -1,5 +1,5 @@
 import numpy as np
-from bds.cbb import ConstrainedBranchAndBoundNaive
+from bds.cbb_v2 import ConstrainedBranchAndBound
 from bds.rule import Rule
 from bds.utils import bin_random, randints
 from contexttimer import Timer
@@ -24,11 +24,11 @@ num_constraints = 8
 
 A, t = generate_h_and_alpha(num_rules, num_constraints, seed=12345, as_numpy=True)
 with Timer() as timer:
-    cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
+    cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
     cnt = cbb.bounded_count(threshold=B, A=A, t=t)
     print("{} / {}".format(cnt, B))
     print(f"elapsed time: {timer.elapsed}")
 
-print("cbb.num_prefix_evaluations: {}".format(cbb.num_prefix_evaluations))
+print("cbb.num_prefix_evaluations: {}".format(cbb.num_prefix_evaluations))    
 # print("cbb.tree.root.total_num_nodes: {}".format(cbb.tree.root.total_num_nodes))
 # print("cbb.tree.num_nodes: {}".format(cbb.tree.num_nodes))

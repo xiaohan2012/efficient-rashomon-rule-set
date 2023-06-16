@@ -7,9 +7,12 @@ from typing import Tuple, Optional, List, Iterable, Dict
 from .cache_tree import Node
 from .rule import Rule
 from .utils import mpz2bag, mpz_set_bits
+from logzero import logger
+from numba import jit
 
 
-def incremental_update_lb(v: mpz, y: mpz, num_pts: mpz) -> mpfr:
+# @jit(nopython=False, cache=True)
+def incremental_update_lb(v: mpz, y: mpz, num_pts: mpz) -> float:
     """
     return the incremental false positive fraction for a given rule
 
@@ -21,22 +24,32 @@ def incremental_update_lb(v: mpz, y: mpz, num_pts: mpz) -> mpfr:
     w = v & y  # true positives
 
     t = gmp.popcount(w)
-    return (n - t) / num_pts
+    return float((n - t) / num_pts)
 
 
-def incremental_update_obj(u: mpz, v: mpz, y: mpz, num_pts: mpz) -> Tuple[mpfr, mpz]:
+def incremental_update_obj(u: mpz, v: mpz, y: mpz, num_pts: mpz) -> Tuple[float, mpz]:
     """
     return the incremental false negative fraction for a rule set (prefix + current rule)
-    and the indicator vector of false negatives
+    and the indicator vector of predicted negatives
 
     u: points not captured by the prefix
     v: points captured by the current rule (in the context of the prefix)
     y: true labels
-    num_pts: the total number
+    num_pts: the length of bit vector
     """
-    f = u & (~v)  # points not captured by both prefix and the rule
+    # predicted negatives -- points not captured by either prefix or the rule
+    # TODO: how to use mpz_com in gmpy2
+    # not_v = v
+    # for i in range(len(num_pts)):
+    #     not_v = gmp.bit_flip(not_v, i)
+
+    f = u & (~v)
+    # logger.debug(f"bin(u): {bin(u):>20}")
+    # logger.debug(f"bin(~v): {bin(~v):>19}")
+    # logger.debug(f"bin(f): {bin(f):>20} (predicted negatives)")
+    # logger.debug(f"bin(y): {bin(y):>20}")
     g = f & y  # false negatives
-    return gmp.popcount(g) / num_pts, f
+    return float(gmp.popcount(g) / num_pts), f
 
 
 def rule_set_size_bound_with_default(
@@ -206,7 +219,7 @@ class EquivalentPointClass:
         if idx in self.data_points:
             # idx is added alreaady
             return
-        
+
         self.data_points.add(idx)
 
         if label == 1 or label is True:
@@ -243,7 +256,7 @@ def find_equivalence_points(
     ep_classes = dict()  # equivalent point classes
 
     n_pts = len(y_train)
-    
+
     # find equivalence classes
     pt2rules = [[] for _ in range(n_pts)]
     for rule in rules:
@@ -272,12 +285,15 @@ def find_equivalence_points(
 
     return tot_not_captured_error_bound_init, pt2rules, ep_classes
 
+
 def get_equivalent_point_lb(
-    captured: mpz, pt2rules: Dict[int, List[int]], ep_classes: Dict[int, EquivalentPointClass]
+    captured: mpz,
+    pt2rules: Dict[int, List[int]],
+    ep_classes: Dict[int, EquivalentPointClass],
 ) -> float:
     """
     get the equivalent point lower bound for a rule
-    
+
     captured: indicator vector of points captured by the rule (and not by its parents)
     pt2rules: mapping from a point index to indices of rules that capture it (essentially inverted index for rule truthtables)
     ep_classses: pre-computed equivalence point classes

@@ -14,19 +14,45 @@ class Node:
     children: Dict[int, "Node"] = field(default_factory=dict)
     depth: int = 0
     parent: Optional["Node"] = None
+
     equivalent_lower_bound: Optional[
         float
     ] = None  # it should default to none if not given
+
+    pivot_rule_ids: List[int] = field(
+        default_factory=list
+    )  # a list of ids of the pivod rules that are added due to the addition of rule_id
 
     def __post_init__(self):
         """if parent is not None, 'bind' self and parent by upting children and depth accordingly"""
         if self.parent is not None:
             assert isinstance(self.parent, Node)
             self.parent.add_child(self)
+        self._num_rules = None
+
+    def _get_num_rules(self):
+        """return and update the num_rules of the node"""
+        if self._num_rules is not None:
+            # computed already
+            return self._num_rules
+
+        # otherwise, compute from scratch
+        if self.parent is None:
+            num_rules = len(self.pivot_rule_ids)
+        else:
+            num_rules = self.parent._get_num_rules() + len(self.pivot_rule_ids) + 1
+
+        # cache the result
+        self._num_rules = num_rules
+        return self._num_rules
 
     @property
     def num_rules(self):
-        return self.depth
+        """lazily calculate the number of rules"""
+        if self._num_rules is None:
+            self._num_rules = self._get_num_rules()
+
+        return self._num_rules
 
     @property
     def num_children(self):
@@ -55,7 +81,7 @@ class Node:
 
     def get_ruleset_ids(self):
         """get the rule ids of the rule set associated with this node/rule"""
-        ret = {self.rule_id}
+        ret = {self.rule_id} | set(self.pivot_rule_ids)
         if self.parent is not None:
             ret |= self.parent.get_ruleset_ids()
         return ret

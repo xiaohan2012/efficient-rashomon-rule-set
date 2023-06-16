@@ -14,6 +14,13 @@ pcbb: profile_cbb.py
 	$(KP) profile_cbb.py
 	$(LP) profile_cbb.py.lprof
 
-p8: profile_solve_m_eq_12_based_on_8.py
-	$(KP) profile_solve_m_eq_12_based_on_8.py
-	$(LP) profile_solve_m_eq_12_based_on_8.py.lprof
+pcbbv2: profile_cbb_v2.py
+	$(KP) profile_cbb_v2.py
+	$(LP) profile_cbb_v2.py.lprof
+
+picbb: profile_icbb.py
+	$(KP) profile_icbb.py
+	$(LP) profile_icbb.py.lprof
+
+test_bb:
+	pytest tests/test_bounds.py tests/test_bb.py tests/test_cbb.py tests/test_cbb_v2.py

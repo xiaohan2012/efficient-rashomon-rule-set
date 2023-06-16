@@ -19,7 +19,7 @@ from .bounds import (
 from .bounds_utils import *
 from .bounds_v2 import equivalent_points_bounds, rule_set_size_bound_with_default
 from .cache_tree import CacheTree, Node
-from .gf2 import GF, extended_rref
+from .gf2 import GF, extended_rref, negate_all
 from .queue import Queue
 from .rule import Rule
 from .utils import (
@@ -127,7 +127,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
     ) -> Tuple[np.ndarray, np.ndarray]:
         """simplify the constraint system using reduced row echelon form"""
         logger.debug("simplifying A x = t using rref")
-        A_rref, t_rref, rank = extended_rref(
+        A_rref, t_rref, rank, pivot_columns = extended_rref(
             GF(A.astype(int)), GF(t.astype(int)), verbose=False
         )
 
@@ -138,7 +138,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                 bin_array(A_rref).sum() / n_total_entries, A.sum() / n_total_entries
             )
         )
-        return bin_array(A_rref), bin_array(t_rref), rank
+        return bin_array(A_rref), bin_array(t_rref), rank, pivot_columns
 
     # @profile
     def generate(self, return_objective=False) -> Iterable:
@@ -162,19 +162,44 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
         # simplify the constraint system
         # TODO: if the constraint system tends to be denser, do not use the rref version
-        self.A, self.t, rank = self._simplify_constraint_system(A, t)
-        self.is_linear_system_solvable = (self.t[rank:] == 0).all()
-
-        # auxiliary data structures for caching and better performance
-        self.max_nz_idx_array = get_max_nz_idx_per_row(self.A)
-
-        self.A_indices, self.A_indptr = get_indices_and_indptr(self.A)
+        (
+            self.A,
+            self.t,
+            self.rank,
+            self.pivot_columns,
+        ) = self._simplify_constraint_system(A, t)
+        self.is_linear_system_solvable = (self.t[self.rank :] == 0).all()
 
         assert (
             self.A.shape[0] == self.t.shape[0]
         ), f"dimension mismatch: {self.A.shape[0]} != {self.t.shape[0]}"
+        
+        # auxiliary data structures for caching and better performance
+        self.max_nz_idx_array = get_max_nz_idx_per_row(self.A)
+
+        # mapping from rule id to array of indices of relevant constraints        
+        self.A_indices, self.A_indptr = get_indices_and_indptr(self.A)
+        self.ruleid2cst_idxs = {
+            rule.id: self.A_indices[self.A_indptr[rule.id - 1] : self.A_indptr[rule.id]]
+            for rule in self.rules
+        }
+
+        # TOD: remove the neg caching since it is unused
+        # mapping from rule id to array of indices of irrelevant constraints        
+        # flip all the entries in A
+        neg_A = bin_array(negate_all(self.A.astype(int)))
+        self.neg_A_indices, self.neg_A_indptr = get_indices_and_indptr(neg_A)
+        
+        self.neg_ruleid2cst_idxs = {
+            rule.id: self.neg_A_indices[
+                self.neg_A_indptr[rule.id - 1] : self.neg_A_indptr[rule.id]
+            ]
+            for rule in self.rules
+        }
+
 
         self.num_constraints = int(self.A.shape[0])
+        self.num_rules = int(self.A.shape[1])
 
     def reset_queue(self):
         self.queue: Queue = Queue()
@@ -253,10 +278,10 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
 
         # here we assume the rule ids are consecutive integers
         for rule in self.rules[parent_node.rule_id :]:
+            self.num_prefix_evaluations += 1
             # prune by ruleset length
             if (parent_node.num_rules + 1) > length_ub:
                 continue
-
             captured = self._captured_by_rule(rule, parent_not_captured)
             lb = (
                 parent_lb
@@ -321,7 +346,7 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
                             yield (ruleset, child_node.objective)
                         else:
                             # print("self.queue._items: {}".format(self.queue._items))
-                            print(
-                                f"yielding {ruleset} with lb {child_node.lower_bound}"
-                            )
+                            # print(
+                            #     f"yielding {ruleset} with lb {child_node.lower_bound}"
+                            # )
                             yield ruleset

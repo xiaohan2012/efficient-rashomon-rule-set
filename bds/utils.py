@@ -118,7 +118,7 @@ def assert_binary_array(arr):
 def solutions_to_dict(sols: List[Tuple[Set[int], float]]) -> Dict[Tuple[int], float]:
     """transform a list of solutions (each is a tuple of rule set indices + objective value)
     to a dictionary of rule set (as a tuple of ints) to the objective value"""
-    return dict(map(lambda tpl: (tuple(tpl[0]), tpl[1]), sols))
+    return dict(map(lambda tpl: (tuple(sorted(tpl[0])), tpl[1]), sols))
 
 
 def fill_array_until(arr, end_idx, val):
@@ -134,7 +134,7 @@ def fill_array_from(arr, start_idx, val):
 
 
 def mpz_set_bits(n: mpz, bits: np.ndarray) -> mpz:
-    """returna  copy of n and set `bits` to 1 in `n`"""
+    """return a copy of n and set `bits` to 1 in `n`"""
     for i in bits:
         n = gmp.bit_set(n, int(i))
     return n
@@ -234,9 +234,3 @@ def get_indices_and_indptr(A: np.ndarray, axis: int = 1):
     else:  # treat A as a csc_matrix
         A_sp = csc_matrix(A)
     return A_sp.indices, A_sp.indptr
-
-
-# import logzero
-# log_format = '%(color)s[%(levelname)1.1s %(asctime)s %(module)s:%(lineno)d]%(endcolor)s %(message)s'
-# formatter = logzero.LogFormatter(fmt=log_format)
-# logzero.setup_default_logger(formatter=formatter)
