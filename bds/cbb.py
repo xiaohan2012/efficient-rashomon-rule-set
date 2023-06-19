@@ -173,11 +173,11 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         assert (
             self.A.shape[0] == self.t.shape[0]
         ), f"dimension mismatch: {self.A.shape[0]} != {self.t.shape[0]}"
-        
+
         # auxiliary data structures for caching and better performance
         self.max_nz_idx_array = get_max_nz_idx_per_row(self.A)
 
-        # mapping from rule id to array of indices of relevant constraints        
+        # mapping from rule id to array of indices of relevant constraints
         self.A_indices, self.A_indptr = get_indices_and_indptr(self.A)
         self.ruleid2cst_idxs = {
             rule.id: self.A_indices[self.A_indptr[rule.id - 1] : self.A_indptr[rule.id]]
@@ -185,18 +185,17 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         }
 
         # TOD: remove the neg caching since it is unused
-        # mapping from rule id to array of indices of irrelevant constraints        
+        # mapping from rule id to array of indices of irrelevant constraints
         # flip all the entries in A
         neg_A = bin_array(negate_all(self.A.astype(int)))
         self.neg_A_indices, self.neg_A_indptr = get_indices_and_indptr(neg_A)
-        
+
         self.neg_ruleid2cst_idxs = {
             rule.id: self.neg_A_indices[
                 self.neg_A_indptr[rule.id - 1] : self.neg_A_indptr[rule.id]
             ]
             for rule in self.rules
         }
-
 
         self.num_constraints = int(self.A.shape[0])
         self.num_rules = int(self.A.shape[1])

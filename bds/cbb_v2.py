@@ -54,37 +54,39 @@ def ensure_no_violation(
     """
     zp: np.ndarray = z.copy()
     sp: np.ndarray = s.copy()
-    
+
     selected_rules = np.empty(A.shape[1], np.int_)
     num_rules_selected = 0
 
     for i in range(A.shape[0]):
         max_nz_idx = max_nz_idx_array[i]
-        if (not sp[i]) and (j >= (max_nz_idx + 1)):
-            # constraint i is not satisfied
-            # and j exceeds the bordering index of the ith constraint
-            if A[i][j - 1]:
-                #  j is relevant for i
+        if not sp[i]:
+            # constraint i is not satisfied yet
+            if j >= (max_nz_idx + 1):
+                # j is exterior
+                # the corresponding pivot rule maybe added
                 sp[i] = True
-                if t[i] == zp[i]:
-                    # add the pivot rule if t[i] equals zp[i]
-                    # an example to explain the rationale:
-                    # say t[i] = zp[i] = False
-                    # note that adding j flips zp[i] to True
-                    # to make the constraint satisfied,
-                    # we need to add the pivot, which flips zp[i] again to False
+                if A[i][j - 1]:
+                    #  j is relevant
+                    if t[i] == zp[i]:
+                        # add the pivot rule if t[i] equals zp[i]
+                        # an example to explain the rationale:
+                        # say t[i] = zp[i] = False
+                        # note that adding j flips zp[i] to True
+                        # to make the constraint satisfied,
+                        # we need to add the pivot, which flips zp[i] back to False
+                        selected_rules[num_rules_selected] = row2pivot_column[i] + 1
+                        num_rules_selected += 1
+                    else:
+                        # otherwise, we add j only
+                        # and flip zp[i] to make zp[i] = t[i]
+                        zp[i] = not zp[i]
+                elif (A[i][j - 1] == 0) and (t[i] != zp[i]):
                     selected_rules[num_rules_selected] = row2pivot_column[i] + 1
                     num_rules_selected += 1
-                else:
-                    # otherwise, we add j only
-                    # and flip zp[i]
                     zp[i] = not zp[i]
-
-            elif (A[i][j - 1] == 0) and t[i]:
-                sp[i] = True
-                # j is irrelevant for i and t[i] is True
-                selected_rules[num_rules_selected] = row2pivot_column[i] + 1
-                num_rules_selected += 1
+            elif A[i][j - 1]:
+                # j is interior and relevant
                 zp[i] = not zp[i]
     return selected_rules[:num_rules_selected], zp, sp
 
@@ -197,51 +199,14 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             r |= self.truthtable_list[i]
         return r
 
-    # def _lazy_ensure_no_violation(
-    #     self, rule: Rule, z: np.ndarray, u: mpz
-    # ) -> Tuple[np.ndarray, np.ndarray, mpz, int]:
-    #     """lazily call ensure_no_violation if the rule exceeds the bordering index of at least one constraints
-
-    #     params:
-
-    #     rule: the free rule to be added
-    #     z: current parity state vector
-    #     u: not captured vector by the current prefix
-
-    #     return
-
-    #     - the indices of selected pivot rules (maybe empty)
-    #     - the updated parity state vector
-    #     - the captured vector in the context of the current prefix
-    #     - the extension size (size of selected pivot rules + current rule)
-    #     """
-    #     # rule_idx = rule.id
-    #     # if (rule_idx >= (self.max_nz_idx_array + 1)).any():
-    #         # pivot rules maybe selected
-    #     e1_idxs, zp = self.__ensure_no_violation(rule, z)
-    #     return (
-    #         e1_idxs,
-    #         zp,
-    #         (self._lor(e1_idxs) | rule.truthtable) & u,
-    #         len(e1_idxs) + 1,
-    #     )
-    #     # else:
-    #     #     # no pivot rules can be selected
-    #     #     # we simply update the parity state vector
-    #     #     return (
-    #     #         [],
-    #     #         negate_at_idxs(z, self.ruleid2cst_idxs[rule_idx]),
-    #     #         (rule.truthtable & u),
-    #     #         1,
-    #     #     )
-
     def _ensure_no_violation(
-        self, rule: Rule, z: np.ndarray, u: mpz
+        self, rule: Rule, z: np.ndarray, s: np.ndarray, u: mpz
     ) -> Tuple[np.ndarray, np.ndarray, mpz, int]:
         """a wrapper around ensure_no_violation"""
-        e1_idxs, zp = ensure_no_violation(
+        e1_idxs, zp, sp = ensure_no_violation(
             rule.id,
             z,
+            s,
             self.t,
             self.A,
             self.max_nz_idx_array,
@@ -250,6 +215,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         return (
             e1_idxs,
             zp,
+            sp,
             (self._lor(e1_idxs) | rule.truthtable) & u,
             len(e1_idxs) + 1,
         )
@@ -296,7 +262,12 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         # 1 mean an odd number of rules are selected
         z = bin_zeros(self.num_constraints)
 
-        item = (self.tree.root, not_captured, z)
+        # the satisfiability vector
+        # 0 means not satisfied yet
+        # 1 means satisfied
+        s = bin_zeros(self.num_constraints)
+
+        item = (self.tree.root, not_captured, z, s)
         self.queue.push(item, key=0)
 
     def _create_new_node_and_add_to_tree(
@@ -375,6 +346,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         parent_node: Node,
         u: mpz,
         z: np.ndarray,
+        s: np.ndarray,
         return_objective=False,
     ):
         """
@@ -382,6 +354,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         parente_node: the current node/prefix to check
         u: postives not captured by the current prefix
         z: the parity states vector
+        s: the satisfiability state vector
         return_objective: True if return the objective of the evaluated node
         """
         parent_lb = parent_node.lower_bound
@@ -422,8 +395,8 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 if check_look_ahead_bound(lb, self.lmbd, self.ub):
                     # ensure that Ax=b is not unsatisfied
                     # v1 and not_w are updated here
-                    e1_idxs, zp, v1, extension_size = self._ensure_no_violation(
-                        rule, z, u
+                    e1_idxs, zp, sp, v1, extension_size = self._ensure_no_violation(
+                        rule, z, s, u
                     )
 
                     w = v1 | ~u  # captured by the current rule set, i.e., d, e1, and r
@@ -453,10 +426,14 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                         parent_node,
                         e1_idxs,
                     )
+                    prefix = tuple(sorted(child_node.get_ruleset_ids()))
+
                     self.queue.push(
-                        (child_node, not_w, zp),
+                        (child_node, not_w, zp, sp),
                         key=child_node.lower_bound,
                     )
+
+                prefix = tuple(sorted(parent_node.get_ruleset_ids() | {rule.id}))
 
                 # next we consider the feasibility d + r + the extension rules needed to satisfy Ax=b
                 # note that ext_idxs exclude the current rule
@@ -495,9 +472,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 if obj <= self.ub:
                     if child_node is None:
                         # compute child_node if not done
-                        # call _lazy_ensure_no_violation again to obtain e1_idxs
-                        e1_idxs, _, _, _ = self._ensure_no_violation(rule, z, u)
-                        # e1_idxs, _, _, _ = self._lazy_ensure_no_violation(rule, z, u)
+                        e1_idxs, _, _, _, _ = self._ensure_no_violation(rule, z, s, u)
                         child_node = self._create_new_node_and_add_to_tree(
                             rule,
                             lb,

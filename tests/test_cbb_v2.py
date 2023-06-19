@@ -56,7 +56,7 @@ class TestEnsureNoViolation:
             )
 
     @pytest.mark.parametrize(
-        "test_name, A, t, j, exp_rules, exp_zp",
+        "test_name, A, t, j, z, exp_rules, exp_zp, exp_sp",
         [
             # j=4
             (
@@ -68,8 +68,10 @@ class TestEnsureNoViolation:
                 ],
                 [1, 1, 0],
                 4,
+                [0, 0, 0],  # z
                 [3],
-                [1, 1, 0],  # z[0] and z[1] flipped once and z[2] flipped twice
+                [1, 1, 0],  # z[0] and z[1] flipped once and z[2] flipped twice,
+                [1, 1, 1],
             ),
             # all const are affected but j=4 is not bordering rule for any
             (
@@ -81,8 +83,10 @@ class TestEnsureNoViolation:
                 ],
                 [1, 1, 1],
                 4,
+                [0, 0, 0],  # z
                 [1, 2, 3],  # all are added
-                [1, 1, 1],  # and the sign is flipped only once for each const
+                [1, 1, 1],  # and the sign is flipped only once for each const,
+                [1, 1, 1],
             ),
             #  all consts are affected but j=4 is bordering for one but not for the other
             (
@@ -93,8 +97,10 @@ class TestEnsureNoViolation:
                 ],
                 [0, 1],
                 4,
+                [0, 0],  # z
                 [1, 2],
                 [0, 1],
+                [1, 1],
             ),
             # only C1 is affected
             (
@@ -105,10 +111,13 @@ class TestEnsureNoViolation:
                 ],
                 [0, 1],
                 3,
+                [0, 0],  # z
                 [1],
                 [0, 0],
+                [1, 0],
             ),
-            # no const is affected
+            # no const is determined
+            # the added rule is both interior and irrelevant
             (
                 "t5",
                 [
@@ -117,12 +126,38 @@ class TestEnsureNoViolation:
                 ],
                 [0, 1],
                 2,
+                [0, 0],  # z
                 [],
                 [0, 0],
+                [0, 0],
+            ),
+            # no const is determined
+            # the added rule is interior and relevant
+            (
+                "t6",
+                [[1, 1, 0, 0, 1], [0, 0, 1, 0, 0]],  # 2 is interior and relevant
+                [0, 0],
+                2,
+                [0, 0],  # z
+                [],
+                [1, 0],
+                [0, 0],
+            ),
+            # adding 3, which is exterior and irelevant
+            # however, no pivot rules are added because z = t already
+            (
+                "t7",
+                [[1, 0, 0, 0], [0, 1, 0, 0]],
+                [1, 1],
+                3,
+                [1, 1],  # z
+                [],
+                [1, 1],
+                [1, 1],
             ),
         ],
     )
-    def test_basic(self, test_name, A, t, j, exp_rules, exp_zp):
+    def test_basic(self, test_name, A, t, j, z, exp_rules, exp_zp, exp_sp):
         A, t, _, pivot_columns = extended_rref(
             GF(np.array(A, dtype=int)), GF(np.array(t, dtype=int)), verbose=False
         )
@@ -131,18 +166,20 @@ class TestEnsureNoViolation:
         max_nz_idx_array = get_max_nz_idx_per_row(A)
         m, n = A.shape
 
-        z = bin_zeros(m)
-        actual_rules, actual_zp = ensure_no_violation(
-            j, z, t, A, max_nz_idx_array, pivot_columns
+        z = bin_array(z)
+        s = bin_zeros(m)
+        actual_rules, actual_zp, actual_sp = ensure_no_violation(
+            j, z, s, t, A, max_nz_idx_array, pivot_columns
         )
         np.testing.assert_allclose(actual_rules, np.array(exp_rules, dtype=int))
         np.testing.assert_allclose(actual_zp, bin_array(exp_zp))
+        np.testing.assert_allclose(actual_sp, bin_array(exp_sp))
 
     @pytest.mark.parametrize(
         "name, A, t, j1, rules1, zp1, sp1, j2, rules2, zp2, sp2",
         [
             (
-                't1',
+                "t1",
                 # the case that the added rules are irrelevant
                 [[1, 0, 0, 0], [0, 1, 0, 0]],
                 [1, 1],
@@ -158,7 +195,7 @@ class TestEnsureNoViolation:
                 [1, 1],
             ),
             (
-                't2',
+                "t2",
                 [[1, 0, 1, 0], [0, 1, 0, 1]],
                 [1, 0],
                 # add 3, which determines C1 only
@@ -176,7 +213,9 @@ class TestEnsureNoViolation:
             ),
         ],
     )
-    def test_multiple_calls(self, name, A, t, j1, rules1, zp1, sp1, j2, rules2, zp2, sp2):
+    def test_multiple_calls(
+        self, name, A, t, j1, rules1, zp1, sp1, j2, rules2, zp2, sp2
+    ):
         """test calling ensure_no_violation multiple times"""
 
         A, t, _, pivot_columns = extended_rref(
@@ -565,16 +604,11 @@ class TestConstrainedBranchAndBoundEnd2End:
 
         assert_dict_allclose(actual_sols, expected_sols)
 
-    # @pytest.mark.parametrize("num_rules", [10, 15, 20])
-    # @pytest.mark.parametrize("num_constraints", [2, 5, 8])
-    # @pytest.mark.parametrize("lmbd", [0.1])
-    # @pytest.mark.parametrize("ub", [0.5001, 0.2001, 0.0001])  # float("inf"),  # , 0.01
-    # @pytest.mark.parametrize("rand_seed", randints(10))
-    @pytest.mark.parametrize("num_rules", [10])
-    @pytest.mark.parametrize("num_constraints", [2])
+    @pytest.mark.parametrize("num_rules", [10, 15, 20])
+    @pytest.mark.parametrize("num_constraints", [2, 5, 8])
     @pytest.mark.parametrize("lmbd", [0.1])
-    @pytest.mark.parametrize("ub", [0.501])  # float("inf"),  # , 0.01
-    @pytest.mark.parametrize("rand_seed", [162140838])
+    @pytest.mark.parametrize("ub", [0.5001, 0.2001, 0.0001])  # float("inf"),  # , 0.01
+    @pytest.mark.parametrize("rand_seed", randints(10))
     def test_complete_enumeration_and_alignment_with_cbb_on_random_dataset(
         self, num_rules, num_constraints, lmbd, ub, rand_seed
     ):
@@ -597,12 +631,14 @@ class TestConstrainedBranchAndBoundEnd2End:
         actual_sols = solutions_to_dict(
             list(cbb_v2.run(return_objective=True, A=A, t=t))
         )
+        print("cbb_v2.A.astype(int):\n {}".format(cbb_v2.A.astype(int)))
+        print("cbb_v2.t.astype(int):\n {}".format(cbb_v2.t.astype(int)))
 
         print("len(actual_sols): {}".format(len(actual_sols)))
         print("len(expected_sols): {}".format(len(expected_sols)))
         print("actual_sols: {}".format(actual_sols))
         print("expected_sols: {}".format(expected_sols))
-        print("-" * 10)
+        print("-" * 10 + "sol(v1) - sol(v2)" + "-" * 10)
         for sol in set(expected_sols.keys()) - set(actual_sols.keys()):
             print(
                 "obj({}): {}".format(
@@ -611,7 +647,7 @@ class TestConstrainedBranchAndBoundEnd2End:
                 )
             )
 
-        print("-" * 10)
+        print("-" * 10 + "sol(v2) - sol(v1)" + "-" * 10)
         for sol in set(actual_sols.keys()) - set(expected_sols.keys()):
             print(
                 "obj({}): {}".format(
