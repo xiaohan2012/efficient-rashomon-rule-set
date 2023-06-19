@@ -609,6 +609,11 @@ class TestConstrainedBranchAndBoundEnd2End:
     @pytest.mark.parametrize("lmbd", [0.1])
     @pytest.mark.parametrize("ub", [0.5001, 0.2001, 0.0001])  # float("inf"),  # , 0.01
     @pytest.mark.parametrize("rand_seed", randints(10))
+    # @pytest.mark.parametrize("num_rules", [10])
+    # @pytest.mark.parametrize("num_constraints", [5])
+    # @pytest.mark.parametrize("lmbd", [0.1])
+    # @pytest.mark.parametrize("ub", [0.5001])  # float("inf"),  # , 0.01
+    # @pytest.mark.parametrize("rand_seed", [269495981])    
     def test_complete_enumeration_and_alignment_with_cbb_on_random_dataset(
         self, num_rules, num_constraints, lmbd, ub, rand_seed
     ):

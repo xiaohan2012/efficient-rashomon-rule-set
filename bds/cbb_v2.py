@@ -309,13 +309,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             self.num_rules,
             self.row2pivot_column,
         )
-        # rule_idxs = self._ensure_satisfiability(
-        #     default_rule, bin_zeros(self.num_constraints)
-        # )
-        rules_to_add = self._get_rules_by_idxs(rule_idxs)
-
-        # calculate the objective
-        captured = lor_of_truthtable(rules_to_add)
+        captured = self._lor(rule_idxs)
         num_mistakes = gmp.popcount(captured ^ self.y_mpz)
 
         # print("bin(captured): {}".format(bin(captured)))
@@ -365,12 +359,15 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
 
         # logger.debug(f"parent node: {parent_node.get_ruleset_ids()}")
         # here we assume the rule ids are consecutive integers
+        # padding = ' ' * (2 * parent_node.depth)
+        # print("{}prefix: {}".format(padding, tuple(sorted(parent_node.get_ruleset_ids()))))
         for rule in self.rules[parent_node.rule_id :]:
             # consider adding only free rules
             # since the addition of pivot rules are determined "automatically" by Ax=b
             if rule.id in self.pivot_rule_idxs:
                 continue
 
+            # print("{}  rule.id: {}".format(padding, rule.id))
             self.num_prefix_evaluations += 1
 
             # prune by ruleset length
@@ -404,6 +401,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
 
                     # update the hierarchical lower bound only if at least one pivot rules are added
                     if extension_size > 1:
+                        _ = 1 + 1  # dummy statement for profiling purposes
                         if (prefix_length + extension_size) > length_ub:
                             continue
 
@@ -426,15 +424,11 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                         parent_node,
                         e1_idxs,
                     )
-                    prefix = tuple(sorted(child_node.get_ruleset_ids()))
 
                     self.queue.push(
                         (child_node, not_w, zp, sp),
                         key=child_node.lower_bound,
                     )
-
-                prefix = tuple(sorted(parent_node.get_ruleset_ids() | {rule.id}))
-
                 # next we consider the feasibility d + r + the extension rules needed to satisfy Ax=b
                 # note that ext_idxs exclude the current rule
 
@@ -486,6 +480,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                     ruleset = child_node.get_ruleset_ids() | set(ext_idxs)
 
                     # logger.debug(f"yielding {ruleset} with obj {obj:.2f}")
+                    # print(f"{padding}    yield: {tuple(ruleset)}")
                     if return_objective:
                         yield (ruleset, child_node.objective)
                     else:
