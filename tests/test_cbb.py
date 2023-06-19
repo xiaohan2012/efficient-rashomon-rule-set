@@ -330,6 +330,11 @@ class TestConstrainedBranchAndBoundNaive:
     @pytest.mark.parametrize("lmbd", [0.1])
     @pytest.mark.parametrize("ub", [0.801, 0.501, 0.001])  # float("inf"),  # , 0.01
     @pytest.mark.parametrize("rand_seed", randints(5))
+    # @pytest.mark.parametrize("num_rules", [10])
+    # @pytest.mark.parametrize("num_constraints", [2])
+    # @pytest.mark.parametrize("lmbd", [0.1])
+    # @pytest.mark.parametrize("ub", [0.501])  # float("inf"),  # , 0.01
+    # @pytest.mark.parametrize("rand_seed", [162140838])    
     def test_solution_correctness(
         self, num_rules, num_constraints, lmbd, ub, rand_seed
     ):
@@ -351,3 +356,6 @@ class TestConstrainedBranchAndBoundNaive:
         # print(expected)
         # assert set(actual.keys()) == set(expected.keys())
         assert_dict_allclose(actual, expected)
+        # print("len(expected): {}".format(len(expected)))
+        # print("expected: {}".format(expected))
+        # raise ValueError(expected)

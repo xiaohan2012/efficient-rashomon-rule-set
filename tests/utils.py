@@ -22,7 +22,7 @@ def assert_dict_allclose(actual: Dict[Any, Number], expected: [Any, Number]):
         np.testing.assert_allclose(
             np.array(actual[k], dtype=float),
             np.array(expected[k], dtype=float),
-            err_msg=k
+            err_msg=k,
         )
 
 
@@ -60,7 +60,7 @@ def calculate_obj(
     # print("bin(pred): {}".format(bin(pred)))
     # print("bin(y_mpz): {}".format(bin(y_mpz)))
     num_mistakes = gmp.popcount(y_mpz ^ pred)
-    print("num_mistakes: {}".format(num_mistakes))
+    # print("num_mistakes: {}".format(num_mistakes))
     obj = len(sol[1:]) * lmbd + num_mistakes / y_np.shape[0]
     return float(obj)
 
@@ -78,9 +78,16 @@ def brute_force_enumeration(
             sol_arr = np.zeros(num_rules, dtype=int)
             sol_arr[np.asarray(sol) - 1] = 1
             prod = A_gf @ GF(sol_arr)
-            # Ax=b is satisfied                
+            # print("sol: {}".format(sol))
+            # if tuple(sorted(sol)) == (2, 3, 10):
+            #     print("sol: {}".format(sol))
+            #     print("A.astype(int):\n {}".format(A.astype(int)))
+            #     print("b.astype(int):\n{}".format(b.astype(int)))
+            #     print(prod, b_gf)
+            #     print(calculate_obj(rules, y, y_mpz, (0,) + sol, lmbd))
+            # Ax=b is satisfied
             if (prod == b_gf).all():
-                sol = (0, ) + sol
+                sol = (0,) + sol
                 obj = calculate_obj(rules, y, y_mpz, sol, lmbd)
                 # and obj is upper boudned by ub
                 if obj <= ub:

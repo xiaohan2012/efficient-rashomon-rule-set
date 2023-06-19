@@ -1,36 +1,36 @@
-import pytest
-import numpy as np
 import gmpy2 as gmp
+import numpy as np
+import pytest
+from gmpy2 import mpfr, mpz
 
-from gmpy2 import mpz, mpfr
-
-from bds.gf2 import extended_rref, GF
-from bds.utils import (
-    bin_zeros,
-    bin_array,
-    bin_ones,
-    get_indices_and_indptr,
-    get_max_nz_idx_per_row,
-    solutions_to_dict,
-    mpz_set_bits,
-    randints,
-)
 from bds.cbb import ConstrainedBranchAndBoundNaive
 from bds.cbb_v2 import (
+    ConstrainedBranchAndBound,
+    count_added_pivots,
     ensure_no_violation,
     ensure_satisfiability,
-    ConstrainedBranchAndBound,
-    count_added_pivots
 )
-from bds.rule import Rule, lor_of_truthtable
+from bds.gf2 import GF, extended_rref
 from bds.random_hash import generate_h_and_alpha
+from bds.rule import Rule, lor_of_truthtable
+from bds.utils import (
+    bin_array,
+    bin_ones,
+    bin_zeros,
+    get_indices_and_indptr,
+    get_max_nz_idx_per_row,
+    mpz_set_bits,
+    randints,
+    solutions_to_dict,
+)
+
+from .fixtures import rules, y
 from .utils import (
-    generate_random_rules_and_y,
     assert_dict_allclose,
     brute_force_enumeration,
     calculate_obj,
+    generate_random_rules_and_y,
 )
-from .fixtures import rules, y
 
 
 class TestEnsureNoViolation:
@@ -55,82 +55,155 @@ class TestEnsureNoViolation:
                 j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
             )
 
-    def test_basic_1(self):
-        A = np.array([[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]], dtype=bool)
-        t = np.array([1, 1, 0], dtype=bool)
-
-        A_indices, A_indptr = get_indices_and_indptr(A)
-        max_nz_idx_array = get_max_nz_idx_per_row(A)
-        row2pivot_column = np.array([0, 1, 2], dtype=int)
-        m, n = A.shape
-
-        j = 4
-        z = bin_zeros(m)
-        rules, zp = ensure_no_violation(
-            j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
-        )
-        np.testing.assert_allclose(rules, np.array([3], dtype=int))
-        # assert rules == {3}
-        np.testing.assert_allclose(zp, bin_array([1, 1, 0]))
-
-    def test_basic_2(self):
-        A = np.array([[1, 0, 1, 0], [0, 0, 0, 1]], dtype=bool)
-        t = np.array([0, 1], dtype=bool)
-
-        A_indices, A_indptr = get_indices_and_indptr(A)
-        max_nz_idx_array = get_max_nz_idx_per_row(A)
-        row2pivot_column = np.array([0, 3], dtype=int)
-        m, n = A.shape
-
-        j = 3
-        z = bin_zeros(m)
-        rules, zp = ensure_no_violation(
-            j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
-        )
-
-        np.testing.assert_allclose(rules, np.array([1], dtype=int))
-        np.testing.assert_allclose(zp, bin_array([0, 0]))
-
-        j = 2
-        z = bin_zeros(m)
-        rules, zp = ensure_no_violation(
-            j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
-        )
-        np.testing.assert_allclose(rules, np.array([], dtype=int))
-        np.testing.assert_allclose(zp, bin_array([0, 0]))
-
-        # # cannot set rule-4 because it is pivot
-        # with pytest.raises(ValueError, match="cannot set pivot variable of column 3"):
-        #     j = 4
-        #     rules, zp = update_pivot_variables(
-        #         j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
-        #     )
-
     @pytest.mark.parametrize(
-        "j, z, z_expected",
+        "test_name, A, t, j, exp_rules, exp_zp",
         [
-            (2, [0, 1], [0, 1]),
-            (2, [1, 0], [1, 0]),
-            (3, [0, 1], [0, 1]),  # 1 and 3 are selected
-            (3, [1, 0], [1, 0]),  # so the parity states vector should be the same
-            (3, [0, 0], [0, 0]),
+            # j=4
+            (
+                "t1",
+                [
+                    [1, 0, 0, 1],  # 4 is bordering
+                    [0, 1, 0, 1],  # 4 is bordering
+                    [0, 0, 1, 1],  # 4 is bordering, 3 is added because t[2] = 0
+                ],
+                [1, 1, 0],
+                4,
+                [3],
+                [1, 1, 0],  # z[0] and z[1] flipped once and z[2] flipped twice
+            ),
+            # all const are affected but j=4 is not bordering rule for any
+            (
+                "t2",
+                [
+                    [1, 0, 0, 0],  # 4 is not relevant but exceeds bordering index
+                    [0, 1, 0, 0],  # 4 is not relevant but exceeds bordering index
+                    [0, 0, 1, 0],  # 4 is not relevant but exceeds bordering index
+                ],
+                [1, 1, 1],
+                4,
+                [1, 2, 3],  # all are added
+                [1, 1, 1],  # and the sign is flipped only once for each const
+            ),
+            #  all consts are affected but j=4 is bordering for one but not for the other
+            (
+                "t3",
+                [
+                    [1, 0, 0, 1],  # 4 is bordering
+                    [0, 1, 0, 0],  # 4 is irrelevant but exceeds the bordering index
+                ],
+                [0, 1],
+                4,
+                [1, 2],
+                [0, 1],
+            ),
+            # only C1 is affected
+            (
+                "t4",
+                [
+                    [1, 0, 1, 0],  # 3 is bordering, add 1 because t[0] = 0
+                    [0, 0, 0, 1],  # 3 is irrelevant and is interior, do not add 4
+                ],
+                [0, 1],
+                3,
+                [1],
+                [0, 0],
+            ),
+            # no const is affected
+            (
+                "t5",
+                [
+                    [1, 0, 1, 0],  # 2 is irrelevant and interior
+                    [0, 0, 0, 1],  # 2 is irrelevant and interior
+                ],
+                [0, 1],
+                2,
+                [],
+                [0, 0],
+            ),
         ],
     )
-    def test_updated_parity_states(self, j, z, z_expected):
-        A = np.array([[1, 0, 1, 0], [0, 0, 0, 1]], dtype=bool)
-        t = np.array([0, 1], dtype=bool)
-
-        A_indices, A_indptr = get_indices_and_indptr(A)
+    def test_basic(self, test_name, A, t, j, exp_rules, exp_zp):
+        A, t, _, pivot_columns = extended_rref(
+            GF(np.array(A, dtype=int)), GF(np.array(t, dtype=int)), verbose=False
+        )
+        A, t = map(bin_array, (A, t))
+        # A_indices, A_indptr = get_indices_and_indptr(A)
         max_nz_idx_array = get_max_nz_idx_per_row(A)
-        row2pivot_column = np.array([0, 3], dtype=int)
         m, n = A.shape
 
-        j = 2
-        z = bin_array(z)
-        rules, zp = ensure_no_violation(
-            j, z, t, A_indices, A_indptr, max_nz_idx_array, row2pivot_column
+        z = bin_zeros(m)
+        actual_rules, actual_zp = ensure_no_violation(
+            j, z, t, A, max_nz_idx_array, pivot_columns
         )
-        np.testing.assert_allclose(zp, bin_array(z_expected))
+        np.testing.assert_allclose(actual_rules, np.array(exp_rules, dtype=int))
+        np.testing.assert_allclose(actual_zp, bin_array(exp_zp))
+
+    @pytest.mark.parametrize(
+        "name, A, t, j1, rules1, zp1, sp1, j2, rules2, zp2, sp2",
+        [
+            (
+                't1',
+                # the case that the added rules are irrelevant
+                [[1, 0, 0, 0], [0, 1, 0, 0]],
+                [1, 1],
+                # add rule 3
+                3,
+                [1, 2],
+                [1, 1],
+                [1, 1],
+                # add rule 3, whcih does not change anything
+                3,
+                [],
+                [1, 1],
+                [1, 1],
+            ),
+            (
+                't2',
+                [[1, 0, 1, 0], [0, 1, 0, 1]],
+                [1, 0],
+                # add 3, which determines C1 only
+                # but rule 1 is not added
+                3,
+                [],
+                [1, 0],
+                [1, 0],
+                # add 4, which determines C2
+                # rule 2 is added
+                4,
+                [2],
+                [1, 0],
+                [1, 1],
+            ),
+        ],
+    )
+    def test_multiple_calls(self, name, A, t, j1, rules1, zp1, sp1, j2, rules2, zp2, sp2):
+        """test calling ensure_no_violation multiple times"""
+
+        A, t, _, pivot_columns = extended_rref(
+            GF(np.array(A, dtype=int)), GF(np.array(t, dtype=int)), verbose=False
+        )
+        A, t = map(bin_array, (A, t))
+
+        max_nz_idx_array = get_max_nz_idx_per_row(A)
+        m, n = A.shape
+
+        z = bin_zeros(m)
+        s = bin_zeros(m)
+        actual_rules1, actual_zp1, actual_sp1 = ensure_no_violation(
+            j1, z, s, t, A, max_nz_idx_array, pivot_columns
+        )
+
+        np.testing.assert_allclose(actual_rules1, rules1)
+        np.testing.assert_allclose(actual_zp1, zp1)
+        np.testing.assert_allclose(actual_sp1, sp1)
+
+        actual_rules2, actual_zp2, actual_sp2 = ensure_no_violation(
+            j2, actual_zp1, actual_sp1, t, A, max_nz_idx_array, pivot_columns
+        )
+
+        np.testing.assert_allclose(actual_rules2, rules2)
+        np.testing.assert_allclose(actual_zp2, zp2)
+        np.testing.assert_allclose(actual_sp2, sp2)  # all constraints are satisfied
 
 
 class TestEnsureSatisfiability:
@@ -242,7 +315,7 @@ class TestEnsureSatisfiability:
             #     [[1, 0, 1, 1], [0, 0, 1, 0]],
             #     [1, 1],
             #     0,
-            #     [3], 
+            #     [3],
             # ),
             (
                 # adding 4
@@ -277,7 +350,8 @@ class TestEnsureSatisfiability:
         # take a free ride and test count_added_pivots as well
         assert count_added_pivots(j, A, t, z) == len(rules)
 
-class TestConstrainedBranchAndBound:
+
+class TestConstrainedBranchAndBoundMethods:
     @pytest.mark.parametrize(
         "A, t, expected_sols, expected_obj",
         [
@@ -349,47 +423,6 @@ class TestConstrainedBranchAndBound:
         sol, obj = list(cbb.generate_solution_at_root(return_objective=True))[0]
         assert sol == expected_sols
         np.testing.assert_allclose(float(obj), expected_obj)
-
-    @pytest.mark.parametrize(
-        "A, t, expected_sols",
-        [
-            (
-                [[1, 0, 0, 1], [0, 1, 0, 1], [0, 1, 1, 0]],
-                [1, 0, 1],
-                [{0, 1, 3}, {0, 2, 4}],
-            ),
-            (
-                [[1, 0, 0, 1]],
-                [1],
-                [
-                    {0, 1},
-                    {0, 1, 2},
-                    {0, 1, 3},
-                    {0, 4},
-                    {0, 1, 2, 3},
-                    {0, 2, 4},
-                    {0, 3, 4},
-                    {0, 2, 3, 4},
-                ],
-            ),
-            (
-                [[1, 0, 0, 1], [0, 1, 0, 1]],
-                [1, 0],
-                [
-                    {0, 1},
-                    {0, 1, 3},
-                    {0, 2, 4},
-                    {0, 2, 3, 4},
-                ],
-            ),
-        ],
-    )
-    def test_complete_enumeration_with_infinite_ub(self, A, t, expected_sols):
-        A, t = bin_array(A), bin_array(t)
-        rand_rules, rand_y = generate_random_rules_and_y(10, A.shape[1], 12345)
-        cbb = ConstrainedBranchAndBound(rand_rules, float("inf"), rand_y, 0.1)
-        sols = cbb.bounded_sols(threshold=None, A=A, t=t)
-        assert set(map(tuple, sols)) == set(map(tuple, expected_sols))
 
     @pytest.mark.parametrize(
         "A, t, exp_pivot_rule_idxs, exp_free_rule_idxs, exp_row2pivot_column, exp_border_rule_idxs",
@@ -468,58 +501,48 @@ class TestConstrainedBranchAndBound:
         )
         assert grandchild_same == grandchild
 
+
+class TestConstrainedBranchAndBoundEnd2End:
     @pytest.mark.parametrize(
-        "case_name, A, t, z, rule_idx, exp_e1_idxs, exp_extention_size, exp_zp",
+        "A, t, expected_sols",
         [
-            # bordering rules are {3}
-            # parity vector is [0, 0]
-            # adding rule 3 includes rule 1 and 2
-            ("case1", [[1, 0, 1], [0, 1, 1]], [0, 0], [0, 0], 3, [1, 2], 3, [0, 0]),
-            # bordering rules are {3}
-            # parity vector is [1, 0]
-            # adding rule 3 includes rule 2
-            ("case2", [[1, 0, 1], [0, 1, 1]], [0, 0], [1, 0], 3, [2], 2, [0, 0]),
-            # bordering rules are {3}
-            # parity vector is [0, 0]
-            # adding rule 3
-            #            t  z
-            # [1, 0, 1]  0  0
-            # [0, 1, 1]  1  0
-            # parity state update:
-            # c1: not updated
-            # c2: flipped once
-            ("case3", [[1, 0, 1], [0, 1, 1]], [0, 1], [0, 0], 3, [1], 2, [0, 1]),
-            # the added rule is not bordering
-            ("case4", [[1, 1, 1]], [0], [0], 2, [], 1, [1]),
-            # added rule is not relevant
-            # p vector not updated
-            ("case5", [[1, 0, 1]], [0], [0], 2, [], 1, [0]),
+            (
+                [[1, 0, 0, 1], [0, 1, 0, 1], [0, 1, 1, 0]],
+                [1, 0, 1],
+                [{0, 1, 3}, {0, 2, 4}],
+            ),
+            (
+                [[1, 0, 0, 1]],
+                [1],
+                [
+                    {0, 1},
+                    {0, 1, 2},
+                    {0, 1, 3},
+                    {0, 4},
+                    {0, 1, 2, 3},
+                    {0, 2, 4},
+                    {0, 3, 4},
+                    {0, 2, 3, 4},
+                ],
+            ),
+            (
+                [[1, 0, 0, 1], [0, 1, 0, 1]],
+                [1, 0],
+                [
+                    {0, 1},
+                    {0, 1, 3},
+                    {0, 2, 4},
+                    {0, 2, 3, 4},
+                ],
+            ),
         ],
     )
-    def test__lazy_update_pivot_variables(
-        self,
-        rules,
-        y,
-        case_name,
-        A,
-        t,
-        z,
-        rule_idx,
-        exp_e1_idxs,
-        exp_extention_size,
-        exp_zp,
-    ):
-        cbb = ConstrainedBranchAndBound(rules, float("inf"), y, 0.1)
-        A = bin_array(A)
-        t = bin_array(t)
-
-        cbb.setup_constraint_system(A, t)
-        e1_idxs, zp, v1, extention_size = cbb._lazy_ensure_no_violation(
-            rules[rule_idx - 1], bin_array(z), mpz()
-        )
-        np.testing.assert_allclose(e1_idxs, exp_e1_idxs)
-        assert extention_size == exp_extention_size
-        np.testing.assert_allclose(zp, exp_zp)
+    def test_complete_enumeration_with_infinite_ub(self, A, t, expected_sols):
+        A, t = bin_array(A), bin_array(t)
+        rand_rules, rand_y = generate_random_rules_and_y(10, A.shape[1], 12345)
+        cbb = ConstrainedBranchAndBound(rand_rules, float("inf"), rand_y, 0.1)
+        sols = cbb.bounded_sols(threshold=None, A=A, t=t)
+        assert set(map(tuple, sols)) == set(map(tuple, expected_sols))
 
     @pytest.mark.parametrize("ub", [float("inf"), 0.5, 0.01])
     def test_complete_enumeration_and_alignment_with_cbb_on_toy_data(
@@ -542,24 +565,24 @@ class TestConstrainedBranchAndBound:
 
         assert_dict_allclose(actual_sols, expected_sols)
 
-    @pytest.mark.parametrize("num_rules", [10, 15, 20])
-    @pytest.mark.parametrize("num_constraints", [2, 5, 8])
-    @pytest.mark.parametrize("lmbd", [0.1])
-    @pytest.mark.parametrize("ub", [0.5001, 0.2001, 0.0001])  # float("inf"),  # , 0.01
-    @pytest.mark.parametrize("rand_seed", randints(10))
-    # @pytest.mark.parametrize("num_rules", [10])
-    # @pytest.mark.parametrize("num_constraints", [2])
+    # @pytest.mark.parametrize("num_rules", [10, 15, 20])
+    # @pytest.mark.parametrize("num_constraints", [2, 5, 8])
     # @pytest.mark.parametrize("lmbd", [0.1])
-    # @pytest.mark.parametrize("ub", [0.501])  # float("inf"),  # , 0.01
-    # @pytest.mark.parametrize("rand_seed", [162140838])
+    # @pytest.mark.parametrize("ub", [0.5001, 0.2001, 0.0001])  # float("inf"),  # , 0.01
+    # @pytest.mark.parametrize("rand_seed", randints(10))
+    @pytest.mark.parametrize("num_rules", [10])
+    @pytest.mark.parametrize("num_constraints", [2])
+    @pytest.mark.parametrize("lmbd", [0.1])
+    @pytest.mark.parametrize("ub", [0.501])  # float("inf"),  # , 0.01
+    @pytest.mark.parametrize("rand_seed", [162140838])
     def test_complete_enumeration_and_alignment_with_cbb_on_random_dataset(
         self, num_rules, num_constraints, lmbd, ub, rand_seed
     ):
         """the output should be the same as cbb"""
         rand_rules, rand_y = generate_random_rules_and_y(10, num_rules, rand_seed)
-        # print("rand_y: {}".format(''.join(map(str, rand_y[::-1].astype(int)))))
-        # for r in rand_rules:
-        #     print(f"{r.name}: {bin(r.truthtable)}")
+        print("rand_y: {}".format("".join(map(str, rand_y[::-1].astype(int)))))
+        for r in rand_rules:
+            print(f"{r.name:>20}: {bin(r.truthtable):>20}")
 
         cbb = ConstrainedBranchAndBoundNaive(rand_rules, ub, rand_y, lmbd)
         cbb_v2 = ConstrainedBranchAndBound(rand_rules, ub, rand_y, lmbd)
@@ -575,8 +598,27 @@ class TestConstrainedBranchAndBound:
             list(cbb_v2.run(return_objective=True, A=A, t=t))
         )
 
-        # print("actual_sols: {}".format(actual_sols))
-        # print(calculate_obj(cbb_v2.rules, cbb_v2.y_np, cbb_v2.y_mpz, (0, 2, 6, 10), lmbd))
+        print("len(actual_sols): {}".format(len(actual_sols)))
+        print("len(expected_sols): {}".format(len(expected_sols)))
+        print("actual_sols: {}".format(actual_sols))
+        print("expected_sols: {}".format(expected_sols))
+        print("-" * 10)
+        for sol in set(expected_sols.keys()) - set(actual_sols.keys()):
+            print(
+                "obj({}): {}".format(
+                    sol,
+                    calculate_obj(cbb_v2.rules, cbb_v2.y_np, cbb_v2.y_mpz, sol, lmbd),
+                )
+            )
+
+        print("-" * 10)
+        for sol in set(actual_sols.keys()) - set(expected_sols.keys()):
+            print(
+                "obj({}): {}".format(
+                    sol,
+                    calculate_obj(cbb_v2.rules, cbb_v2.y_np, cbb_v2.y_mpz, sol, lmbd),
+                )
+            )
 
         actual_keys = set(actual_sols.keys())
         expected_keys = set(expected_sols.keys())

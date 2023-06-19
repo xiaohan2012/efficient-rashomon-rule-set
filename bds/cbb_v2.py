@@ -27,63 +27,66 @@ from .utils import (
 def ensure_no_violation(
     j: int,
     z: np.ndarray,
+    s: np.ndarray,
     t: np.ndarray,
-    A_indices: np.ndarray,
-    A_indptr: np.ndarray,
+    A: np.ndarray,
     max_nz_idx_array: np.ndarray,
     row2pivot_column: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    add a set of pivot rules to ensure that Ax=b is not violated
+    upon adding rule j to the current prefix, add a set of pivot rules to ensure that Ax=b is not violated
 
     return:
 
     - selected pivot rule indices after adding the jth rule to the current prefix
+    - the satisfiability vector
     - the updated parity states vector
 
     note that the rule index must correspond to a non-pivot column
 
-    the parity states vector is provided for the current prefix
+    the parity states vector and satisfiability vector for the current prefix are provided for incremental computation
 
     row2pivot_column is the mapping from row id to the corresponding pivot column
 
     for performance reasons, the following data structures are given:
 
-    A_indices and A_indptr: where the non-zero row indices for column/rule i are stored in A_indices[A_indptr[i-1]:A_indptr[i]]
-    max_nz_idx_array: the array of largest non-zero idx per constraint
+    - max_nz_idx_array: the array of largest non-zero idx per constraint
     """
-    # commented out the raise statement because numba does not allow it
-    # if (j - 1) in row2pivot_column:
-    #     raise ValueError(f"cannot set pivot variable of column {j - 1}")
-    cst_idxs = A_indices[
-        A_indptr[j - 1] : A_indptr[j]
-    ]  # get the constraint (row) indices corresponind to rule j
     zp: np.ndarray = z.copy()
-
-    # # flip the value of relevant constraints
-    # zp[cst_idxs] = ~zp[cst_idxs]
-
-    # # this constraint can be determined
-    # # and we should select the correponding pivot rule
-    # mask = np.logical_and(j == (max_nz_idx_array[cst_idxs] + 1), zp[cst_idxs] != t[cst_idxs])
-    # # flip again due to the addition of pivot rule
-    # zp[cst_idxs[mask]] = ~zp[cst_idxs[mask]]
-    # return row2pivot_column[cst_idxs[mask]] + 1
-    selected_rules = np.empty(A_indices.shape, np.int_)
+    sp: np.ndarray = s.copy()
+    
+    selected_rules = np.empty(A.shape[1], np.int_)
     num_rules_selected = 0
-    for i in cst_idxs:
-        zp[i] = not zp[i]  # flip the parity value
-        max_nz_idx = max_nz_idx_array[i]
 
-        # this constraint can be determined
-        # and we should select the correponding pivot rule
-        if (j == (max_nz_idx + 1)) and (zp[i] != t[i]):
-            # flip again because due to the addition of pivot rule
-            zp[i] = not zp[i]
-            # +1 because rule is 1-indexed
-            selected_rules[num_rules_selected] = row2pivot_column[i] + 1
-            num_rules_selected += 1
-    return selected_rules[:num_rules_selected], zp
+    for i in range(A.shape[0]):
+        max_nz_idx = max_nz_idx_array[i]
+        if (not sp[i]) and (j >= (max_nz_idx + 1)):
+            # constraint i is not satisfied
+            # and j exceeds the bordering index of the ith constraint
+            if A[i][j - 1]:
+                #  j is relevant for i
+                sp[i] = True
+                if t[i] == zp[i]:
+                    # add the pivot rule if t[i] equals zp[i]
+                    # an example to explain the rationale:
+                    # say t[i] = zp[i] = False
+                    # note that adding j flips zp[i] to True
+                    # to make the constraint satisfied,
+                    # we need to add the pivot, which flips zp[i] again to False
+                    selected_rules[num_rules_selected] = row2pivot_column[i] + 1
+                    num_rules_selected += 1
+                else:
+                    # otherwise, we add j only
+                    # and flip zp[i]
+                    zp[i] = not zp[i]
+
+            elif (A[i][j - 1] == 0) and t[i]:
+                sp[i] = True
+                # j is irrelevant for i and t[i] is True
+                selected_rules[num_rules_selected] = row2pivot_column[i] + 1
+                num_rules_selected += 1
+                zp[i] = not zp[i]
+    return selected_rules[:num_rules_selected], zp, sp
 
 
 @jit(nopython=True, cache=True)
@@ -194,54 +197,61 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             r |= self.truthtable_list[i]
         return r
 
-    def _lazy_ensure_no_violation(
+    # def _lazy_ensure_no_violation(
+    #     self, rule: Rule, z: np.ndarray, u: mpz
+    # ) -> Tuple[np.ndarray, np.ndarray, mpz, int]:
+    #     """lazily call ensure_no_violation if the rule exceeds the bordering index of at least one constraints
+
+    #     params:
+
+    #     rule: the free rule to be added
+    #     z: current parity state vector
+    #     u: not captured vector by the current prefix
+
+    #     return
+
+    #     - the indices of selected pivot rules (maybe empty)
+    #     - the updated parity state vector
+    #     - the captured vector in the context of the current prefix
+    #     - the extension size (size of selected pivot rules + current rule)
+    #     """
+    #     # rule_idx = rule.id
+    #     # if (rule_idx >= (self.max_nz_idx_array + 1)).any():
+    #         # pivot rules maybe selected
+    #     e1_idxs, zp = self.__ensure_no_violation(rule, z)
+    #     return (
+    #         e1_idxs,
+    #         zp,
+    #         (self._lor(e1_idxs) | rule.truthtable) & u,
+    #         len(e1_idxs) + 1,
+    #     )
+    #     # else:
+    #     #     # no pivot rules can be selected
+    #     #     # we simply update the parity state vector
+    #     #     return (
+    #     #         [],
+    #     #         negate_at_idxs(z, self.ruleid2cst_idxs[rule_idx]),
+    #     #         (rule.truthtable & u),
+    #     #         1,
+    #     #     )
+
+    def _ensure_no_violation(
         self, rule: Rule, z: np.ndarray, u: mpz
     ) -> Tuple[np.ndarray, np.ndarray, mpz, int]:
-        """lazily call ensure_no_violation if the rule is a bordering one
-
-        params:
-
-        rule: the free rule to be added
-        z: current parity state vector
-        u: not captured vector by the current prefix
-
-        return
-
-        - the indices of selected pivot rules (maybe empty)
-        - the updated parity state vector
-        - the captured vector in the context of the current prefix
-        - the extension size (size of selected pivot rules + current rule)
-        """
-        rule_idx = rule.id
-        if rule_idx in self.border_rule_idxs:
-            # pivot rules maybe selected
-            e1_idxs, zp = self.__ensure_no_violation(rule, z)
-            return (
-                e1_idxs,
-                zp,
-                (self._lor(e1_idxs) | rule.truthtable) & u,
-                len(e1_idxs) + 1,
-            )
-        else:
-            # no pivot rules can be selected
-            # we simply update the parity state vector
-            return (
-                [],
-                negate_at_idxs(z, self.ruleid2cst_idxs[rule_idx]),
-                (rule.truthtable & u),
-                1,
-            )
-
-    def __ensure_no_violation(self, rule: Rule, z: np.ndarray):
-        """a wrapper around update_pivot_variables"""
-        return ensure_no_violation(
+        """a wrapper around ensure_no_violation"""
+        e1_idxs, zp = ensure_no_violation(
             rule.id,
             z,
             self.t,
-            self.A_indices,
-            self.A_indptr,
+            self.A,
             self.max_nz_idx_array,
             self.row2pivot_column,
+        )
+        return (
+            e1_idxs,
+            zp,
+            (self._lor(e1_idxs) | rule.truthtable) & u,
+            len(e1_idxs) + 1,
         )
 
     def _ensure_satisfiability(self, rule: Rule, z: np.ndarray):
@@ -412,7 +422,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 if check_look_ahead_bound(lb, self.lmbd, self.ub):
                     # ensure that Ax=b is not unsatisfied
                     # v1 and not_w are updated here
-                    e1_idxs, zp, v1, extension_size = self._lazy_ensure_no_violation(
+                    e1_idxs, zp, v1, extension_size = self._ensure_no_violation(
                         rule, z, u
                     )
 
@@ -458,9 +468,7 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                 # add 1 for the current rule, because ext_idx does not include the current rule
 
                 # (prefix_length + 1 + pvt_count) > length_ub:
-                if check_pivot_length_bound(
-                    prefix_length, pvt_count, length_ub
-                ):
+                if check_pivot_length_bound(prefix_length, pvt_count, length_ub):
                     continue
 
                 # then we get the actual of added pivots to calculate the objective
@@ -488,7 +496,8 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
                     if child_node is None:
                         # compute child_node if not done
                         # call _lazy_ensure_no_violation again to obtain e1_idxs
-                        e1_idxs, _, _, _ = self._lazy_ensure_no_violation(rule, z, u)
+                        e1_idxs, _, _, _ = self._ensure_no_violation(rule, z, u)
+                        # e1_idxs, _, _, _ = self._lazy_ensure_no_violation(rule, z, u)
                         child_node = self._create_new_node_and_add_to_tree(
                             rule,
                             lb,
