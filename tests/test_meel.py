@@ -323,6 +323,8 @@ class TestApproxMC2:
             num_pts, num_rules, rand_seed=1234
         )
 
+
+
         estimate_actual = approx_mc2(
             random_rules,
             random_y,
@@ -345,6 +347,8 @@ class TestApproxMC2:
             parallel=False,  # sequential run
         )
         assert estimate_expected == estimate_actual
+        
+        
 
     @pytest.mark.parametrize("ub", [0.6, 0.9, 1.0])
     @pytest.mark.parametrize("eps", [0.8, 0.5])
