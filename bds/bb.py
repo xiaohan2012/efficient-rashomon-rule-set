@@ -158,7 +158,7 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
                 lower_bound=lb,
                 objective=obj,
                 num_captured=gmp.popcount(captured),
-                # pivot_rule_ids=[]
+                pivot_rule_ids=[]
             )
             self.tree.add_node(child_node, parent_node)
             return child_node
