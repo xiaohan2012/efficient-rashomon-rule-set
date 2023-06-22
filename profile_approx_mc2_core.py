@@ -7,7 +7,7 @@ from bds.utils import bin_random, randints
 
 num_pts = 1000
 num_rules = 150
-seed = 12345
+seed = 54321
 np.random.seed(seed)
 rand_seeds = randints(num_rules)
 
@@ -24,6 +24,6 @@ prev_m = 1
 
 with Timer() as timer:
     num_cells, num_sols = approx_mc2_core(
-        rules, y, lmbd=lmbd, ub=ub, thresh=thresh, prev_num_cells=int(2**prev_m), rand_seed=12345
+        rules, y, lmbd=lmbd, ub=ub, thresh=thresh, prev_num_cells=int(2**prev_m), rand_seed=54321
     )
     print(f"elapsed time: {timer.elapsed:.2f}s")
