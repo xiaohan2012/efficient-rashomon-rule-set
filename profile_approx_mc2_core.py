@@ -24,6 +24,6 @@ prev_m = 1
 
 with Timer() as timer:
     num_cells, num_sols = approx_mc2_core(
-        rules, y, lmbd=lmbd, ub=ub, thresh=thresh, prev_num_cells=int(2**prev_m), rand_seed=54321
+        rules, y, lmbd=lmbd, ub=ub, thresh=thresh, prev_num_cells=int(2**prev_m), rand_seed=seed
     )
     print(f"elapsed time: {timer.elapsed:.2f}s")
