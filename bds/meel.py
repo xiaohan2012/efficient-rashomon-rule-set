@@ -224,7 +224,9 @@ def log_search(
     # to make sure that the search trajectory is logical
     _check_log_search_trajectory(search_trajectory)
 
-    print("time_cost_info: {}".format(time_cost_info))
+    print("time_cost_info: ")
+    for m, etime in time_cost_info:
+        print("|{}|{}|".format(m, etime))
     if return_full:
         return m, Y_size_arr[m], big_cell, Y_size_arr, search_trajectory, time_cost_info
     else:
