@@ -281,6 +281,7 @@ def approx_mc2_core(
         Y_size = cbb.bounded_count(thresh, A=A, t=t)
         logger.debug(f"solving takes {timer.elapsed:.2f} secs")
 
+    print("rand_seed: {}".format(rand_seed))
     if Y_size >= thresh:
         logger.debug(f"with |Y| {Y_size} >= {thresh}, therefore return None")
         return None, None
