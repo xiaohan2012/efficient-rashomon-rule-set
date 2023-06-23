@@ -1,16 +1,15 @@
 import itertools
-import ray
 import logging
 import math
 import random
-
 from typing import List, Optional, Set, Tuple, Union
 
 import gmpy2 as gmp
 import numpy as np
+import ray
 from contexttimer import Timer
-from tqdm import tqdm
 from logzero import logger
+from tqdm import tqdm
 
 from .bb import BranchAndBoundNaive
 
@@ -19,8 +18,8 @@ from .cbb_v2 import ConstrainedBranchAndBound
 
 # from .icbb import IncrementalConstrainedBranchAndBound
 from .random_hash import generate_h_and_alpha
-from .rule import Rule
 from .ray_pbar import RayProgressBar
+from .rule import Rule
 from .utils import (
     assert_binary_array,
     fill_array_from,
@@ -417,7 +416,7 @@ def approx_mc2(
                     logger.debug("one esimtation failed")
         else:
 
-            @ray.remote
+            @ray.remote(num_cpus=2)
             def approx_mc2_core_wrapper(log_level, *args, **kwargs):
                 # reset the loglevel since the function runs in a separate process
                 logger.setLevel(log_level)
@@ -435,10 +434,18 @@ def approx_mc2(
             # the first round uses prev_num_cells = 2
             # the second round uses prev_m_cells of the first round
 
-            # the 1st round executes k jobs, where k = the number of available CPUs
+            # the 1st round executes k jobs, where k = the number of available CPUs / 2
             promise_1st_round = [
                 approx_mc2_core_wrapper.remote(
-                    log_level, rules, y, lmbd, ub, thresh_floor, prev_num_cells, seed
+                    log_level,
+                    rules,
+                    y,
+                    lmbd,
+                    ub,
+                    thresh_floor,
+                    # prev_num_cells,
+                    int(2**13),
+                    seed,
                 )
                 for seed in rand_seed_pool[:num_available_cpus]
             ]
