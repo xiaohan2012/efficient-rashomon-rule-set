@@ -34,11 +34,6 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         self._last_not_captured = None  # the not_captured vector for the last node
         self._last_rule = None  # the last rule that was checked
 
-        # the following variables record satisfiability information of the parity constraint system
-        # self._last_u = None  # the undecided vector
-        # self._last_s = None  # the satisfiability states vector
-        # self._last_z = None  # the parity states vector
-
         # a list of nodes that correspond to discovered feasible solutions
         self._feasible_nodes = []
 
@@ -63,9 +58,6 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             last_node=self._last_node,
             last_not_captured=self._last_not_captured,
             last_rule=self._last_rule,
-            # last_u=self._last_u,
-            # last_s=self._last_s,
-            # last_z=self._last_z,
             feasible_nodes=self._feasible_nodes,
             queue=self.queue,
             tree=self.tree,
@@ -76,9 +68,6 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         parent_node: Node,
         parent_not_captured: mpz,
         rule: Rule,
-        # u: np.ndarray,
-        # s: np.ndarray,
-        # z: np.ndarray,
     ):
         """update the current solver status
 
@@ -89,10 +78,6 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         self._last_node = parent_node
         self._last_not_captured = parent_not_captured
         self._last_rule = rule
-        # no need to save u, s, and z since they need to be updated
-        # self._last_u = u
-        # self._last_s = s
-        # self._last_z = z
 
     def _record_feasible_solution(self, node: Node):
         """record a feasible solution encoded by node
@@ -272,9 +257,6 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
         s = bin_zeros(self.num_constraints)
         z = bin_zeros(self.num_constraints)
         not_unsatisfied = True
-        # print("checking satisfiability")
-        # print("rule_ids: {}".format(rule_ids))
-        # TODO: can we do it in one run e.g., using vectorized operation?
 
         # we sort the rule ids because small ids are scanned first
         for idx in sorted(rule_ids):
