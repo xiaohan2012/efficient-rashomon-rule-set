@@ -2,18 +2,19 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union
 
 
+
 @dataclass
-class Node:
-    rule_id: int
+class NodeST:
+    rule_id: str
     lower_bound: float
     objective: float
     num_captured: int
     # TODO: should I store not captured?
     equivalent_minority: float = 0
 
-    children: Dict[int, "Node"] = field(default_factory=dict)
+    children: Dict[str, "NodeST"] = field(default_factory=dict)
     depth: int = 0
-    parent: Optional["Node"] = None
+    parent: Optional["NodeST"] = None
 
     equivalent_lower_bound: Optional[
         float
@@ -26,7 +27,7 @@ class Node:
     def __post_init__(self):
         """if parent is not None, 'bind' self and parent by upting children and depth accordingly"""
         if self.parent is not None:
-            assert isinstance(self.parent, Node)
+            assert isinstance(self.parent, NodeST)
             self.parent.add_child(self)
         self._num_rules = None
 
@@ -67,7 +68,7 @@ class Node:
         else:
             return 1 + sum([c.total_num_nodes for c in self.children.values()])
 
-    def add_child(self, child: "Node"):
+    def add_child(self, child: "NodeST"):
         if child == self:
             raise ValueError('cannot add "self" as a child of itself')
 
@@ -82,12 +83,15 @@ class Node:
     def get_ruleset_ids(self):
         """get the rule ids of the rule set associated with this node/rule"""
         ret = {self.rule_id} | set(self.pivot_rule_ids)
+        #print(ret) 
         if self.parent is not None:
             ret |= self.parent.get_ruleset_ids()
         return ret
 
     @classmethod
-    def make_root(cls, fnr: float, num_train_pts: int) -> "Node":
+    def make_root(cls, fnr: float, num_train_pts: int) -> "NodeST":
+        
+        
         """create the root of a cache tree
 
         fnr: the false positive rate of the default rule which captures all training pts and predict them to be negative
@@ -95,9 +99,9 @@ class Node:
 
         the root corresponds to the "default rule", which captures all points and predicts the default label (negative)
         """
-       # print("aaa")
-        return Node(
-            rule_id=0,
+        
+        return NodeST(
+            rule_id="0",
             lower_bound=0.0,  # the false positive rate, which is zero
             objective=fnr,  # the false negative rate, the complexity is zero since the default rule does not add into the complexity term
             depth=0,
@@ -145,7 +149,8 @@ class Node:
         return f"Node(rule_id={self.rule_id}, lower_bound={self.lower_bound}, objective={self.objective})"
 
 
-class CacheTree:
+
+class CacheTreeST:
     """a prefix tree"""
 
     def __init__(self):
@@ -163,12 +168,12 @@ class CacheTree:
             raise ValueError("root is not set yet")
         return self._root
 
-    def _set_root(self, node: Node):
+    def _set_root(self, node: NodeST):
         if self._root is not None:
             raise ValueError("Root has already been set!")
         self._root = node
 
-    def add_node(self, node: Node, parent: Optional[Node] = None):
+    def add_node(self, node: NodeST, parent: Optional[NodeST] = None):
         """add node as a child (to parent if it is given)"""
         if parent is not None:
             parent.add_child(node)
@@ -176,6 +181,4 @@ class CacheTree:
             self._set_root(node)
 
         self._num_nodes += 1
-
-
 
