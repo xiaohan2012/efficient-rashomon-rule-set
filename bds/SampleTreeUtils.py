@@ -5,14 +5,14 @@ from typing import Dict, List, Optional, Tuple, Union
 
 @dataclass
 class NodeST:
-    rule_id: str
+    rule_id: int
     lower_bound: float
     objective: float
     num_captured: int
     # TODO: should I store not captured?
     equivalent_minority: float = 0
 
-    children: Dict[str, "NodeST"] = field(default_factory=dict)
+    children: Dict[int, "NodeST"] = field(default_factory=dict)
     depth: int = 0
     parent: Optional["NodeST"] = None
 
@@ -83,15 +83,12 @@ class NodeST:
     def get_ruleset_ids(self):
         """get the rule ids of the rule set associated with this node/rule"""
         ret = {self.rule_id} | set(self.pivot_rule_ids)
-        #print(ret) 
         if self.parent is not None:
             ret |= self.parent.get_ruleset_ids()
         return ret
 
     @classmethod
     def make_root(cls, fnr: float, num_train_pts: int) -> "NodeST":
-        
-        
         """create the root of a cache tree
 
         fnr: the false positive rate of the default rule which captures all training pts and predict them to be negative
@@ -99,9 +96,9 @@ class NodeST:
 
         the root corresponds to the "default rule", which captures all points and predicts the default label (negative)
         """
-        
+       # print("aaa")
         return NodeST(
-            rule_id="0",
+            rule_id=0,
             lower_bound=0.0,  # the false positive rate, which is zero
             objective=fnr,  # the false negative rate, the complexity is zero since the default rule does not add into the complexity term
             depth=0,
