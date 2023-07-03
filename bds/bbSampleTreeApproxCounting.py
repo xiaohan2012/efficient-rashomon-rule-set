@@ -33,6 +33,7 @@ from .bounds_v2 import (
 import math
 from itertools import combinations
 import random 
+import copy 
 
 
 class BranchAndBoundGeneric:
@@ -121,52 +122,73 @@ class BranchAndBoundGeneric:
         #self.reset(**kwargs) # ?? 
         
         not_captured_root = self._not_captured_by_default_rule()
-        pseudosolutions = [ ({},  (self.tree._root, not_captured_root) , self.tree._root.objective )  ] # empty -
+        pseudosolutions = [ ( {0},  (self.tree._root, not_captured_root) , self.tree._root.objective )  ] # empty -
         
         L = math.ceil(self.n/self.l)
         
         self.current_length = 0 
         
-        for h in range(L): 
-            pseudosolutions = self.generate_single_level(pseudosolutions)
-            self.current_length+=self.l 
-            #if len(pseudosolutions) == 0: # hit the length bound
-            #    break
+        Z = 1 
         
+        
+        for h in range(L): 
+            
+            previous_pseudosolutions = copy.deepcopy(pseudosolutions)
+            
+            pseudosolutions , this_ratio = self.generate_single_level(pseudosolutions)
+            
+            self.current_length+=self.l 
+            Z *= this_ratio
+            #print(Z)
+            
         
         last_level_pseudosolutions = [pseudosol for  pseudosol in pseudosolutions if pseudosol[-1] <= self.ub] 
-        return last_level_pseudosolutions
+       
+        Z /= this_ratio
+        Z *= len(last_level_pseudosolutions) / len(previous_pseudosolutions)
+        
+        return Z
         
             
     def generate_single_level(self, pseudosolutions) -> Iterable:
         
+        
+        
         n_samples = min(self.k,len(pseudosolutions))
         sampled_items = random.sample(pseudosolutions, n_samples)
-            
-        all_solutions =  sampled_items   # we start with the current ones as well corresponding to set everything else to zero
         
-        self.visited_rule_sets = set() 
+        
+        all_solutions =  sampled_items   # we start with the current ones as well corresponding to set everything else to zero
+                
+        #print("initial all sols " + str(len(all_solutions)))
+        
+        # self.visited_rule_sets = set() 
+        visited_rule_sets = set() 
         
         for j in range(n_samples):
             #
             #
             this_sample = sampled_items[j]
-            
-            # if this_sample!=None:
-            
-            #print("this sample " + str(this_sample))   
-            
+            # 
             self.reset_queue_arbitrary_node(this_sample[1])
             self.reset_tree_arbitrary_node(this_sample[1][0])
-            #all_solutions.extend( list(self._loop( *this_sample , current_length, return_objective=False) ) ) 
-            
-            all_solutions.extend( list(self.generateST()) )
-            
-            #print(len(all_solutions))
-            
-            
-        #print(all_solutions)
-        return all_solutions    
+            #
+            #
+            solutions = list(self.generateST())
+            #
+            for solution in solutions: # to optimize 
+                if str(sorted(solution[0])) not in visited_rule_sets: # using the fact that sets are in order 
+                    all_solutions.append(  solution  )
+                    visited_rule_sets.add( str( sorted(solution[0] ) ) )
+        #
+        #
+        
+        
+        #print("all soltuions " + str(all_solutions))
+        #print(" all sols " + str(len(all_solutions)))
+        #print(" visited " + str(len(visited_rule_sets)))
+        ratio =  len(all_solutions)  / n_samples  #len(pseudosolutions) #len(pseudosolutions)
+        return all_solutions , ratio 
             
         
 
@@ -210,7 +232,6 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
 
         self.tree = CacheTreeST()
         root = NodeST.make_root(self.default_rule_fnr, self.num_train_pts)
-      #  root.rule_id = "0"
                 
         # add the root
         self.tree.add_node(root)
@@ -227,6 +248,7 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         item = (self.tree.root, not_captured)
         self.queue.push(item, key=0)
         
+        
     def reset_queue_arbitrary_node(self, tup):
         
         self.queue: Queue = Queue()
@@ -238,15 +260,13 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
     def reset_tree_arbitrary_node(self, nod):
 
         self.tree = CacheTreeST()
-        #root = NodeST.make_root(self.default_rule_fnr, self.num_train_pts)
-        #root.rule_id = "0"
-        # add the root
+     
         self.tree.add_node(nod)
     
 
     def _create_new_node_and_add_to_tree(
         self, rule: Rule, lb: mpfr, obj: mpfr, captured: mpz, parent_node: Node
-    ) -> Node:
+        ) -> Node:
         """create a node using information provided by rule, lb, obj, and captured
         and add it as a child of parent"""
         if rule.id not in parent_node.children:
@@ -275,6 +295,7 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
     def _loopST(
         self, parent_node: Node, parent_not_captured: mpz, return_objective=False
         ):
+        
         """
         check one node in the search tree, update the queue, and yield feasible solution if exists
 
@@ -296,47 +317,43 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
             if (parent_node.num_rules + 1) > length_ub:
                 #print("here!")
                 continue
-            
-                
             #print( " a " + str(frozenset(parent_node.get_ruleset_ids().union({rule.id}))) )
             #print(self.visited_rule_sets)
-        
-            if frozenset(parent_node.get_ruleset_ids().union({rule.id})) not in self.visited_rule_sets: 
-
-                captured = self._captured_by_rule(rule, parent_not_captured)
-                lb = (
-                    parent_lb
-                    + self._incremental_update_lb(captured, self.y_mpz)
-                    + self.lmbd
+            #if frozenset(parent_node.get_ruleset_ids().union({rule.id})) not in self.visited_rule_sets: 
+            captured = self._captured_by_rule(rule, parent_not_captured)
+            lb = (
+                parent_lb
+                + self._incremental_update_lb(captured, self.y_mpz)
+                + self.lmbd
+            )
+            if lb <= self.ub:
+                fn_fraction, not_captured = self._incremental_update_obj(
+                    parent_not_captured, captured
                 )
-                if lb <= self.ub:
-                    fn_fraction, not_captured = self._incremental_update_obj(
-                        parent_not_captured, captured
+                obj = lb + fn_fraction
+
+                child_node = self._create_new_node_and_add_to_tree(
+                    rule, lb, obj, captured, parent_node
+                )
+                                
+                # apply look-ahead bound
+                lookahead_lb = child_node.lower_bound + self.lmbd
+
+                if lookahead_lb <= self.ub:
+                    self.queue.push(
+                        (child_node, not_captured),
+                        key=child_node.lower_bound,  # the choice of key shouldn't matter for complete enumeration
                     )
-                    obj = lb + fn_fraction
-    
-                    child_node = self._create_new_node_and_add_to_tree(
-                        rule, lb, obj, captured, parent_node
-                    )
-                    # apply look-ahead bound
-                    lookahead_lb = child_node.lower_bound + self.lmbd
-    
-                    if lookahead_lb <= self.ub:
-                        self.queue.push(
-                            (child_node, not_captured),
-                            key=child_node.lower_bound,  # the choice of key shouldn't matter for complete enumeration
-                        )
-                    #if obj <= self.ub:
-                    ruleset = child_node.get_ruleset_ids()
-                    #print("ruleset " + str(ruleset))
-                    #if return_objective:
-                    #    yield (ruleset, child_node.objective)
-                    #else:
-                    self.visited_rule_sets.add(frozenset(ruleset)) 
+                #if obj <= self.ub:
+                ruleset = child_node.get_ruleset_ids()
+                #if return_objective:
+                #    yield (ruleset, child_node.objective)
+                #else:
+                #self.visited_rule_sets.add(frozenset(ruleset)) 
+                
+                yield (ruleset , (child_node, not_captured),  obj) 
                     
-                    yield (ruleset , (child_node, not_captured), obj) 
                         
-                            
                             
                             
                             
