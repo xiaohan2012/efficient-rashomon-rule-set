@@ -280,7 +280,7 @@ def approx_mc2_core(
         Y_size = cbb.bounded_count(thresh, A=A, t=t)
         logger.debug(f"solving takes {timer.elapsed:.2f} secs")
 
-    print("rand_seed: {}".format(rand_seed))
+    # print("rand_seed: {}".format(rand_seed))
     if Y_size >= thresh:
         logger.debug(f"with |Y| {Y_size} >= {thresh}, therefore return None")
         return None, None
@@ -403,8 +403,7 @@ def approx_mc2(
                         lmbd,
                         ub,
                         thresh_floor,
-                        # prev_num_cells=prev_num_cells,
-                        prev_num_cells=2,  # TODO: remove this!
+                        prev_num_cells=prev_num_cells,
                         rand_seed=rand_seed_next,
                     )
                     logger.debug(f"running approx_mc2_core takes {timer.elapsed:.2f}s")
@@ -443,8 +442,8 @@ def approx_mc2(
                     lmbd,
                     ub,
                     thresh_floor,
-                    # prev_num_cells,
-                    int(2**13),
+                    prev_num_cells,
+                    # int(2**13),
                     seed,
                 )
                 for seed in rand_seed_pool[:num_available_cpus]
