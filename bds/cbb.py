@@ -126,18 +126,18 @@ class ConstrainedBranchAndBoundNaive(BranchAndBoundNaive):
         self, A: np.ndarray, t: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
         """simplify the constraint system using reduced row echelon form"""
-        logger.debug("simplifying A x = t using rref")
+        # logger.debug("simplifying A x = t using rref")
         A_rref, t_rref, rank, pivot_columns = extended_rref(
             GF(A.astype(int)), GF(t.astype(int)), verbose=False
         )
 
-        n_total_entries = np.prod(A.shape)
+        # n_total_entries = np.prod(A.shape)
 
-        logger.debug(
-            "density(A_rref) = {:.3%} (from {:.1%})".format(
-                bin_array(A_rref).sum() / n_total_entries, A.sum() / n_total_entries
-            )
-        )
+        # logger.debug(
+        #     "density(A_rref) = {:.3%} (from {:.1%})".format(
+        #         bin_array(A_rref).sum() / n_total_entries, A.sum() / n_total_entries
+        #     )
+        # )
         return bin_array(A_rref), bin_array(t_rref), rank, pivot_columns
 
     # @profile

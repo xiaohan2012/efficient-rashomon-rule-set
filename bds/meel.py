@@ -80,7 +80,7 @@ def log_search(
     for a random XOR constraint system,
     find the correct number of constraints (m) such that the number of solutions under the constraint sub-system is right below `thresh`
 
-    or m is the smallest number of constraints such that the solution number is below `thresh`]
+    or m is the smallest number of constraints such that the solution number is below `thresh`
 
     note that as m grows, the solution number decreases
 
@@ -109,11 +109,11 @@ def log_search(
     m = m_prev
 
     # meaining of entry value in big_cell
-    # | value | meaning                                 |
-    # |-------+-----------------------------------------|
-    # |    -1 | not decided yet                         |
-    # |     0 | cell is too large, i.e., m is too small |
-    # |     1 | cell is too small, i.e., m is too large |
+    # | value | meaning                         |
+    # |-------+---------------------------------|
+    # |    -1 | not decided yet                 |
+    # |     1 | cell is small, i.e., m is large |
+    # |     0 | cell is large, i.e., m is small |
     big_cell = np.empty(num_vars - 1, dtype=int)
 
     # storing |Y| corr. to different m values
@@ -157,7 +157,8 @@ def log_search(
         search_trajectory.append((m, Y_size, thresh))
 
         if Y_size >= thresh:
-            # not enough constraints, we increase m
+            # cell is large
+            # in other words, not enough constraints, we increase m
             logger.debug(f"|Y| >= thresh ({Y_size} >= {thresh})")
 
             if m == num_vars - 2:
@@ -170,8 +171,9 @@ def log_search(
             elif big_cell[m + 1] == 0:
                 big_cell[m] = 1
                 fill_array_until(big_cell, m - 1, 1)
-                logger.debug(f"big_cell[{m+1}]={big_cell[m+1]}, return {m+1} (m+1)")
+                logger.debug(f"big_cell[{m+1}]={big_cell[m+1]}, return {m+1}")
                 m = m + 1
+                print("m (to return): {}".format(m))
                 break
 
             fill_array_until(big_cell, m, 1)
@@ -224,8 +226,8 @@ def log_search(
     _check_log_search_trajectory(search_trajectory)
 
     print("time_cost_info: ")
-    for m, etime in time_cost_info:
-        print("|{}|{}|".format(m, etime))
+    for cur_m, etime in time_cost_info:
+        print("|{}|{}|".format(cur_m, etime))
     if return_full:
         return m, Y_size_arr[m], big_cell, Y_size_arr, search_trajectory, time_cost_info
     else:
@@ -414,8 +416,13 @@ def approx_mc2(
                 else:
                     logger.debug("one esimtation failed")
         else:
+            num_available_cpus = int(ray.available_resources()["CPU"])
+            logger.info(f"number of available CPUs: {num_available_cpus}")
 
-            @ray.remote(num_cpus=2)
+            num_cpus_per_job = 2
+            num_jobs_in_first_round = int(num_available_cpus / num_cpus_per_job)
+
+            @ray.remote(num_cpus=num_cpus_per_job)
             def approx_mc2_core_wrapper(log_level, *args, **kwargs):
                 # reset the loglevel since the function runs in a separate process
                 logger.setLevel(log_level)
@@ -427,8 +434,6 @@ def approx_mc2(
                 else:
                     return None
 
-            num_available_cpus = int(ray.available_resources()["CPU"])
-            logger.info(f"number of available CPUs: {num_available_cpus}")
             # we do two rounds of parallel execution
             # the first round uses prev_num_cells = 2
             # the second round uses prev_m_cells of the first round
@@ -446,11 +451,11 @@ def approx_mc2(
                     # int(2**13),
                     seed,
                 )
-                for seed in rand_seed_pool[:num_available_cpus]
+                for seed in rand_seed_pool[:num_jobs_in_first_round]
             ]
 
             logger.info(
-                f"doing 1st round of parallel execution of {len(rand_seed_pool[:num_available_cpus])} jobs"
+                f"doing 1st round of parallel execution of {len(rand_seed_pool[:num_jobs_in_first_round])} jobs"
             )
             RayProgressBar.show(promise_1st_round)
             results_1st_round = ray.get(promise_1st_round)
@@ -471,10 +476,10 @@ def approx_mc2(
                     prev_num_cells=random.choice(prev_num_cells_1st_round),
                     rand_seed=seed,
                 )
-                for seed in rand_seed_pool[num_available_cpus:]
+                for seed in rand_seed_pool[num_jobs_in_first_round:]
             ]
             logger.info(
-                f"doing 2nd round of parallel execution of {len(rand_seed_pool[num_available_cpus:])} jobs"
+                f"doing 2nd round of parallel execution of {len(rand_seed_pool[num_jobs_in_first_round:])} jobs"
             )
             RayProgressBar.show(promise_2nd_round)
             results_2nd_round = ray.get(promise_2nd_round)

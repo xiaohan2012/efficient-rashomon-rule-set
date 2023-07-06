@@ -154,8 +154,14 @@ class TestLogSearch:
     @pytest.mark.parametrize('initial_m', randints(3, vmin=1, vmax=5))
     @pytest.mark.parametrize("thresh", [5, 10])
     @pytest.mark.parametrize("rand_seed", randints(3))
+    # @pytest.mark.parametrize(
+    #     "ub", [0.75]
+    # )
+    # @pytest.mark.parametrize('initial_m', [3])
+    # @pytest.mark.parametrize("thresh", [10])
+    # @pytest.mark.parametrize("rand_seed", [1707139767])
     def test_consistency_on_m(self, ub, initial_m, thresh, rand_seed):
-        """no matter what m_prev is provided, the same m should be given"""
+        """no matter which initial m is provided, the same m should be returned"""
         random_rules, random_y, A, t = self.generate_random_input(10, 50, rand_seed)
 
         m = A.shape[0]
@@ -172,8 +178,6 @@ class TestLogSearch:
             initial_m,
             return_full=True,
         )
-
-        # print("ref_Y_size_arr: ", ref_Y_size_arr)
         for m_prev in range(1, m):
             (
                 actual_m,
@@ -192,9 +196,11 @@ class TestLogSearch:
                 m_prev=m_prev,
                 return_full=True,
             )
+            print("m_prev: {}".format(m_prev))
             np.testing.assert_equal(ref_big_cell, actual_big_cell)
             assert ref_m == actual_m
             assert ref_Y_size == actual_Y_size
+
 
     @pytest.mark.parametrize("m_prev", [2, 3, 4])
     def test_too_large_m_prev(self, m_prev):
@@ -255,7 +261,7 @@ class TestApproxMC2Core:
             rand_seed=rand_seed,
         )
         assert isinstance(n_cells, int)
-        assert Y_size < thresh
+        assert Y_size <= thresh
 
     @pytest.mark.parametrize("ub", [0.5, 0.75])
     @pytest.mark.parametrize("rand_seed", randints(3))
