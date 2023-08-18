@@ -140,7 +140,6 @@ class BranchAndBoundGeneric:
             self.current_length+=self.l 
             Z *= this_ratio
             #print(Z)
-            
         
         last_level_pseudosolutions = [pseudosol for  pseudosol in pseudosolutions if pseudosol[-1] <= self.ub] 
        
