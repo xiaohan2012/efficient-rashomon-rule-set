@@ -3,14 +3,12 @@ import gmpy2 as gmp
 import itertools
 
 from logzero import logger
-from gmpy2 import mpz, mpfr
+from gmpy2 import mpz
 from typing import Tuple, Optional, List, Iterable
 
-from .cache_tree import CacheTree, Node
 from .queue import Queue
 from .rule import Rule
 from .utils import (
-    bin_ones,
     assert_binary_array,
     mpz_set_bits,
     mpz_all_ones,
@@ -23,12 +21,6 @@ from .bounds import (
 )
 
 # logger.setLevel(logging.INFO)
-from .bounds_utils import *
-from .bounds_v2 import (
-    rule_set_size_bound_with_default,
-    equivalent_points_bounds,
-    update_equivalent_lower_bound,
-)
 
 
 class BranchAndBoundGeneric:
@@ -71,15 +63,11 @@ class BranchAndBoundGeneric:
         rule_ids = np.array([r.id for r in self.rules])
         np.testing.assert_allclose(rule_ids, np.arange(1, 1 + len(rule_ids)))
 
-    def reset_tree(self):
-        raise NotImplementedError()
-
     def reset_queue(self):
         raise NotImplementedError()
 
     def reset(self):
         # logger.debug("initializing search tree and priority queue")
-        self.reset_tree()
         self.reset_queue()
 
     def _captured_by_rule(self, rule: Rule, parent_not_captured: mpz):
@@ -126,13 +114,6 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
     only hierarchical lower bound is used for pruning
     """
 
-    def reset_tree(self):
-        self.tree = CacheTree()
-        root = Node.make_root(self.default_rule_fnr, self.num_train_pts)
-
-        # add the root
-        self.tree.add_node(root)
-
     def _not_captured_by_default_rule(self):
         """return the vector of not captured by default rule
         the dafault rule captures nothing
@@ -143,27 +124,9 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         self.queue: Queue = Queue()
 
         not_captured = self._not_captured_by_default_rule()
-
-        item = (self.tree.root, not_captured)
-        self.queue.push(item, key=0)
-
-    def _create_new_node_and_add_to_tree(
-        self, rule: Rule, lb: mpfr, obj: mpfr, captured: mpz, parent_node: Node
-    ) -> Node:
-        """create a node using information provided by rule, lb, obj, and captured
-        and add it as a child of parent"""
-        if rule.id not in parent_node.children:
-            child_node = Node(
-                rule_id=rule.id,
-                lower_bound=lb,
-                objective=obj,
-                num_captured=gmp.popcount(captured),
-                pivot_rule_ids=[]
-            )
-            self.tree.add_node(child_node, parent_node)
-            return child_node
-        else:
-            return parent_node.children[rule.id]
+        lb = 0.0
+        item = (tuple(), lb, not_captured)
+        self.queue.push(item, key=lb)
 
     def _incremental_update_lb(self, v: mpz, y: np.ndarray) -> float:
         return incremental_update_lb(v, y, self.num_train_pts)
@@ -173,54 +136,57 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
 
     # @profile
     def _loop(
-        self, parent_node: Node, parent_not_captured: mpz, return_objective=False
+        self,
+        parent_prefix: Tuple[int],
+        parent_lower_bound: float,
+        parent_not_captured: mpz,
+        return_objective=False,
     ):
         """
         check one node in the search tree, update the queue, and yield feasible solution if exists
 
-        parent_node: the current node/prefix to check
+        parent_prefix: the prefix rule set
+        parent_lower_bound: lower bound achieved by the parent prefix
         parent_not_captured: postives not captured by the current prefix
         return_objective: True if return the objective of the evaluated node
         """
-        parent_lb = parent_node.lower_bound
+        parent_prefix_length = len(parent_prefix)
+        max_rule_idx = max(parent_prefix or [0])
         length_ub = prefix_specific_length_upperbound(
-            parent_lb, parent_node.num_rules, self.lmbd, self.ub
+            parent_lower_bound, parent_prefix_length, self.lmbd, self.ub
         )
 
-        for rule in self.rules[parent_node.rule_id :]:
+        for rule in self.rules[max_rule_idx:]:
             # prune by ruleset length
-            if (parent_node.num_rules + 1) > length_ub:
+            if (parent_prefix_length + 1) > length_ub:
                 continue
 
+            prefix = parent_prefix + (rule.id, )
             captured = self._captured_by_rule(rule, parent_not_captured)
-            lb = (
-                parent_lb
+            prefix_lower_bound = (
+                parent_lower_bound
                 + self._incremental_update_lb(captured, self.y_mpz)
                 + self.lmbd
             )
-            if lb <= self.ub:
+            if prefix_lower_bound <= self.ub:
                 fn_fraction, not_captured = self._incremental_update_obj(
                     parent_not_captured, captured
                 )
-                obj = lb + fn_fraction
+                prefix_obj = prefix_lower_bound + fn_fraction
 
-                child_node = self._create_new_node_and_add_to_tree(
-                    rule, lb, obj, captured, parent_node
-                )
                 # apply look-ahead bound
-                lookahead_lb = child_node.lower_bound + self.lmbd
+                lookahead_lb = prefix_lower_bound + self.lmbd
 
                 if lookahead_lb <= self.ub:
                     self.queue.push(
-                        (child_node, not_captured),
-                        key=child_node.lower_bound,  # the choice of key shouldn't matter for complete enumeration
+                        (prefix, prefix_lower_bound, not_captured),
+                        key=prefix_lower_bound,  # the choice of key shouldn't matter for complete enumeration
                     )
-                if obj <= self.ub:
-                    ruleset = child_node.get_ruleset_ids()
+                if prefix_obj <= self.ub:
                     if return_objective:
-                        yield (ruleset, child_node.objective)
+                        yield (prefix, float(prefix_obj))
                     else:
-                        yield ruleset
+                        yield prefix
 
 
 def get_ground_truth_count(

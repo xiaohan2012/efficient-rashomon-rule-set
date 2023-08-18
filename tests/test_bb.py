@@ -20,37 +20,6 @@ class TestBranchAndBoundNaive:
     def create_bb_object(self, rules, y, lmbd=0.1):
         return BranchAndBoundNaive(rules, ub=10, y=y, lmbd=lmbd)
 
-    def test__create_new_node_and_add_to_tree(self, rules, y):
-        bb = self.create_bb_object(rules, y)
-        bb.reset_tree()
-        assert bb.tree.num_nodes == 1
-
-        rule1 = rules[0]
-        rule2 = rules[1]
-        child = bb._create_new_node_and_add_to_tree(
-            rule1, lb=mpfr(), obj=mpfr(), captured=mpz(), parent_node=bb.tree.root
-        )
-        assert bb.tree.num_nodes == 2  # tree is updated
-
-        grandchild = bb._create_new_node_and_add_to_tree(
-            rule2, lb=mpfr(), obj=mpfr(), captured=mpz(), parent_node=child
-        )
-        assert bb.tree.num_nodes == 3  # tree is updated
-
-        # depth should be correct
-        # parent should be correct
-        assert child.depth == 1
-        assert child.parent == bb.tree.root
-
-        assert grandchild.depth == 2
-        assert grandchild.parent == child
-
-        # add an already-added node just return the added node
-        grandchild_same = bb._create_new_node_and_add_to_tree(
-            rule2, lb=mpfr(), obj=mpfr(), captured=mpz(), parent_node=child
-        )
-        assert grandchild_same == grandchild
-
     @pytest.mark.parametrize(
         "invalid_rules",
         [
@@ -79,49 +48,71 @@ class TestBranchAndBoundNaive:
 
         # front and tree root are both accessible
         # and refer to the same node
-        node, not_captured = bb.queue.front()
-        assert node == bb.tree.root
+        prefix, lb, not_captured = bb.queue.front()
+        assert prefix == tuple()
+        assert lb == 0.0
         assert not_captured == mpz_all_ones(y.shape[0])
         assert gmp.popcount(not_captured) == bb.num_train_pts
 
     @pytest.mark.parametrize("lmbd", np.random.random(10))
     def test_loop_1st_infinite_ub(self, rules, y, lmbd):
+        """
+        y : 10100
+        r1: 01010
+        r2: 10100
+        r3: 10101
+
+        y:  10100
+        r1: 01010
+        fp:  ^ ^
+        fn: ^ ^
+
+        y : 10100
+        r2: 10100
+        fp:
+        fn:
+
+        y : 10100
+        r3: 10101
+        fp:     ^
+        fn:
+        """
         # we consider search one level down with the lower bound being infinite
         # thus, all singleton rulesets should be enumerated
         ub = float("inf")
 
-        lmbd = mpfr(lmbd)
         # the first iteration of the branch and bound
         bb = BranchAndBoundNaive(rules, ub=ub, y=y, lmbd=lmbd)
         bb.reset()
 
-        node, not_captured = bb.queue.pop()
+        prefix, lb, not_captured = bb.queue.pop()
 
-        iter_obj = bb._loop(node, not_captured)
+        iter_obj = bb._loop(prefix, lb, not_captured, return_objective=True)
         feasible_ruleset_ids = list(iter_obj)  # evoke the generator
 
         assert len(feasible_ruleset_ids) == 3  # all singleton rulesets are feasible
 
         assert bb.queue.size == 3
-        node_1, not_captured_1 = bb.queue.pop()
-        node_2, not_captured_2 = bb.queue.pop()
-        node_3, not_captured_3 = bb.queue.pop()
+        prefix_1, lb_1, not_captured_1 = bb.queue.pop()
+        prefix_2, lb_2, not_captured_2 = bb.queue.pop()
+        prefix_3, lb_3, not_captured_3 = bb.queue.pop()
 
-        for n in [node_1, node_2, node_3]:
-            assert isinstance(n.objective, mpfr)
-            assert isinstance(n.lower_bound, mpfr)
+        # the order of nodes in the queue in determined by lb
+        assert prefix_1 == (2,)
+        assert prefix_2 == (3,)
+        assert prefix_3 == (1,)
 
-        assert node_1.rule_id == 2
-        assert node_2.rule_id == 3
-        assert node_3.rule_id == 1
+        assert lb_1 == lmbd
+        assert lb_2 == (mpfr(1) / 5 + lmbd)
+        assert lb_3 == (mpfr(2) / 5 + lmbd)
 
-        assert node_1.lower_bound == lmbd
-        assert node_2.lower_bound == (mpfr(1) / 5 + lmbd)
-        assert node_3.lower_bound == (mpfr(2) / 5 + lmbd)
-
-        assert_close_mpfr(node_1.objective, lmbd)
-        assert_close_mpfr(node_2.objective, (mpfr(1) / 5 + lmbd))
-        assert_close_mpfr(node_3.objective, (mpfr(4) / 5 + lmbd))
+        # the yielded order is determined by the lexicographical order
+        assert feasible_ruleset_ids[0][0] == (1,)
+        np.testing.assert_allclose(feasible_ruleset_ids[0][1], 4 / 5 + lmbd)
+        assert feasible_ruleset_ids[1][0] == (2,)
+        np.testing.assert_allclose(feasible_ruleset_ids[1][1], lmbd)
+        assert feasible_ruleset_ids[2][0] == (3,)
+        np.testing.assert_allclose(feasible_ruleset_ids[2][1], (1 / 5 + lmbd))
 
         assert not_captured_1 == mpz("0b01011")
         assert not_captured_2 == mpz("0b01010")
@@ -145,9 +136,9 @@ class TestBranchAndBoundNaive:
         bb = BranchAndBoundNaive(rules, ub=ub, y=y, lmbd=lmbd)
         bb.reset()
 
-        node, not_captured = bb.queue.pop()
+        d, lb, u = bb.queue.pop()
 
-        iter_obj = bb._loop(node, not_captured)
+        iter_obj = bb._loop(d, lb, u)
         feasible_ruleset_ids = list(iter_obj)  # evoke the generator
 
         assert len(feasible_ruleset_ids) == num_feasible_solutions
@@ -165,13 +156,13 @@ class TestBranchAndBoundNaive:
         assert len(feasible_solutions) == 7  #
 
         all_feasible_solutions_ordered_by_appearance = [
-            {0, 1},
-            {0, 2},
-            {0, 3},
-            {0, 2, 3},
-            {0, 1, 2},
-            {0, 1, 3},
-            {0, 1, 2, 3},
+            (1, ),
+            (2, ),
+            (3, ),
+            (2, 3, ),
+            (1, 2, ),
+            (1, 3, ),
+            (1, 2, 3, ),
         ]
         # the order of yielded solutions should be exactly the same
         assert feasible_solutions == all_feasible_solutions_ordered_by_appearance
@@ -191,15 +182,15 @@ class TestBranchAndBoundNaive:
         """
         assuming the lmbd is 0.1, the rulesets being sorted by the objective values is as follows
 
-        | rule set     | objective |
-        |--------------+-----------|
-        | {0, 2}       |        .1 |
-        | {0, 3}       |        .3 |
-        | {0, 2, 3}    |        .4 |
-        | {0, 1, 2}    |        .6 |
-        | {0, 1, 3}    |        .8 |
-        | {0, 1, 2, 3} |        .9 |
-        | {0, 1}       |        .9 |
+        | rule set  | objective |
+        |-----------+-----------|
+        | (2)       |        .1 |
+        | (3)       |        .3 |
+        | (2, 3)    |        .4 |
+        | (1, 2)    |        .6 |
+        | (1, 3)    |        .8 |
+        | (1, 2, 3) |        .9 |
+        | (1)       |        .9 |
         """
         lmbd = 0.1
         bb = BranchAndBoundNaive(rules, ub=ub + EPSILON, y=y, lmbd=lmbd)
@@ -208,13 +199,13 @@ class TestBranchAndBoundNaive:
         feasible_solutions = set(map(tuple, feasible_solutions))
 
         all_feasible_solutions_sorted_by_objective = [
-            {0, 2},
-            {0, 3},
-            {0, 2, 3},
-            {0, 1, 2},
-            {0, 1, 3},
-            {0, 1, 2, 3},
-            {0, 1},
+            (2,),
+            (3,),
+            (2, 3,),
+            (1, 2,),
+            (1, 3,),
+            (1, 2, 3,),
+            (1,),
         ]
 
         # we compare by set not list since the yielding order may not be the same as ordering by objective
@@ -233,13 +224,13 @@ class TestBranchAndBoundNaive:
 
         actual = solutions_to_dict(feasible_solutions)
         expected = {
-            (0, 2): 0.1,
-            (0, 3): 0.3,
-            (0, 2, 3): 0.4,
-            (0, 1, 2): 0.6,
-            (0, 1, 3): 0.8,
-            (0, 1, 2, 3): 0.9,
-            (0, 1): 0.9,
+            (2, ): 0.1,
+            (3, ): 0.3,
+            (2, 3): 0.4,
+            (1, 2): 0.6,
+            (1, 3): 0.8,
+            (1, 2, 3): 0.9,
+            (1, ): 0.9,
         }
 
         # compare the two dict
