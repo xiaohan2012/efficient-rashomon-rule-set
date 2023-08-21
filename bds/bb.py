@@ -59,9 +59,9 @@ class BranchAndBoundGeneric:
         pass
 
     def _check_rule_ids(self):
-        """check the rule ids are consecutive integers starting from 1"""
+        """check the rule ids are consecutive integers starting from 0"""
         rule_ids = np.array([r.id for r in self.rules])
-        np.testing.assert_allclose(rule_ids, np.arange(1, 1 + len(rule_ids)))
+        np.testing.assert_allclose(rule_ids, np.arange(0, len(rule_ids)))
 
     def reset_queue(self):
         raise NotImplementedError()
@@ -151,17 +151,21 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         return_objective: True if return the objective of the evaluated node
         """
         parent_prefix_length = len(parent_prefix)
-        max_rule_idx = max(parent_prefix or [0])
+        # if parent_prefix is [1]
+        # start from 2
+        # if parent_prefix is []
+        # start from 0
+        max_rule_idx = max(parent_prefix or [-1])
         length_ub = prefix_specific_length_upperbound(
             parent_lower_bound, parent_prefix_length, self.lmbd, self.ub
         )
 
-        for rule in self.rules[max_rule_idx:]:
+        for rule in self.rules[(max_rule_idx + 1) :]:
             # prune by ruleset length
             if (parent_prefix_length + 1) > length_ub:
                 continue
 
-            prefix = parent_prefix + (rule.id, )
+            prefix = parent_prefix + (rule.id,)
             captured = self._captured_by_rule(rule, parent_not_captured)
             prefix_lower_bound = (
                 parent_lower_bound

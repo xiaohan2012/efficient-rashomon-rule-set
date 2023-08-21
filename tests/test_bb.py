@@ -23,8 +23,8 @@ class TestBranchAndBoundNaive:
     @pytest.mark.parametrize(
         "invalid_rules",
         [
-            [Rule.random(2, 10), Rule.random(1, 10)],  # wrong ordering of rule ids
-            [Rule.random(2, 10), Rule.random(3, 10)],  # invalid start index
+            [Rule.random(1, 10), Rule.random(0, 10)],  # wrong ordering of rule ids
+            [Rule.random(1, 10), Rule.random(2, 10)],  # invalid start index
         ],
     )
     def test_bb_init_invalid_rule_ids(self, invalid_rules):
@@ -98,20 +98,20 @@ class TestBranchAndBoundNaive:
         prefix_3, lb_3, not_captured_3 = bb.queue.pop()
 
         # the order of nodes in the queue in determined by lb
-        assert prefix_1 == (2,)
-        assert prefix_2 == (3,)
-        assert prefix_3 == (1,)
+        assert prefix_1 == (1,)
+        assert prefix_2 == (2,)
+        assert prefix_3 == (0,)
 
         assert lb_1 == lmbd
         assert lb_2 == (mpfr(1) / 5 + lmbd)
         assert lb_3 == (mpfr(2) / 5 + lmbd)
 
         # the yielded order is determined by the lexicographical order
-        assert feasible_ruleset_ids[0][0] == (1,)
+        assert feasible_ruleset_ids[0][0] == (0,)
         np.testing.assert_allclose(feasible_ruleset_ids[0][1], 4 / 5 + lmbd)
-        assert feasible_ruleset_ids[1][0] == (2,)
+        assert feasible_ruleset_ids[1][0] == (1,)
         np.testing.assert_allclose(feasible_ruleset_ids[1][1], lmbd)
-        assert feasible_ruleset_ids[2][0] == (3,)
+        assert feasible_ruleset_ids[2][0] == (2,)
         np.testing.assert_allclose(feasible_ruleset_ids[2][1], (1 / 5 + lmbd))
 
         assert not_captured_1 == mpz("0b01011")
@@ -156,13 +156,13 @@ class TestBranchAndBoundNaive:
         assert len(feasible_solutions) == 7  #
 
         all_feasible_solutions_ordered_by_appearance = [
+            (0, ),
             (1, ),
             (2, ),
-            (3, ),
-            (2, 3, ),
             (1, 2, ),
-            (1, 3, ),
-            (1, 2, 3, ),
+            (0, 1, ),
+            (0, 2, ),
+            (0, 1, 2, ),
         ]
         # the order of yielded solutions should be exactly the same
         assert feasible_solutions == all_feasible_solutions_ordered_by_appearance
@@ -178,19 +178,19 @@ class TestBranchAndBoundNaive:
             (0.9, 7),
         ],
     )
-    def test_run_with_pvarying_ub(self, rules, y, ub, num_feasible_solutions):
+    def test_run_with_varying_ub(self, rules, y, ub, num_feasible_solutions):
         """
         assuming the lmbd is 0.1, the rulesets being sorted by the objective values is as follows
 
         | rule set  | objective |
         |-----------+-----------|
-        | (2)       |        .1 |
-        | (3)       |        .3 |
-        | (2, 3)    |        .4 |
-        | (1, 2)    |        .6 |
-        | (1, 3)    |        .8 |
-        | (1, 2, 3) |        .9 |
-        | (1)       |        .9 |
+        | (1)       |        .1 |
+        | (2)       |        .3 |
+        | (1, 2)    |        .4 |
+        | (0, 1)    |        .6 |
+        | (0, 2)    |        .8 |
+        | (0, 1, 2) |        .9 |
+        | (0)       |        .9 |
         """
         lmbd = 0.1
         bb = BranchAndBoundNaive(rules, ub=ub + EPSILON, y=y, lmbd=lmbd)
@@ -199,13 +199,13 @@ class TestBranchAndBoundNaive:
         feasible_solutions = set(map(tuple, feasible_solutions))
 
         all_feasible_solutions_sorted_by_objective = [
-            (2,),
-            (3,),
-            (2, 3,),
-            (1, 2,),
-            (1, 3,),
-            (1, 2, 3,),
             (1,),
+            (2,),
+            (1, 2,),
+            (0, 1,),
+            (0, 2,),
+            (0, 1, 2),
+            (0,),
         ]
 
         # we compare by set not list since the yielding order may not be the same as ordering by objective
@@ -224,13 +224,13 @@ class TestBranchAndBoundNaive:
 
         actual = solutions_to_dict(feasible_solutions)
         expected = {
-            (2, ): 0.1,
-            (3, ): 0.3,
-            (2, 3): 0.4,
-            (1, 2): 0.6,
-            (1, 3): 0.8,
-            (1, 2, 3): 0.9,
-            (1, ): 0.9,
+            (1, ): 0.1,
+            (2, ): 0.3,
+            (1, 2): 0.4,
+            (0, 1): 0.6,
+            (0, 2): 0.8,
+            (0, 1, 2,): 0.9,
+            (0, ): 0.9,
         }
 
         # compare the two dict
