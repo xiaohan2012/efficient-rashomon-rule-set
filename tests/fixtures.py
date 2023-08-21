@@ -55,22 +55,22 @@ def y():
 def rules():
     return [
         Rule(
-            id=1,
-            name="rule-1",
+            id=0,
+            name="rule-0",
             cardinality=1,
             # truthtable=np.array([0, 1, 0, 1, 0], dtype=bool),
             truthtable=mpz_set_bits(mpz(), [1, 3])
         ),
         Rule(
-            id=2,
-            name="rule-2",
+            id=1,
+            name="rule-1",
             cardinality=1,
             # truthtable=np.array([0, 0, 1, 0, 1], dtype=bool),
             truthtable=mpz_set_bits(mpz(), [2, 4])
         ),
         Rule(
-            id=3,
-            name="rule-3",
+            id=2,
+            name="rule-2",
             cardinality=1,
             # truthtable=np.array([1, 0, 1, 0, 1], dtype=bool),
             truthtable=mpz_set_bits(mpz(), [0, 2, 4])
