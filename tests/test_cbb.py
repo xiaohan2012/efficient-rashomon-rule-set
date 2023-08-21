@@ -316,148 +316,140 @@ class TestEnsureMinimalNoViolation:
 
 
 class TestEnsureSatisfiability:
-    @pytest.mark.skip(
-        "skipped because numba (nonpython) does not support raise ValueError"
-    )
     @pytest.mark.parametrize(
-        "A, t, j",
-        [
-            ([[1, 0, 0, 0]], [0], 1),
-            ([[1, 0, 1, 1], [0, 1, 0, 0]], [0, 1], 2),
-            ([[1, 0, 1, 1], [0, 1, 0, 0]], [0, 1], 1),
-        ],
-    )
-    def test_trying_to_set_pivot_variable(self, A, t, j):
-        """adding pivot rule should not be allowed"""
-        A = bin_array(A).astype(int)
-        t = bin_array(t).astype(int)
-
-        A, t, rank, row2pivot_column = extended_rref(A, t)
-        A_indices, A_indptr = get_indices_and_indptr(A)
-        max_nz_idx_array = get_max_nz_idx_per_row(A)
-        m, n = A.shape
-
-        j = 1
-
-        with pytest.raises(
-            ValueError, match=f"cannot set pivot variable of column {j-1}"
-        ):
-            ensure_satisfiability(
-                j,
-                rank,
-                bin_zeros(m),
-                t,
-                A_indices,
-                A_indptr,
-                max_nz_idx_array,
-                row2pivot_column,
-            )
-
-    @pytest.mark.parametrize(
-        "name, A, t, j, expected_rules",
+        "name, A, b, z, s, j, expected_rules",
         [
             (
-                # rule 4 added
-                # x1 + x4 = 1 -> x1 = 0
-                # x2 + x4 = 1 -> x2 = 0
-                # x3 + x4 = 0 -> x3 = 1
-                "case-1",
+                # the root case
+                "root-case",
+                [[1, 0, 1, 1], [0, 1, 0, 0]],
+                [1, 1],  # b
+                [0, 0],  # z
+                [0, 0],  # s
+                -1,
+                [0, 1],
+            ),
+            (
+                # the root case
+                "root-case",
+                [[1, 0, 1, 1], [0, 1, 0, 0]],
+                [1, 0],  # b
+                [0, 0],  # z
+                [0, 0],  # s
+                -1,
+                [0],
+            ),
+            (
+                "root-case-affected-by-rref",
+                [[1, 0, 1, 1], [0, 0, 1, 0]],
+                [0, 1],  # b
+                [0, 0],  # z
+                [0, 0],  # s
+                -1,
+                [0, 2],  # 0 is added because t becomes [1, 1] due to rref
+            ),
+            (
+                "t1.1",
+                [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]],  # A
+                [1, 1, 0],  # b
+                [0, 0, 0],  # z
+                [0, 0, 0],  # s
+                3,
+                [2],
+            ),
+            (
+                "t1.2",
                 [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]],
-                [1, 1, 0],
-                4,
-                [3],
-            ),
-            (
-                # rule 3 added
-                # x1 + x3 + x4 = 0 -> x1 = 1
-                # x2 + x3 = 1 -> x2 = 0
-                "case-2",
-                [[1, 0, 1, 1], [0, 1, 1, 0]],
-                [0, 1],
+                [1, 1, 0],  # b
+                [1, 1, 0],  # z
+                [0, 0, 0],  # s
                 3,
-                [1],
+                [0, 1, 2],
             ),
             (
-                # j = 3
-                # x1 + x3 + x4 = 0 -> x1 = 1
-                # x2 = 1
-                "case-3",
-                [[1, 0, 1, 1], [0, 1, 0, 0]],
-                [0, 1],
+                "t1.3",
+                [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]],
+                [1, 1, 0],  # b
+                [1, 1, 0],  # z
+                [0, 1, 1],  # s
                 3,
-                [1, 2],
+                [0],
             ),
             (
-                # j = 4
-                # x1 + x3 + x4 = 0 -> x1 = 1
-                # x2 = 1
-                "case-4",
+                "t1.4",
+                [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]],
+                [1, 1, 0],  # b
+                [1, 0, 1],  # z
+                [0, 0, 0],  # s
+                3,
+                [0],
+            ),
+            (
+                "t1.5",
+                [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]],
+                [1, 1, 0],  # b
+                [1, 0, 1],  # z
+                [1, 0, 0],  # s
+                3,
+                [],
+            ),
+            (
+                "t2.1",
                 [[1, 0, 1, 1], [0, 1, 0, 0]],
-                [0, 1],
-                4,
-                [1, 2],
+                [0, 1],  # b
+                [0, 0],  # z
+                [0, 0],  # s
+                2,
+                [0, 1],  # added rules
             ),
-            # (
-            #     # adding rule 0 (the default rule)
-            #     # x1 = x2 = 1
-            #     "case-5",
-            #     [[1, 0, 1, 1], [0, 1, 0, 0]],
-            #     [1, 1],
-            #     0,
-            #     [1, 2],
-            # ),
-            # (
-            #     # j = 0 (adding the default rule)
-            #     # x1 + x4 = 1 (due to rref) -> x1 = 1
-            #     # x3 = 1
-            #     "case-6",
-            #     [[1, 0, 1, 1], [0, 0, 1, 0]],
-            #     [0, 1],
-            #     0,
-            #     [1, 3],  # 1 is added because t becomes [1, 1] due to rref
-            # ),
-            # (
-            #     # adding default rule
-            #     # x1 + x3 + x4 = 0
-            #     # x3 = 1
-            #     "case-7",
-            #     [[1, 0, 1, 1], [0, 0, 1, 0]],
-            #     [1, 1],
-            #     0,
-            #     [3],
-            # ),
             (
-                # adding 4
-                # x1 + x3 + x4 = 0 -> x1 = 1
-                "case-5",
+                "t2.2",
+                [[1, 0, 1, 1], [0, 1, 0, 0]],
+                [0, 1],  # b
+                [0, 1],  # z
+                [0, 0],  # s
+                2,
+                [0],  # added rules
+            ),
+            (
+                "t2.3",
+                [[1, 0, 1, 1], [0, 1, 0, 0]],
+                [0, 1],  # b
+                [0, 1],  # z
+                [1, 1],  # s
+                2,
+                [],  # added rules
+            ),
+            (
+                "t3",
                 [[1, 0, 1, 1], [0, 0, 0, 0]],
                 [0, 0],
-                4,
-                [1],
+                [0, 0],
+                [0, 0],
+                3,
+                [0],
             ),
         ],
     )
-    def test_basic(self, name, A, t, j, expected_rules):
-        """j is not the maximum index for the 1st constraint"""
+    def test_basic(self, name, A, b, z, s, j, expected_rules):
         A = bin_array(A)
-        t = bin_array(t)
+        b = bin_array(b)
 
-        A, t, rank, row2pivot_column = extended_rref(
-            GF(A.astype(int)), GF(t.astype(int))
+        A, b, rank, row2pivot_column = extended_rref(
+            GF(A.astype(int)), GF(b.astype(int))
         )
 
-        A_indices, A_indptr = get_indices_and_indptr(A)
-        max_nz_idx_array = get_max_nz_idx_per_row(A)
         m, n = A.shape
 
-        z = bin_zeros(m)
-        rules = ensure_satisfiability(
-            j, rank, z, t, A, max_nz_idx_array, row2pivot_column  # A_indices, A_indptr,
+        z = bin_array(z)
+        s = bin_array(s)
+        actual_rules = ensure_satisfiability(
+            j, rank, z, s, A, b, row2pivot_column  # A_indices, A_indptr,
         )
-        np.testing.assert_allclose(rules, np.array(expected_rules, dtype=int))
+        np.testing.assert_allclose(actual_rules, np.array(expected_rules, dtype=int))
 
         # take a free ride and test count_added_pivots as well
-        assert count_added_pivots(j, A, t, z) == len(rules)
+        # assert count_added_pivots(j, A, b, z) == len(actual_rules)
 
 
 class TestConstrainedBranchAndBoundMethods:

@@ -21,7 +21,7 @@ from .utils import (
 )
 
 
-# @jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True)
 def ensure_minimal_no_violation(
     j: int,
     z: np.ndarray,
@@ -54,13 +54,8 @@ def ensure_minimal_no_violation(
     zp: np.ndarray = z.copy()
     sp: np.ndarray = s.copy()
 
-    # print("A: {}".format(A))
     selected_rules = np.empty(A.shape[1], np.int_)
     num_rules_selected = 0
-
-    print("B: {}".format(B))
-    print("j: {}".format(j))
-    print("sp: {}".format(sp))
     for i in range(A.shape[0]):
         if j == -1:
             # the initial case, where no rules are added
@@ -92,7 +87,6 @@ def ensure_minimal_no_violation(
             elif A[i][j]:
                 # j is interior and relevant
                 zp[i] = not zp[i]
-    print("sp: {}".format(sp))
     return selected_rules[:num_rules_selected], zp, sp
 
 
@@ -112,14 +106,14 @@ def count_added_pivots(j: int, A: np.ndarray, t: np.ndarray, z: np.ndarray) -> i
     return (A[:, j - 1] == (z == t)).sum()
 
 
-@jit(nopython=True, cache=True)
+# @jit(nopython=True, cache=True)
 def ensure_satisfiability(
     j: int,
     rank: int,
     z: np.ndarray,
-    t: np.ndarray,
+        s: np.ndarray,
     A: np.ndarray,
-    max_nz_idx_array: np.ndarray,
+        b: np.ndarray,
     row2pivot_column: np.ndarray,
 ) -> np.ndarray:
     """
@@ -134,14 +128,16 @@ def ensure_satisfiability(
     num_rules_selected = 0
 
     for i in range(rank):  # loop up to rank
-        if (A[i][j - 1] == 0) and (z[i] != t[i]):
-            # the rule is irrelevant
-            selected_rules[num_rules_selected] = row2pivot_column[i] + 1
-            num_rules_selected += 1
-        elif (A[i][j - 1] == 1) and (z[i] == t[i]):
-            # the rule is relevant
-            selected_rules[num_rules_selected] = row2pivot_column[i] + 1
-            num_rules_selected += 1
+        if j == -1:
+            if b[i] == 1:
+                selected_rules[num_rules_selected] = row2pivot_column[i] 
+                num_rules_selected += 1
+        elif s[i] == 0:
+            if ((A[i][j] == 0) and (z[i] != b[i])) or ((A[i][j] == 1) and (z[i] == b[i])):
+                # case 1: the rule is irrelevant
+                # case 2: the rule is relevant
+                selected_rules[num_rules_selected] = row2pivot_column[i] 
+                num_rules_selected += 1
     return selected_rules[:num_rules_selected]
 
 
