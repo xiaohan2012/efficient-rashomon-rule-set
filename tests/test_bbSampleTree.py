@@ -127,7 +127,7 @@ class TestSampleTreeApproxCounting: # Sampling uses the same procedures
         bb = BranchAndBoundNaive(rules, ub=10, y=y, lmbd=0.1, l=1, k=1000000)
         Z = bb.runST()
         # #
-        assert Z == 8 ## all rules sets are found (sampled) because of the value of k and l 
+        assert Z == 8 ## all rule sets are found because of the value of k and l 
     
     
     def test_queue_and_tree(self, rules, y): 

@@ -140,7 +140,6 @@ class BranchAndBoundGeneric:
             self.current_length+=self.l 
             Z *= this_ratio
             #print(Z)
-            
         
         last_level_pseudosolutions = [pseudosol for  pseudosol in pseudosolutions if pseudosol[-1] <= self.ub] 
        
@@ -155,6 +154,9 @@ class BranchAndBoundGeneric:
         
         
         n_samples = min(self.k,len(pseudosolutions))
+        
+        #print("n samples " + str(n_samples))
+        
         sampled_items = random.sample(pseudosolutions, n_samples)
         
         
@@ -163,7 +165,7 @@ class BranchAndBoundGeneric:
         #print("initial all sols " + str(len(all_solutions)))
         
         # self.visited_rule_sets = set() 
-        visited_rule_sets = set() 
+        self.visited_rule_sets = set() 
         
         for j in range(n_samples):
             #
@@ -176,15 +178,18 @@ class BranchAndBoundGeneric:
             #
             solutions = list(self.generateST())
             #
-            for solution in solutions: # to optimize 
-                if str(sorted(solution[0])) not in visited_rule_sets: # using the fact that sets are in order 
-                    all_solutions.append(  solution  )
-                    visited_rule_sets.add( str( sorted(solution[0] ) ) )
-        #
-        #
+            
+            #print("solutiions " + str(solutions))
+            
+            #for solution in solutions: # to optimize 
+            #   if str(sorted(solution[0])) not in visited_rule_sets: # using the fact that sets are in order 
+            #        all_solutions.append(  solution  )
+            #        visited_rule_sets.add( str( sorted(solution[0] ) ) )
+            #
+            #
+            all_solutions.extend(solutions)
         
         
-        #print("all soltuions " + str(all_solutions))
         #print(" all sols " + str(len(all_solutions)))
         #print(" visited " + str(len(visited_rule_sets)))
         ratio =  len(all_solutions)  / n_samples  #len(pseudosolutions) #len(pseudosolutions)
@@ -308,53 +313,59 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
             parent_lb, parent_node.num_rules, self.lmbd, self.ub
         )
 
-
-       
-
+         
         for rule in self.rules[self.current_length:(self.current_length + self.l)]:
             # prune by ruleset length
             #print("rule " + str(rule))            
+            
+            #print(rule.id)
             if (parent_node.num_rules + 1) > length_ub:
-                #print("here!")
                 continue
             #print( " a " + str(frozenset(parent_node.get_ruleset_ids().union({rule.id}))) )
             #print(self.visited_rule_sets)
             #if frozenset(parent_node.get_ruleset_ids().union({rule.id})) not in self.visited_rule_sets: 
-            captured = self._captured_by_rule(rule, parent_not_captured)
-            lb = (
-                parent_lb
-                + self._incremental_update_lb(captured, self.y_mpz)
-                + self.lmbd
-            )
-            if lb <= self.ub:
-                fn_fraction, not_captured = self._incremental_update_obj(
-                    parent_not_captured, captured
-                )
-                obj = lb + fn_fraction
-
-                child_node = self._create_new_node_and_add_to_tree(
-                    rule, lb, obj, captured, parent_node
-                )
-                                
-                # apply look-ahead bound
-                lookahead_lb = child_node.lower_bound + self.lmbd
-
-                if lookahead_lb <= self.ub:
-                    self.queue.push(
-                        (child_node, not_captured),
-                        key=child_node.lower_bound,  # the choice of key shouldn't matter for complete enumeration
-                    )
-                #if obj <= self.ub:
-                ruleset = child_node.get_ruleset_ids()
-                #if return_objective:
-                #    yield (ruleset, child_node.objective)
-                #else:
-                #self.visited_rule_sets.add(frozenset(ruleset)) 
+            this_rule_set = "-".join(sorted(list(map(str, parent_node.get_ruleset_ids().union({rule.id})))))
+            
+            if this_rule_set not in self.visited_rule_sets: 
                 
-                yield (ruleset , (child_node, not_captured),  obj) 
+                self.visited_rule_sets.add(this_rule_set) 
+            
+                captured = self._captured_by_rule(rule, parent_not_captured)
+                lb = (
+                    parent_lb
+                    + self._incremental_update_lb(captured, self.y_mpz)
+                    + self.lmbd
+                )
+                if lb <= self.ub:
+                    fn_fraction, not_captured = self._incremental_update_obj(
+                        parent_not_captured, captured
+                    )
+                    obj = lb + fn_fraction
+    
+                    child_node = self._create_new_node_and_add_to_tree(
+                        rule, lb, obj, captured, parent_node
+                    )
+                                    
+                    # apply look-ahead bound
+                    lookahead_lb = child_node.lower_bound + self.lmbd
+    
+                    if lookahead_lb <= self.ub:
+                        self.queue.push(
+                            (child_node, not_captured),
+                            key=child_node.lower_bound,  # the choice of key shouldn't matter for complete enumeration
+                        )
+                    #if obj <= self.ub:
+                    ruleset = child_node.get_ruleset_ids()
+                    #if return_objective:
+                    #    yield (ruleset, child_node.objective)
+                    #else:
+                    #self.visited_rule_sets.add(frozenset(ruleset)) 
+                    #print("yelding! ") 
+                    #print("ruleset " + str(ruleset))
+                    yield (ruleset , (child_node, not_captured),  obj) 
                     
-                        
                             
+                                
                             
                             
                             
