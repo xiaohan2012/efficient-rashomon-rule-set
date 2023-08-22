@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from collections import deque
+from functools import reduce
 from itertools import chain, combinations
 from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 from scipy.sparse import csc_matrix, csr_matrix
@@ -223,6 +224,12 @@ def get_indices_and_indptr(A: np.ndarray, axis: int = 1):
     else:  # treat A as a csc_matrix
         A_sp = csc_matrix(A)
     return A_sp.indices, A_sp.indptr
+
+
+def lor_of_truthtable(rules: List["Rule"]) -> mpz:
+    """take the logical OR of rules' truth tables"""
+    bit_vec_list = [r.truthtable for r in rules]
+    return reduce(lambda x, y: x | y, bit_vec_list, mpz())
 
 
 def calculate_obj(
