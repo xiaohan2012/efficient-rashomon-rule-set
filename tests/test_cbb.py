@@ -454,9 +454,24 @@ class TestEnsureSatisfiability:
 
 
 class TestConstrainedBranchAndBoundMethods:
-    def test_init(self, rules, y):
-        cbb = ConstrainedBranchAndBound(rules, float("inf"), y, 0.1)
-        assert len(cbb.truthtable_list) == len(rules)
+    @property
+    def input_rules(self):
+        return [
+            Rule(0, "rule-1", 1, mpz("0b00101011")),
+            Rule(1, "rule-2", 1, mpz("0b00001101")),
+            Rule(2, "rule-3", 1, mpz("0b10001011")),
+            Rule(3, "rule-4", 1, mpz()),
+        ]
+
+    @property
+    def input_y(self):
+        return bin_array([1, 1, 1, 1, 0, 0, 1, 1])
+
+    def test_init(self):
+        cbb = ConstrainedBranchAndBound(
+            self.input_rules, float("inf"), self.input_y, 0.1
+        )
+        assert len(cbb.truthtable_list) == len(self.input_rules)
 
     @pytest.mark.parametrize(
         "A, t, expected_sols, expected_obj",
@@ -513,17 +528,10 @@ class TestConstrainedBranchAndBoundMethods:
         A = bin_array(A)
         t = bin_array(t)
 
-        # we have 8 points
-        input_rules = [
-            Rule(0, "rule-1", 1, mpz("0b00101011")),
-            Rule(1, "rule-2", 1, mpz("0b00001101")),
-            Rule(2, "rule-3", 1, mpz("0b10001011")),
-            Rule(3, "rule-4", 1, mpz()),
-        ]
-        input_y = bin_array([1, 1, 1, 1, 0, 0, 1, 1])
         lmbd = 0.1
-
-        cbb = ConstrainedBranchAndBound(input_rules, float("inf"), input_y, lmbd)
+        cbb = ConstrainedBranchAndBound(
+            self.input_rules, float("inf"), self.input_y, lmbd
+        )
         cbb.reset(A, t)
 
         sol, obj = list(cbb.generate_solution_at_root(return_objective=True))[0]
@@ -548,8 +556,8 @@ class TestConstrainedBranchAndBoundMethods:
         exp_row2pivot_column,
         exp_B,
     ):
-        rules, y = generate_random_rules_and_y(10, 3, 12345)
-        cbb = ConstrainedBranchAndBound(rules, float("inf"), y, 0.1)
+        rand_rules, rand_y = generate_random_rules_and_y(10, 3, 12345)
+        cbb = ConstrainedBranchAndBound(rand_rules, float("inf"), rand_y, 0.1)
 
         cbb.setup_constraint_system(bin_array(A), bin_array(t))
 
@@ -575,14 +583,14 @@ class TestConstrainedBranchAndBoundMethods:
             # the groundtruth is:  0b11001111
             #                        ^^   ^   (FN)
             # FP: 1
-            ([[1, 0, 0, 0]], [1], {0}, 1 / 8 + 1 * 0.1, mpz('0b11010100'), [1], [1]),
+            ([[1, 0, 0, 0]], [1], (0,), 1 / 8 + 1 * 0.1, mpz("0b11010100"), [1], [1]),
             # rule-1 and rule-2 are included
             # the truthtable  is:  0b00101111
             #                          ^ (FP)
             # the groundtruth is:  0b11001111
             #                        ^^ (FN)
             # FP: 1
-            ([[1, 0, 0, 0], [0, 1, 0, 0]], [1, 1], {0, 1}, 1 / 8 + 2 * 0.1, mpz('0b11010000'), [1, 1], [1]),
+            ([[1, 0, 0, 0], [0, 1, 0, 0]], [1, 1], (0, 1), 1 / 8 + 2 * 0.1, mpz('0b11010000'), [1, 1], [1, 1]),
             # rule-1, rule-2, and rule-3 are included
             # the truthtable  is:  0b10101111
             #                          ^     (FP)
@@ -592,7 +600,7 @@ class TestConstrainedBranchAndBoundMethods:
             (
                 [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]],
                 [1, 1, 1],
-                {0, 1, 2},
+                (0, 1, 2),
                 1 / 8 + 3 * 0.1,
                 mpz('0b01010000'),
                 [1, 1, 1], [1, 1, 1]
@@ -606,7 +614,7 @@ class TestConstrainedBranchAndBoundMethods:
             (
                 [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]],
                 [1, 1, 1, 1],
-                {0, 1, 2, 3},
+                (0, 1, 2, 3),
                 1 / 8 + 4 * 0.1,
                 mpz('0b01010000'),
                 [1, 1, 1, 1], [1, 1, 1, 1]
@@ -615,18 +623,11 @@ class TestConstrainedBranchAndBoundMethods:
     )
     def test_reset_queue(self, A, b, exp_prefix, exp_lb, exp_u, exp_z, exp_s):
         A, b, exp_z, exp_s = map(bin_array, [A, b, exp_z, exp_s])
-
-        # we have 8 points
-        input_rules = [
-            Rule(0, "rule-1", 1, mpz("0b00101011")),
-            Rule(1, "rule-2", 1, mpz("0b00001101")),
-            Rule(2, "rule-3", 1, mpz("0b10001011")),
-            Rule(3, "rule-4", 1, mpz()),
-        ]
-        input_y = bin_array([1, 1, 1, 1, 0, 0, 1, 1])
         lmbd = 0.1
 
-        cbb = ConstrainedBranchAndBound(input_rules, float("inf"), input_y, lmbd)
+        cbb = ConstrainedBranchAndBound(
+            self.input_rules, float("inf"), self.input_y, lmbd
+        )
         cbb.setup_constraint_system(A, b)
         cbb.reset_queue()
         assert cbb.queue.size == 1
@@ -635,7 +636,7 @@ class TestConstrainedBranchAndBoundMethods:
         (prefix, lb, u, z, s) = item
         assert prefix == exp_prefix
         np.testing.assert_allclose(lb, exp_lb)
-        assert u == exp_u
+        assert bin(u) == bin(exp_u)
         np.testing.assert_allclose(z, exp_z)
         np.testing.assert_allclose(s, exp_s)
 

@@ -18,6 +18,8 @@ from .utils import (
     bin_ones,
     bin_zeros,
     get_indices_and_indptr,
+    calculate_lower_bound,
+    calculate_obj,
 )
 
 
@@ -26,10 +28,10 @@ def ensure_minimal_no_violation(
     j: int,
     z: np.ndarray,
     s: np.ndarray,
-        A: np.ndarray,
-        b: np.ndarray,
-        B: np.ndarray,
-        row2pivot_column: np.ndarray,
+    A: np.ndarray,
+    b: np.ndarray,
+    B: np.ndarray,
+    row2pivot_column: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     upon adding rule j to the current prefix (represented  by `z` and `s`),
@@ -64,7 +66,7 @@ def ensure_minimal_no_violation(
                 if b[i] == 1:
                     selected_rules[num_rules_selected] = row2pivot_column[i]
                     num_rules_selected += 1
-                    zp[i] = not zp[i]                
+                    zp[i] = not zp[i]
             continue
         if sp[i] == 0:
             # constraint i is not satisfied yet
@@ -111,9 +113,9 @@ def ensure_satisfiability(
     j: int,
     rank: int,
     z: np.ndarray,
-        s: np.ndarray,
+    s: np.ndarray,
     A: np.ndarray,
-        b: np.ndarray,
+    b: np.ndarray,
     row2pivot_column: np.ndarray,
 ) -> np.ndarray:
     """
@@ -130,13 +132,15 @@ def ensure_satisfiability(
     for i in range(rank):  # loop up to rank
         if j == -1:
             if b[i] == 1:
-                selected_rules[num_rules_selected] = row2pivot_column[i] 
+                selected_rules[num_rules_selected] = row2pivot_column[i]
                 num_rules_selected += 1
         elif s[i] == 0:
-            if ((A[i][j] == 0) and (z[i] != b[i])) or ((A[i][j] == 1) and (z[i] == b[i])):
+            if ((A[i][j] == 0) and (z[i] != b[i])) or (
+                (A[i][j] == 1) and (z[i] == b[i])
+            ):
                 # case 1: the rule is irrelevant
                 # case 2: the rule is relevant
-                selected_rules[num_rules_selected] = row2pivot_column[i] 
+                selected_rules[num_rules_selected] = row2pivot_column[i]
                 num_rules_selected += 1
     return selected_rules[:num_rules_selected]
 
@@ -188,7 +192,9 @@ def check_pivot_length_bound(
     return (prefix_length + 1 + pvt_count) > length_ub
 
 
-def build_boundary_table(A: np.ndarray, rank: int, pivot_columns: np.ndarray) -> np.ndarray:
+def build_boundary_table(
+    A: np.ndarray, rank: int, pivot_columns: np.ndarray
+) -> np.ndarray:
     """for a 2D matrix A, compute the maximum non-zero non-pivot index per row, if it does not exist, use -1"""
     assert A.ndim == 2
     Ap = A.copy()
@@ -197,7 +203,7 @@ def build_boundary_table(A: np.ndarray, rank: int, pivot_columns: np.ndarray) ->
         Ap[i, pivot_columns[i]] = 0
         if Ap[i, :].sum() == 0:
             result.append(-1)
-        else:            
+        else:
             result.append((Ap[i, :] > 0).nonzero()[0].max())
     return np.array(result, dtype=int)
 
@@ -213,16 +219,15 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         )
         return bin_array(A_rref), bin_array(t_rref), rank, pivot_columns
 
-        
     def setup_constraint_system(self, A: np.ndarray, t: np.ndarray):
         """set the constraint system, e.g., simplify the system"""
         logger.debug("setting up the parity constraint system")
         assert_binary_array(t)
-        
+
         assert (
             A.shape[0] == t.shape[0]
         ), f"dimension mismatch: {A.shape[0]} != {t.shape[0]}"
-        
+
         # simplify the constraint system
         (
             self.A,
@@ -245,10 +250,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         #     for rule in self.rules
         # }
 
-
-        self.pivot_rule_idxs = set(
-            map(lambda v: v, self.pivot_columns)
-        )
+        self.pivot_rule_idxs = set(map(lambda v: v, self.pivot_columns))
         self.free_rule_idxs = (
             set(map(lambda v: v, range(self.num_vars))) - self.pivot_rule_idxs
         )
@@ -281,10 +283,12 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         return r
 
     def _ensure_minimal_non_violation(
-            self, rule_id: int, u: mpz, z: np.ndarray, s: np.ndarray
+        self, rule_id: int, u: mpz, z: np.ndarray, s: np.ndarray
     ) -> Tuple[np.ndarray, mpz, np.ndarray, np.ndarray, int]:
         """a wrapper around ensure_no_violation
-        returns (extention_idxs, u, z, s, extention_size)
+        returns (ext_idxs, v, z, s, ext_size)
+
+        where v is the captured vector in the context of the current prefix
         """
         assert rule_id >= -1
         e1_idxs, zp, sp = ensure_minimal_no_violation(
@@ -296,19 +300,18 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             self.B,
             self.row2pivot_column,
         )
-        
+        print("e1_idxs: {}".format(e1_idxs))
         if rule_id == -1:
-            rule_truthtable = self._not_captured_by_default_rule()
+            print("self._lor(e1_idxs): {}".format(bin(self._lor(e1_idxs))))
+            print("u: {}".format(bin(u)))
+            v = self._lor(e1_idxs) & u
+            print("up: {}".format(bin(v)))
+            ext_size = len(e1_idxs)
         else:
-            rule_truthtable = self.truthtable_list[rule_id]
-            
-        return (
-            e1_idxs,
-            (self._lor(e1_idxs) | rule_truthtable) & u,
-            zp,
-            sp,
-            len(e1_idxs) + 1,
-        )
+            ext_size = len(e1_idxs) + 1
+            v = ((self._lor(e1_idxs) | self.truthtable_list[rule_id]) & u,)
+
+        return (e1_idxs, v, zp, sp, ext_size)
 
     def _ensure_satisfiability(self, rule_id: int, z: np.ndarray, s: np.ndarray):
         """a wrapper around assign_pivot_variables"""
@@ -335,9 +338,13 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         # 0 means not satisfied yet
         # 1 means satisfied
         s = bin_zeros(self.num_constraints)
-        ext_idxs, up, zp, sp, ext_size = self._ensure_minimal_non_violation(-1, u, z, s)
-        lb = None
-        item = (tuple(), not_captured, z, s)
+        prefix_idxs, v, zp, sp, ext_size = self._ensure_minimal_non_violation(-1, u, z, s)
+        up = ~(v | (~u))  # not captured by the prefix
+        lb = calculate_lower_bound(
+            self.rules, self.y_np, self.y_mpz, prefix_idxs, self.lmbd
+        )
+        prefix = tuple(sorted(prefix_idxs))
+        item = (prefix, lb, up, zp, sp)
         self.queue.push(item, key=0)
 
     def _get_rules_by_idxs(self, idxs: List[int]) -> List[Rule]:
@@ -348,9 +355,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         """check the solution at the root, e.g., all free variables assigned to zero"""
         # add pivot rules if necessary to satistify Ax=b
         rule_idxs = self._ensure_satisfiability(
-            -1,
-            bin_zeros(self.num_constraints),
-            bin_zeros(self.num_constraints)
+            -1, bin_zeros(self.num_constraints), bin_zeros(self.num_constraints)
         )
         captured = self._lor(rule_idxs)
         num_mistakes = gmp.popcount(captured ^ self.y_mpz)
@@ -436,9 +441,13 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                 if check_look_ahead_bound(lb, self.lmbd, self.ub):
                     # ensure that Ax=b is not unsatisfied
                     # v1 and not_w are updated here
-                    e1_idxs, zp, sp, v1, extension_size = self._ensure_minimal_non_violation(
-                        rule, z, s, u
-                    )
+                    (
+                        e1_idxs,
+                        zp,
+                        sp,
+                        v1,
+                        extension_size,
+                    ) = self._ensure_minimal_non_violation(rule, z, s, u)
 
                     w = v1 | ~u  # captured by the current rule set, i.e., d, e1, and r
                     not_w = ~w  # not captured by the above
@@ -501,7 +510,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                 if obj <= self.ub:
                     if child_node is None:
                         # compute child_node if not done
-                        e1_idxs, _, _, _, _ = self._ensure_minimal_non_violation(rule, z, s, u)
+                        e1_idxs, _, _, _, _ = self._ensure_minimal_non_violation(
+                            rule, z, s, u
+                        )
                     else:
                         child_node.objective = obj  # update the obj
                     ruleset = child_node.get_ruleset_ids() | set(ext_idxs)
