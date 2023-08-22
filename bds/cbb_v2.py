@@ -9,7 +9,6 @@ from numba import jit
 
 from .bounds import prefix_specific_length_upperbound
 from .cache_tree import Node
-from .cbb import ConstrainedBranchAndBoundNaive
 from .gf2 import GF, extended_rref
 from .queue import Queue
 from .rule import Rule, lor_of_truthtable
@@ -187,7 +186,99 @@ def check_pivot_length_bound(
     return (prefix_length + 1 + pvt_count) > length_ub
 
 
-class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
+class ConstrainedBranchAndBound(BranchAndBoundNaive):
+    def _simplify_constraint_system(
+        self, A: np.ndarray, t: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """simplify the constraint system using reduced row echelon form"""
+        # logger.debug("simplifying A x = t using rref")
+        A_rref, t_rref, rank, pivot_columns = extended_rref(
+            GF(A.astype(int)), GF(t.astype(int)), verbose=False
+        )
+
+        # n_total_entries = np.prod(A.shape)
+
+        # logger.debug(
+        #     "density(A_rref) = {:.3%} (from {:.1%})".format(
+        #         bin_array(A_rref).sum() / n_total_entries, A.sum() / n_total_entries
+        #     )
+        # )
+        return bin_array(A_rref), bin_array(t_rref), rank, pivot_columns
+
+    # @profile
+    def generate(self, return_objective=False) -> Iterable:
+        if not self.is_linear_system_solvable:
+            logger.debug("abort the search since the linear system is not solvable")
+            yield from ()
+        else:
+            yield from super(ConstrainedBranchAndBoundNaive, self).generate(
+                return_objective
+
+
+    def reset(self, A: np.ndarray, t: np.ndarray):
+        self.setup_constraint_system(A, t)
+        super(ConstrainedBranchAndBoundNaive, self).reset()
+
+    def setup_constraint_system(self, A: np.ndarray, t: np.ndarray):
+        """set the constraint system, e.g., simplify the system"""
+        logger.debug("setting up the parity constraint system")
+        assert_binary_array(t)
+
+        # simplify the constraint system
+        # TODO: if the constraint system tends to be denser, do not use the rref version
+        (
+            self.A,
+            self.t,
+            self.rank,
+            self.pivot_columns,
+        ) = self._simplify_constraint_system(A, t)
+        self.is_linear_system_solvable = (self.t[self.rank :] == 0).all()
+
+        assert (
+            self.A.shape[0] == self.t.shape[0]
+        ), f"dimension mismatch: {self.A.shape[0]} != {self.t.shape[0]}"
+
+        # auxiliary data structures for caching and better performance
+        self.max_nz_idx_array = get_max_nz_idx_per_row(self.A)
+
+        # mapping from rule id to array of indices of relevant constraints
+        self.A_indices, self.A_indptr = get_indices_and_indptr(self.A)
+        self.ruleid2cst_idxs = {
+            rule.id: self.A_indices[self.A_indptr[rule.id - 1] : self.A_indptr[rule.id]]
+            for rule in self.rules
+        }
+
+        # TOD: remove the neg caching since it is unused
+        # mapping from rule id to array of indices of irrelevant constraints
+        # flip all the entries in A
+        neg_A = bin_array(negate_all(self.A.astype(int)))
+        self.neg_A_indices, self.neg_A_indptr = get_indices_and_indptr(neg_A)
+
+        self.neg_ruleid2cst_idxs = {
+            rule.id: self.neg_A_indices[
+                self.neg_A_indptr[rule.id - 1] : self.neg_A_indptr[rule.id]
+            ]
+            for rule in self.rules
+        }
+
+        self.num_constraints = int(self.A.shape[0])
+        self.num_rules = int(self.A.shape[1])
+
+                
+        self.num_vars = int(self.A.shape[1])
+
+        self.pivot_rule_idxs = set(
+            map(lambda v: v + 1, self.pivot_columns)
+        )  # +1 because rules are 1-indexed
+        self.free_rule_idxs = (
+            set(map(lambda v: v + 1, range(self.num_vars))) - self.pivot_rule_idxs
+        )
+        # mapping from row index to the pivot column index
+        self.row2pivot_column = np.array(self.pivot_columns, dtype=int)
+
+        # a rule is a border rule if it appears as the last rule in at least one constraint
+        self.border_rule_idxs = set(self.max_nz_idx_array + 1) - {0}
+
     def __post_init__(self):
         # pad None in front so that self.truthtable_list is 1-indexed
         self.truthtable_list = [None] + [r.truthtable for r in self.rules]
@@ -234,24 +325,6 @@ class ConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             self.row2pivot_column,
         )
 
-    def setup_constraint_system(self, A: np.ndarray, t: np.ndarray):
-        """set the constraint system, e.g., simplify the system"""
-        # perform rref
-        super(ConstrainedBranchAndBound, self).setup_constraint_system(A, t)
-
-        self.num_vars = int(self.A.shape[1])
-
-        self.pivot_rule_idxs = set(
-            map(lambda v: v + 1, self.pivot_columns)
-        )  # +1 because rules are 1-indexed
-        self.free_rule_idxs = (
-            set(map(lambda v: v + 1, range(self.num_vars))) - self.pivot_rule_idxs
-        )
-        # mapping from row index to the pivot column index
-        self.row2pivot_column = np.array(self.pivot_columns, dtype=int)
-
-        # a rule is a border rule if it appears as the last rule in at least one constraint
-        self.border_rule_idxs = set(self.max_nz_idx_array + 1) - {0}
 
     def reset_queue(self):
         self.queue: Queue = Queue()

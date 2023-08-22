@@ -46,6 +46,7 @@ from .utils import (
         # becomes [[1, 1, 0], [0, 0, 0], [0, 0, 0]]
         ([[1, 1, 0], [1, 1, 0], [1, 1, 0]], [1]),
         ([[1, 1, 0, 0, 1], [0, 0, 1, 0, 0]], [4, -1]),
+        ([[1, 0, 1], [0, 1, 0]], [2, -1]),
     ],
 )
 def test_build_boundary_table(A, expected):
@@ -453,6 +454,10 @@ class TestEnsureSatisfiability:
 
 
 class TestConstrainedBranchAndBoundMethods:
+    def test_init(self, rules, y):
+        cbb = ConstrainedBranchAndBound(rules, float("inf"), y, 0.1)
+        assert len(cbb.truthtable_list) == len(rules)
+
     @pytest.mark.parametrize(
         "A, t, expected_sols, expected_obj",
         [
@@ -464,7 +469,7 @@ class TestConstrainedBranchAndBoundMethods:
             # TP: 4
             # FP: 1
             # FN: 3
-            ([[1, 0, 0, 0]], [1], {0, 1}, 4 / 8 + 1 * 0.1),
+            ([[1, 0, 0, 0]], [1], {0}, 4 / 8 + 1 * 0.1),
             # rule-1 and rule-2 are included
             # the truthtable  is:  0b00101111
             #                          ^ (FP)
@@ -473,7 +478,7 @@ class TestConstrainedBranchAndBoundMethods:
             # TP: 4
             # FP: 1
             # FN: 2
-            ([[1, 0, 0, 0], [0, 1, 0, 0]], [1, 1], {0, 1, 2}, 3 / 8 + 2 * 0.1),
+            ([[1, 0, 0, 0], [0, 1, 0, 0]], [1, 1], {0, 1}, 3 / 8 + 2 * 0.1),
             # rule-1, rule-2, and rule-3 are included
             # the truthtable  is:  0b10101111
             #                          ^     (FP)
@@ -485,7 +490,7 @@ class TestConstrainedBranchAndBoundMethods:
             (
                 [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]],
                 [1, 1, 1],
-                {0, 1, 2, 3},
+                {0, 1, 2},
                 2 / 8 + 3 * 0.1,
             ),
             # all rules are included
@@ -499,7 +504,7 @@ class TestConstrainedBranchAndBoundMethods:
             (
                 [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]],
                 [1, 1, 1, 1],
-                {0, 1, 2, 3, 4},
+                {0, 1, 2, 3},
                 2 / 8 + 4 * 0.1,
             ),
         ],
@@ -509,16 +514,16 @@ class TestConstrainedBranchAndBoundMethods:
         t = bin_array(t)
 
         # we have 8 points
-        rules = [
-            Rule(1, "rule-1", 1, mpz("0b00101011")),
-            Rule(2, "rule-2", 1, mpz("0b00001101")),
-            Rule(3, "rule-3", 1, mpz("0b10001011")),
-            Rule(4, "rule-4", 1, mpz()),
+        input_rules = [
+            Rule(0, "rule-1", 1, mpz("0b00101011")),
+            Rule(1, "rule-2", 1, mpz("0b00001101")),
+            Rule(2, "rule-3", 1, mpz("0b10001011")),
+            Rule(3, "rule-4", 1, mpz()),
         ]
-        y = bin_array([1, 1, 1, 1, 0, 0, 1, 1])
+        input_y = bin_array([1, 1, 1, 1, 0, 0, 1, 1])
         lmbd = 0.1
 
-        cbb = ConstrainedBranchAndBound(rules, float("inf"), y, lmbd)
+        cbb = ConstrainedBranchAndBound(input_rules, float("inf"), input_y, lmbd)
         cbb.reset(A, t)
 
         sol, obj = list(cbb.generate_solution_at_root(return_objective=True))[0]
@@ -526,12 +531,12 @@ class TestConstrainedBranchAndBoundMethods:
         np.testing.assert_allclose(float(obj), expected_obj)
 
     @pytest.mark.parametrize(
-        "A, t, exp_pivot_rule_idxs, exp_free_rule_idxs, exp_row2pivot_column, exp_border_rule_idxs",
+        "A, t, exp_pivot_rule_idxs, exp_free_rule_idxs, exp_row2pivot_column, exp_B",
         [
-            ([[1, 0, 1], [0, 1, 0]], [0, 1], {1, 2}, {3}, [0, 1], {2, 3}),
-            ([[1, 0, 1], [0, 0, 1]], [0, 1], {1, 3}, {2}, [0, 2], {1, 3}),
-            ([[1, 0, 1]], [0], {1}, {2, 3}, [0], {3}),
-            ([[1, 0, 0], [1, 0, 0], [1, 0, 0]], [0, 0, 0], {1}, {2, 3}, [0], {1}),
+            ([[1, 0, 1], [0, 1, 0]], [0, 1], {0, 1}, {2}, [0, 1], [2, -1]),
+            ([[1, 0, 1], [0, 0, 1]], [0, 1], {0, 2}, {1}, [0, 2], [-1, -1]),
+            ([[1, 0, 1]], [0], {0}, {1, 2}, [0], [2]),
+            ([[1, 0, 0], [1, 0, 0], [1, 0, 0]], [0, 0, 0], {0}, {1, 2}, [0], [-1]),
         ],
     )
     def test_setup_constraint_system(
@@ -541,66 +546,98 @@ class TestConstrainedBranchAndBoundMethods:
         exp_pivot_rule_idxs,
         exp_free_rule_idxs,
         exp_row2pivot_column,
-        exp_border_rule_idxs,
+        exp_B,
     ):
         rules, y = generate_random_rules_and_y(10, 3, 12345)
         cbb = ConstrainedBranchAndBound(rules, float("inf"), y, 0.1)
 
         cbb.setup_constraint_system(bin_array(A), bin_array(t))
 
-        assert cbb.num_vars == 3
+        assert cbb.num_vars == cbb.num_rules == len(A[0])
+        assert cbb.num_constraints == len(A)
 
         assert cbb.pivot_rule_idxs == exp_pivot_rule_idxs
         assert cbb.free_rule_idxs == exp_free_rule_idxs
-        assert cbb.border_rule_idxs == exp_border_rule_idxs
+        np.testing.assert_allclose(cbb.B, exp_B)
         np.testing.assert_allclose(
             cbb.row2pivot_column, np.array(exp_row2pivot_column, dtype=int)
         )
         # the two sets are mutually exclusive and their union covers all idxs
         assert len(exp_pivot_rule_idxs & exp_free_rule_idxs) == 0
-        assert len(exp_pivot_rule_idxs | exp_free_rule_idxs) == 3
+        assert len(exp_pivot_rule_idxs | exp_free_rule_idxs) == cbb.num_vars
 
-    def test__create_new_node_and_add_to_tree(self):
-        rules, y = generate_random_rules_and_y(10, 5, 12345)
-        cbb = ConstrainedBranchAndBound(rules, float("inf"), y, 0.1)
-        cbb.reset_tree()
-        assert cbb.tree.num_nodes == 1
+    @pytest.mark.parametrize(
+        "A, b, exp_prefix, exp_lb, exp_u, exp_z, exp_s",
+        [
+            # rule-1 is included
+            # the truthtable  is:  0b00101011
+            #                          ^      (FP)
+            # the groundtruth is:  0b11001111
+            #                        ^^   ^   (FN)
+            # FP: 1
+            ([[1, 0, 0, 0]], [1], {0}, 1 / 8 + 1 * 0.1, mpz('0b11010100'), [1], [1]),
+            # rule-1 and rule-2 are included
+            # the truthtable  is:  0b00101111
+            #                          ^ (FP)
+            # the groundtruth is:  0b11001111
+            #                        ^^ (FN)
+            # FP: 1
+            ([[1, 0, 0, 0], [0, 1, 0, 0]], [1, 1], {0, 1}, 1 / 8 + 2 * 0.1, mpz('0b11010000'), [1, 1], [1]),
+            # rule-1, rule-2, and rule-3 are included
+            # the truthtable  is:  0b10101111
+            #                          ^     (FP)
+            # the groundtruth is:  0b11001111
+            #                         ^      (FN)
+            # FP: 1
+            (
+                [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]],
+                [1, 1, 1],
+                {0, 1, 2},
+                1 / 8 + 3 * 0.1,
+                mpz('0b01010000'),
+                [1, 1, 1], [1, 1, 1]
+            ),
+            # all rules are included
+            # the truthtable  is:  0b10101111
+            #                          ^     (FP)
+            # the groundtruth is:  0b11001111
+            #                         ^      (FN)
+            # FP: 1
+            (
+                [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]],
+                [1, 1, 1, 1],
+                {0, 1, 2, 3},
+                1 / 8 + 4 * 0.1,
+                mpz('0b01010000'),
+                [1, 1, 1, 1], [1, 1, 1, 1]
+            ),
+        ],
+    )
+    def test_reset_queue(self, A, b, exp_prefix, exp_lb, exp_u, exp_z, exp_s):
+        A, b, exp_z, exp_s = map(bin_array, [A, b, exp_z, exp_s])
 
-        child = cbb._create_new_node_and_add_to_tree(
-            rules[2],
-            lb=mpfr(),
-            obj=mpfr(),
-            captured=mpz(),
-            parent_node=cbb.tree.root,
-            pivot_rule_idxs_to_add=[1, 2],  # add rule-1 and rule-2 as pivot
-        )
-        assert cbb.tree.num_nodes == 2  # tree is updated
-        assert child.pivot_rule_ids == [1, 2]
+        # we have 8 points
+        input_rules = [
+            Rule(0, "rule-1", 1, mpz("0b00101011")),
+            Rule(1, "rule-2", 1, mpz("0b00001101")),
+            Rule(2, "rule-3", 1, mpz("0b10001011")),
+            Rule(3, "rule-4", 1, mpz()),
+        ]
+        input_y = bin_array([1, 1, 1, 1, 0, 0, 1, 1])
+        lmbd = 0.1
 
-        grandchild = cbb._create_new_node_and_add_to_tree(
-            rules[4],
-            lb=mpfr(),
-            obj=mpfr(),
-            captured=mpz(),
-            parent_node=child,
-            pivot_rule_idxs_to_add=[3],  # add rule-3 as pivot
-        )
-        assert cbb.tree.num_nodes == 3  # tree is updated
-        grandchild.pivot_rule_ids == [4]
-
-        # depth should be correct
-        # parent should be correct
-        assert child.depth == 1
-        assert child.parent == cbb.tree.root
-
-        assert grandchild.depth == 2
-        assert grandchild.parent == child
-
-        # add an already-added node just return the added node
-        grandchild_same = cbb._create_new_node_and_add_to_tree(
-            rules[4], lb=mpfr(), obj=mpfr(), captured=mpz(), parent_node=child
-        )
-        assert grandchild_same == grandchild
+        cbb = ConstrainedBranchAndBound(input_rules, float("inf"), input_y, lmbd)
+        cbb.setup_constraint_system(A, b)
+        cbb.reset_queue()
+        assert cbb.queue.size == 1
+        item = cbb.queue.pop()
+        assert len(item) == 5
+        (prefix, lb, u, z, s) = item
+        assert prefix == exp_prefix
+        np.testing.assert_allclose(lb, exp_lb)
+        assert u == exp_u
+        np.testing.assert_allclose(z, exp_z)
+        np.testing.assert_allclose(s, exp_s)
 
 
 class TestConstrainedBranchAndBoundEnd2End:

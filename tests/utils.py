@@ -31,7 +31,7 @@ def generate_random_rule_list(num_pts: int, num_rules: int, rand_seed: int = Non
     np.random.seed(1234)
     rand_seeds = randints(num_rules)
     return [
-        Rule.random(id=i + 1, num_pts=num_pts, random_seed=seed)
+        Rule.random(id=i, num_pts=num_pts, random_seed=seed)
         for i, seed in zip(range(num_rules), rand_seeds)
     ]
 
