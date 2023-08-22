@@ -34,9 +34,9 @@ class TestLogSearch:
         )
         m = num_rules - 1
 
-        A, t = generate_h_and_alpha(num_rules, m, seed=rand_seed, as_numpy=True)
+        A, b = generate_h_and_alpha(num_rules, m, seed=rand_seed, as_numpy=True)
 
-        return random_rules, random_y, A, t
+        return random_rules, random_y, A, b
 
     def check_output(self, m, Y_size, big_cell, Y_size_arr, thresh):
         # big_cell should look like, 1, 1, ...,1, 0, ..., 0, 0
@@ -66,10 +66,10 @@ class TestLogSearch:
 
         lmbd = 0.1
         ub = float("inf")
-        A, t = generate_h_and_alpha(n, m, seed=rand_seed, as_numpy=True)
+        A, b = generate_h_and_alpha(n, m, seed=rand_seed, as_numpy=True)
         # test statements
         m, Y_size, big_cell, Y_size_arr, _, _ = log_search(
-            rules, y, lmbd, ub, A, t, thresh, m_prev, return_full=True
+            rules, y, lmbd, ub, A, b, thresh, m_prev, return_full=True
         )
 
         self.check_output(m, Y_size, big_cell, Y_size_arr, thresh)
@@ -85,7 +85,7 @@ class TestLogSearch:
     @pytest.mark.parametrize("rand_seed", randints(3))
     def test_on_random_datasets(self, ub, m_prev, thresh, rand_seed):
         # generate the rules and truth label
-        random_rules, random_y, A, t = self.generate_random_input(10, 50, 1234)
+        random_rules, random_y, A, b = self.generate_random_input(10, 50, 1234)
 
         lmbd = 0.1
         m, Y_size, big_cell, Y_size_arr, _, _ = log_search(
@@ -94,7 +94,7 @@ class TestLogSearch:
             lmbd,
             ub + EPSILON,
             A,
-            t,
+            b,
             thresh,
             m_prev,
             return_full=True,
@@ -162,7 +162,7 @@ class TestLogSearch:
     # @pytest.mark.parametrize("rand_seed", [1707139767])
     def test_consistency_on_m(self, ub, initial_m, thresh, rand_seed):
         """no matter which initial m is provided, the same m should be returned"""
-        random_rules, random_y, A, t = self.generate_random_input(10, 50, rand_seed)
+        random_rules, random_y, A, b = self.generate_random_input(10, 50, rand_seed)
 
         m = A.shape[0]
 
@@ -173,7 +173,7 @@ class TestLogSearch:
             lmbd,
             ub + EPSILON,
             A,
-            t,
+            b,
             thresh,
             initial_m,
             return_full=True,
@@ -191,7 +191,7 @@ class TestLogSearch:
                 lmbd,
                 ub + EPSILON,
                 A,
-                t,
+                b,
                 thresh,
                 m_prev=m_prev,
                 return_full=True,
@@ -212,7 +212,7 @@ class TestLogSearch:
                 lmbd=0.1,
                 ub=float("inf"),
                 A=bin_zeros((2, 2)),
-                t=bin_zeros(2),
+                b=bin_zeros(2),
                 thresh=2,
                 m_prev=m_prev,
             )
@@ -226,7 +226,7 @@ class TestLogSearch:
                 lmbd=0.1,
                 ub=float("inf"),
                 A=bin_zeros((2, 2)),
-                t=bin_zeros(2),
+                b=bin_zeros(2),
                 thresh=thresh,
                 m_prev=1,
             )
@@ -302,7 +302,7 @@ class TestApproxMC2Core:
         # the constraint system is vacuum
         # thus using all constraints is equivalent to using no constraint at all
         A = bin_zeros((num_rules - 1, num_rules))
-        t = bin_zeros((num_rules - 1,))
+        b = bin_zeros((num_rules - 1,))
         n_cells, Y_size = approx_mc2_core(
             random_rules,
             random_y,
@@ -311,7 +311,7 @@ class TestApproxMC2Core:
             thresh=thresh,
             prev_num_cells=2**prev_m,
             A=A,
-            t=t,
+            b=b,
         )
         assert Y_size is None
         assert n_cells is None
@@ -431,7 +431,7 @@ class TestUniGen:
         ug = self.create_unigen(ub, eps=10.0, rand_seed=rand_seed)
         ug.prepare()
         ret = ug.sample_once()
-        assert ret is None or isinstance(ret, set)
+        assert ret is None or isinstance(ret, tuple)
 
     @pytest.mark.parametrize("ub", [0.6, 0.9])
     @pytest.mark.parametrize("rand_seed", randints(3))
@@ -441,7 +441,7 @@ class TestUniGen:
         samples = ug.sample(10, exclude_none=True)
         assert len(samples) > 0
         for s in samples:
-            assert isinstance(s, set)
+            assert isinstance(s, tuple)
 
     @pytest.mark.parametrize("rand_seed", randints(3))
     def test_statistical_property(self, rand_seed):

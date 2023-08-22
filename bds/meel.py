@@ -14,7 +14,7 @@ from tqdm import tqdm
 from .bb import BranchAndBoundNaive
 
 # from .cbb import ConstrainedBranchAndBoundNaive
-from .cbb_v2 import ConstrainedBranchAndBound
+from .cbb import ConstrainedBranchAndBound
 
 # from .icbb import IncrementalConstrainedBranchAndBound
 from .random_hash import generate_h_and_alpha
@@ -71,7 +71,7 @@ def log_search(
     lmbd: float,
     ub: float,
     A: np.ndarray,
-    t: np.ndarray,
+    b: np.ndarray,
     thresh: int,
     m_prev: int,
     return_full: Optional[bool] = False,
@@ -144,9 +144,8 @@ def log_search(
         # obtain only the first `thresh` solutions in the random cell
         with Timer() as timer:
             Y_size = cbb.bounded_count(
-                thresh, A=A[:m], t=t[:m]  # , solver_status=latest_solver_status
+                thresh, A=A[:m], b=b[:m]  # , solver_status=latest_solver_status
             )
-            logger.debug(f"search tree size: {cbb.tree.num_nodes}")
             logger.debug(f"number of prefix evaluations: {cbb.num_prefix_evaluations}")
 
         logger.debug(f"solving takes {timer.elapsed:.2f} secs")
@@ -244,7 +243,7 @@ def approx_mc2_core(
     prev_num_cells: int,
     rand_seed: Optional[int] = None,
     A: Optional[np.ndarray] = None,
-    t: Optional[np.ndarray] = None,
+    b: Optional[np.ndarray] = None,
 ) -> Optional[Tuple[int, int]]:
     """
     a wrapper of log_search, which counts the number of solutions in a random cell of the solution space
@@ -270,8 +269,8 @@ def approx_mc2_core(
     # generate random constraints
     num_vars = len(rules)
     num_constraints = num_vars - 1
-    if A is None or t is None:
-        A, t = generate_h_and_alpha(
+    if A is None or b is None:
+        A, b = generate_h_and_alpha(
             num_vars, num_constraints, seed=rand_seed, as_numpy=True
         )
 
@@ -279,7 +278,7 @@ def approx_mc2_core(
     cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
     logger.debug(f"initial solving under {A.shape[0]} constraints")
     with Timer() as timer:
-        Y_size = cbb.bounded_count(thresh, A=A, t=t)
+        Y_size = cbb.bounded_count(thresh, A=A, b=b)
         logger.debug(f"solving takes {timer.elapsed:.2f} secs")
 
     # print("rand_seed: {}".format(rand_seed))
@@ -292,7 +291,7 @@ def approx_mc2_core(
         )
         m_prev = int(np.log2(prev_num_cells))
         m, Y_size = log_search(
-            rules, y, lmbd, ub, A, t, thresh, m_prev, return_full=False
+            rules, y, lmbd, ub, A, b, thresh, m_prev, return_full=False
         )
 
         return (int(np.power(2, m)), Y_size)
@@ -614,7 +613,7 @@ class UniGen:
         else:
             m = self.num_vars - 1
 
-            A, t = generate_h_and_alpha(
+            A, b = generate_h_and_alpha(
                 self.num_vars,
                 m,
                 seed=None,  # TODO: set the seed to control randomness
@@ -626,12 +625,12 @@ class UniGen:
             success = False
             for i in range(max(0, self.q - 4), self.q + 1):
                 logger.debug(f"current i = {i}")
-                A_sub, t_sub = A[:i], t[:i]
+                A_sub, b_sub = A[:i], b[:i]
 
                 # sol_iter = self.cbb.run(A_sub, t_sub)
 
                 # obtain only the first `thresh` solutions in the random cell
-                Y = self.cbb.bounded_sols(self.hi_thresh_rounded, A=A_sub, t=t_sub)
+                Y = self.cbb.bounded_sols(self.hi_thresh_rounded, A=A_sub, b=b_sub)
                 Y_size = len(Y)
 
                 if self.lo_thresh <= Y_size <= self.hi_thresh:
