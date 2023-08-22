@@ -29,6 +29,7 @@ from .utils import (
     brute_force_enumeration,
     calculate_obj,
     generate_random_rules_and_y,
+    normalize_solutions,
 )
 
 
@@ -672,30 +673,40 @@ class TestConstrainedBranchAndBoundEnd2End:
                 [1, 0, 1],
                 [(0, 2), (1, 3)],
             ),
-            # (
-            #     [[1, 0, 0, 1]],
-            #     [1],
-            #     [
-            #         (0,),
-            #         (0, 1),
-            #         (0, 2),
-            #         (3),
-            #         (0, 1, 2),
-            #         (1, 3),
-            #         (2, 3),
-            #         (1, 2, 3),
-            #     ],
-            # ),
-            # (
-            #     [[1, 0, 0, 1], [0, 1, 0, 1]],
-            #     [1, 0],
-            #     [
-            #         (0),
-            #         (0, 2),
-            #         (1, 3),
-            #         (1, 2, 3),
-            #     ],
-            # ),
+            (
+                [[1, 0, 0, 1]],
+                [1],
+                [
+                    (0,),
+                    (0, 1),
+                    (0, 2),
+                    (3,),
+                    (0, 1, 2),
+                    (1, 3),
+                    (2, 3),
+                    (1, 2, 3),
+                ],
+            ),
+            (
+                [[1, 0, 0, 1], [0, 1, 0, 1]],
+                [1, 0],
+                [
+                    (0,),
+                    (0, 2),
+                    (1, 3),
+                    (1, 2, 3),
+                ],
+            ),
+            (
+                [[1, 1, 0, 0, 1], [0, 0, 1, 0, 0], [0, 0, 0, 1, 0]],
+                [0, 0, 1],
+                [
+                    (3,),
+                    (0, 1, 3),
+                    (0, 3, 4),
+                    (1, 3, 4),
+                ],
+            ),
         ],
     )
     def test_complete_enumeration_with_infinite_ub(self, A, b, expected_sols):
@@ -703,37 +714,154 @@ class TestConstrainedBranchAndBoundEnd2End:
         rand_rules, rand_y = generate_random_rules_and_y(10, A.shape[1], 12345)
         cbb = ConstrainedBranchAndBound(rand_rules, float("inf"), rand_y, 0.1)
         sols = cbb.bounded_sols(threshold=None, A=A, b=b)
-        assert set(map(tuple, sols)) == set(map(tuple, expected_sols))
+        assert normalize_solutions(sols) == normalize_solutions(expected_sols)
 
-    @pytest.mark.skip(
-        "skipped because if cbb is correct, testing cbb_v2 against cbb (shown above) is enough"
+    @pytest.mark.parametrize(
+        "ub, expected",
+        [
+            (  # case 1: all satisfied solutions are returned
+                float("inf"),
+                {(1,): 0.1, (0, 1, 2): 0.9},
+            ),
+            # case 2
+            (0.5, {(1,): 0.1}),
+            # case 3
+            (0.01, dict()),
+        ],
     )
+    def test_varying_ub_case_1(self, rules, y, ub, expected):
+        lmbd = 0.1
+        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
+
+        # 3 rules
+        # 2 constraints
+        A = bin_array([[1, 0, 1], [0, 1, 0]])  # 0  # 1
+        # rule-2 has to be selected
+        # rule-0 and rule-1 is either both selected or both unselected
+        b = bin_array([0, 1])
+        res_iter = cbb.run(return_objective=True, A=A, b=b)
+
+        sols = list(res_iter)
+        actual = solutions_to_dict(sols)
+        assert_dict_allclose(actual, expected)
+
+    @pytest.mark.parametrize(
+        "ub, expected",
+        [
+            (float("inf"), {(2,): 0.3, (0,): 0.9}),
+            (0.5, {(2,): 0.3}),
+            (0.1, dict()),
+        ],
+    )
+    def test_varying_ub_case_2(self, rules, y, ub, expected):
+        lmbd = 0.1
+        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
+
+        A = bin_array([[1, 0, 1], [0, 1, 0]])  # 1  # 0
+        b = bin_array([1, 0])
+        res_iter = cbb.run(return_objective=True, A=A, b=b)
+
+        sols = list(res_iter)
+        actual = solutions_to_dict(sols)
+        assert_dict_allclose(actual, expected)
+
+    @pytest.mark.parametrize(
+        "ub, expected",
+        [
+            (float("inf"), {(0, 1, 2): 0.9}),
+            (0.1, dict()),
+        ],
+    )
+    def test_varying_ub_case_3(self, rules, y, ub, expected):
+        lmbd = 0.1
+        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
+
+        A = bin_array([[1, 0, 1], [1, 1, 0]])
+        b = bin_array([0, 0])
+        res_iter = cbb.run(return_objective=True, A=A, b=b)
+        sols = list(res_iter)
+        actual = solutions_to_dict(sols)
+        assert_dict_allclose(actual, expected)
+
+    @pytest.mark.parametrize(
+        "ub, expected",
+        [
+            (float("inf"), {(0, 2): 0.8, (1,): 0.1}),
+            (0.1, {(1,): 0.1}),
+            (0.01, dict()),
+        ],
+    )
+    def test_varying_ub_case_4(self, rules, y, ub, expected):
+        lmbd = 0.1
+        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
+
+        A = bin_array([[1, 0, 1], [1, 1, 0]])
+        b = bin_array([0, 1])
+        res_iter = cbb.run(return_objective=True, A=A, b=b)
+        sols = list(res_iter)
+
+        actual = solutions_to_dict(sols)
+        assert_dict_allclose(actual, expected)
+
+    @pytest.mark.parametrize(
+        "thresh, count", [(None, 2), (1, 1), (2, 2), (3, 2)]  # total count is returned
+    )
+    def test_bounded_count(self, rules, y, thresh, count):
+        ub = float("inf")
+        lmbd = 0.1
+        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
+
+        A = bin_array([[1, 0, 1], [1, 1, 0]])
+        b = bin_array([0, 1])
+
+        assert cbb.bounded_count(thresh, A=A, b=b) == count
+
+    @pytest.mark.parametrize(
+        "thresh, count", [(None, 2), (1, 1), (2, 2), (3, 2)]  # total count is returned
+    )
+    def test_bounded_sols(self, rules, y, thresh, count):
+        ub = float("inf")
+        lmbd = 0.1
+        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
+
+        A = bin_array([[1, 0, 1], [1, 1, 0]])
+        b = bin_array([0, 1])
+
+        sols = cbb.bounded_sols(thresh, A=A, b=b)
+        assert isinstance(sols, list)
+        assert len(sols) == count
+
     @pytest.mark.parametrize("num_rules", [10])
-    @pytest.mark.parametrize("num_constraints", [8])
+    @pytest.mark.parametrize("num_constraints", [2, 4, 8])
     @pytest.mark.parametrize("lmbd", [0.1])
-    @pytest.mark.parametrize("ub", [1.0])  # float("inf"),  # , 0.01
-    @pytest.mark.parametrize("rand_seed", [1859619716])
-    def test_corretness(self, num_rules, num_constraints, lmbd, ub, rand_seed):
+    @pytest.mark.parametrize("ub", [0.801, 0.501, 0.001])  # float("inf"),  # , 0.01
+    @pytest.mark.parametrize("rand_seed", randints(5))
+    # @pytest.mark.parametrize("num_rules", [10])
+    # @pytest.mark.parametrize("num_constraints", [5])
+    # @pytest.mark.parametrize("lmbd", [0.1])
+    # @pytest.mark.parametrize("ub", [0.501])  # float("inf"),  # , 0.01
+    # @pytest.mark.parametrize("rand_seed", [162140838])
+    def test_solution_correctness(
+        self, num_rules, num_constraints, lmbd, ub, rand_seed
+    ):
         """the output should be the same as ground truth"""
         rand_rules, rand_y = generate_random_rules_and_y(10, num_rules, rand_seed)
-
+        # for r in rand_rules:
+        #     print(f'{r.name}: {bin(r.truthtable)}')
+        # print(rand_y[::-1].astype(int))
         cbb = ConstrainedBranchAndBound(rand_rules, ub, rand_y, lmbd)
 
-        A, t = generate_h_and_alpha(
+        A, b = generate_h_and_alpha(
             num_rules, num_constraints, rand_seed, as_numpy=True
         )
-        actual = solutions_to_dict(list(cbb.run(return_objective=True, A=A, t=t)))
+        actual = solutions_to_dict(list(cbb.run(return_objective=True, A=A, b=b)))
 
         expected = solutions_to_dict(
-            list(brute_force_enumeration(rand_rules, rand_y, cbb.A, cbb.t, ub, lmbd))
+            list(brute_force_enumeration(rand_rules, rand_y, A, b, ub, lmbd))
         )
-
-        # print("A:\n {}".format(cbb.A.astype(int)))
-        # print("t:\n {}".format(cbb.t.astype(int)))
-
-        # print("actual: {}".format(actual))
-        # print("expected: {}".format(expected))
-        # print('obj((0, 2, 6, 10)):', calculate_obj(cbb.rules, cbb.y_np, cbb.y_mpz, (0, 2, 6, 10), lmbd))
-        assert set(actual.keys()) == set(expected.keys())
+        # print(expected)
+        # assert set(actual.keys()) == set(expected.keys())
         assert_dict_allclose(actual, expected)
-        # raise
+        # print("len(expected): {}".format(len(expected)))
+        # print("expected: {}".format(expected))
+        # raise ValueError(expected)

@@ -3,12 +3,12 @@ import numpy as np
 import gmpy2 as gmp
 from gmpy2 import mpz
 
-from typing import Dict, Any, List, Iterable, Tuple
+from typing import Dict, Any, List, Iterable, Tuple, Set
 from numbers import Number
 from itertools import combinations
 
 from bds.rule import Rule, lor_of_truthtable
-from bds.utils import bin_random, randints, mpz_set_bits
+from bds.utils import bin_random, randints, mpz_set_bits, calculate_obj
 from bds.gf2 import GF
 
 
@@ -47,24 +47,6 @@ def assert_close_mpfr(v1, v2):
     np.testing.assert_allclose(float(v1), float(v2))
 
 
-def calculate_obj(
-    rules: List[Rule], y_np: np.ndarray, y_mpz: mpz, sol: Tuple[int], lmbd: float
-) -> float:
-    """calcuclate the objective for a given decision rule set (indicated by `sol`)
-    by convention, `sol` is sorted and `0` appears first
-    """
-    # print("sol: {}".format(sol))
-    ds_rules = [rules[i - 1] for i in sol[1:]]
-    # print("ds_rules: {}".format(ds_rules))
-    pred = lor_of_truthtable(ds_rules)
-    # print("bin(pred): {}".format(bin(pred)))
-    # print("bin(y_mpz): {}".format(bin(y_mpz)))
-    num_mistakes = gmp.popcount(y_mpz ^ pred)
-    # print("num_mistakes: {}".format(num_mistakes))
-    obj = len(sol[1:]) * lmbd + num_mistakes / y_np.shape[0]
-    return float(obj)
-
-
 def brute_force_enumeration(
     rules: List, y: np.ndarray, A: np.ndarray, b: np.ndarray, ub: float, lmbd: float
 ) -> Iterable[Tuple[Tuple[int], float]]:
@@ -72,23 +54,24 @@ def brute_force_enumeration(
     A_gf, b_gf = GF(A.astype(int)), GF(b.astype(int))
     y_mpz = mpz_set_bits(mpz(), y.nonzero()[0])
     num_rules = len(rules)
-    population = np.arange(1, num_rules + 1)
+    all_rule_idxs = np.arange(num_rules)
     for size in range(1, num_rules + 1):
-        for sol in combinations(population, size):
-            sol_arr = np.zeros(num_rules, dtype=int)
-            sol_arr[np.asarray(sol) - 1] = 1
-            prod = A_gf @ GF(sol_arr)
-            # print("sol: {}".format(sol))
-            # if tuple(sorted(sol)) == (2, 3, 10):
+        for sol in combinations(all_rule_idxs, size):
+            sol_vect = np.zeros(num_rules, dtype=int)
+            sol_vect[np.asarray(sol)] = 1
+            prod = A_gf @ GF(sol_vect)
+            # if tuple(sorted(sol)) == (0, 3, 4):
+            #     print("A_gf:\n {}".format(A_gf))
+            #     print("b_gf:\n {}".format(b_gf))
             #     print("sol: {}".format(sol))
-            #     print("A.astype(int):\n {}".format(A.astype(int)))
-            #     print("b.astype(int):\n{}".format(b.astype(int)))
-            #     print(prod, b_gf)
-            #     print(calculate_obj(rules, y, y_mpz, (0,) + sol, lmbd))
-            # Ax=b is satisfied
+            #     print("prod == b_gf: {}".format(prod == b_gf))
             if (prod == b_gf).all():
-                sol = (0,) + sol
                 obj = calculate_obj(rules, y, y_mpz, sol, lmbd)
+                # print("obj: {}".format(obj))
                 # and obj is upper boudned by ub
                 if obj <= ub:
                     yield (tuple(sorted(sol)), obj)
+
+
+def normalize_solutions(sols: List[Set[int]]) -> Set[Tuple[int]]:
+    return set(map(tuple, map(sorted, sols)))

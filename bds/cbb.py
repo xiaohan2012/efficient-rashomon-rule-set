@@ -234,6 +234,8 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             self.rank,
             self.pivot_columns,
         ) = self._simplify_constraint_system(A, t)
+        # print("A\n: {}".format(self.A.astype(int)))
+        # print("b\n: {}".format(self.b.astype(int)))
         self.is_linear_system_solvable = (self.b[self.rank :] == 0).all()
 
         self.num_constraints = int(self.A.shape[0])
@@ -242,22 +244,12 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         # build the boundary table
         self.B = build_boundary_table(self.A, self.rank, self.pivot_columns)
 
-        # mapping from rule id to array of indices of relevant constraints
-        # self.A_indices, self.A_indptr = get_indices_and_indptr(self.A)
-        # self.ruleid2cst_idxs = {
-        #     rule.id: self.A_indices[self.A_indptr[rule.id - 1] : self.A_indptr[rule.id]]
-        #     for rule in self.rules
-        # }
-
         self.pivot_rule_idxs = set(map(lambda v: v, self.pivot_columns))
         self.free_rule_idxs = (
             set(map(lambda v: v, range(self.num_vars))) - self.pivot_rule_idxs
         )
         # mapping from row index to the pivot column index
         self.row2pivot_column = np.array(self.pivot_columns, dtype=int)
-
-        # a rule is a border rule if it appears as the last rule in at least one constraint
-        # self.border_rule_idxs = set(self.B)
 
     # @profile
     def generate(self, return_objective=False) -> Iterable:
@@ -299,7 +291,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             self.B,
             self.row2pivot_column,
         )
-        print("e1_idxs: {}".format(e1_idxs))
+        # print("e1_idxs: {}".format(e1_idxs))
         if rule_id == -1:
             v = self._lor(e1_idxs) & u
             ext_size = len(e1_idxs)
@@ -343,14 +335,15 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         )
         prefix = tuple(sorted(prefix_idxs))
         item = (prefix, lb, up, zp, sp)
-        self.queue.push(item, key=0)
+        self.queue.push(item, key=lb)
 
-    def _get_rules_by_idxs(self, idxs: List[int]) -> List[Rule]:
-        """extract rules from a list of indices, the indices start from 1"""
-        return [self.rules[idx - 1] for idx in idxs]
+    # def _get_rules_by_idxs(self, idxs: List[int]) -> List[Rule]:
+    #     """extract rules from a list of indices, the indices start from 1"""
+    #     return [self.rules[idx] for idx in idxs]
 
     def generate_solution_at_root(self, return_objective=False) -> Iterable:
         """check the solution at the root, e.g., all free variables assigned to zero"""
+        # print(f"generate at root")
         # add pivot rules if necessary to satistify Ax=b
         rule_idxs = self._ensure_satisfiability(
             -1, bin_zeros(self.num_constraints), bin_zeros(self.num_constraints)
@@ -392,22 +385,22 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
     ):
         """
         check one node in the search tree, update the queue, and yield feasible solution if exists
-        parente_node: the current node/prefix to check
-        u: postives not captured by the current prefix
-        z: the parity states vector
-        s: the satisfiability state vector
+
+        parent_prefix: the parent prefix to extend from
+        parent_u: points not captured by the current prefix
+        parent_z: the parity states vector
+        parent_s: the satisfiability state vector
         return_objective: True if return the objective of the evaluated node
         """
         prefix_length = len(parent_prefix)
         length_ub = prefix_specific_length_upperbound(
             parent_lb, prefix_length, self.lmbd, self.ub
         )
-        max_rule_idx = max(parent_prefix or [-1])
-        # logger.debug(f"parent node: {parent_node.get_ruleset_ids()}")
-        # here we assume the rule ids are consecutive integers
-        # padding = ' ' * (2 * parent_node.depth)
-        # print("{}prefix: {}".format(padding, tuple(sorted(parent_node.get_ruleset_ids()))))
-        for rule in self.rules[(max_rule_idx+1) :]:
+        free_rules_in_prefix = set(parent_prefix) - self.pivot_rule_idxs
+        max_rule_idx = max(free_rules_in_prefix or [-1])
+        # print("parent_prefix: {}".format(parent_prefix))
+        for rule in self.rules[(max_rule_idx + 1) :]:
+            # print("rule.id: {}".format(rule.id))
             # consider adding only free rules
             # since the addition of pivot rules are determined "automatically" by Ax=b
             if rule.id in self.pivot_rule_idxs:
@@ -428,25 +421,24 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
 
             # check hierarchical lower bound
             if lb <= self.ub:
-                # child_node might be assigned later
-                # and if assigned
-                # will be assigned only once during the the check of the current rule
-                child_node = None
                 # apply look-ahead bound
                 # parent + current rule + any next rule
 
                 if check_look_ahead_bound(lb, self.lmbd, self.ub):
-                    # ensure that Ax=b is not unsatisfied
-                    # v1 and not_w are updated here
+                    # ensure that Ax=b is not violated
+                    # v1, zp, and sp are updated here
                     (
                         e1_idxs,
                         v1,
                         zp,
                         sp,
                         extension_size,
-                    ) = self._ensure_minimal_non_violation(rule.id, parent_u, parent_z, parent_s)
+                    ) = self._ensure_minimal_non_violation(
+                        rule.id, parent_u, parent_z, parent_s
+                    )
 
                     # update the hierarchical lower bound only if at least one pivot rules are added
+                    # prune if needed
                     if extension_size > 1:
                         _ = 1 + 1  # dummy statement for profiling purposes
                         if (prefix_length + extension_size) > length_ub:
@@ -462,11 +454,11 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                         if lb > self.ub:
                             continue
 
-                    new_prefix = tuple(sorted(parent_prefix + tuple(e1_idxs)))
+                    new_prefix = tuple(sorted(parent_prefix + tuple(e1_idxs) + (rule.id, )))
                     w = v1 | ~parent_u  # captured by the new prefix
-                    not_w = ~w  # not captured by the new prefix
+                    up = ~w  # not captured by the new prefix
                     self.queue.push(
-                        (new_prefix, lb, not_w, zp, sp),
+                        (new_prefix, lb, up, zp, sp),
                         key=lb,
                     )
                 # next we consider the feasibility d + r + the extension rules needed to satisfy Ax=b
@@ -504,7 +496,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                 obj = obj_with_fp + fn_fraction
 
                 if obj <= self.ub:
-                    solution_prefix = tuple(sorted(parent_prefix + tuple(ext_idxs)))
+                    solution_prefix = tuple(sorted(parent_prefix + tuple(ext_idxs) + (rule.id, )))
 
                     # logger.debug(f"yielding {ruleset} with obj {obj:.2f}")
                     # print(f"{padding}    yield: {tuple(ruleset)}")
