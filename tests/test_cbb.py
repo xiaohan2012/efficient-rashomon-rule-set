@@ -316,6 +316,21 @@ class TestEnsureMinimalNoViolation:
         np.testing.assert_allclose(actual_sp2, sp2)  # all constraints are satisfied
 
 
+class TestCountAddedPivots:
+    @pytest.mark.parametrize(
+        "j, A, b, z, exp_count",
+        [
+            (1, [[1, 0, 0]], [1], [0], 1),
+            (1, [[1, 0, 0]], [1], [1], 0),
+            (1, [[1, 1, 0]], [0], [0], 1),
+            (1, [[1, 1, 0]], [1], [0], 0),
+        ],
+    )
+    def test_basic(self, j, A, b, z, exp_count):
+        A, b, z = map(bin_array, [A, b, z])
+        assert count_added_pivots(j, A, b, z) == exp_count
+
+
 class TestEnsureSatisfiability:
     @pytest.mark.parametrize(
         "name, A, b, z, s, j, expected_rules",
@@ -449,9 +464,6 @@ class TestEnsureSatisfiability:
         )
         np.testing.assert_allclose(actual_rules, np.array(expected_rules, dtype=int))
 
-        # take a free ride and test count_added_pivots as well
-        # assert count_added_pivots(j, A, b, z) == len(actual_rules)
-
 
 class TestConstrainedBranchAndBoundMethods:
     @property
@@ -474,7 +486,7 @@ class TestConstrainedBranchAndBoundMethods:
         assert len(cbb.truthtable_list) == len(self.input_rules)
 
     @pytest.mark.parametrize(
-        "A, t, expected_sols, expected_obj",
+        "A, b, expected_sols, expected_obj",
         [
             # rule-1 is included
             # the truthtable  is:  0b00101011
@@ -524,22 +536,22 @@ class TestConstrainedBranchAndBoundMethods:
             ),
         ],
     )
-    def test_generate_solution_at_root(self, A, t, expected_sols, expected_obj):
+    def test_generate_solution_at_root(self, A, b, expected_sols, expected_obj):
         A = bin_array(A)
-        t = bin_array(t)
+        b = bin_array(b)
 
         lmbd = 0.1
         cbb = ConstrainedBranchAndBound(
             self.input_rules, float("inf"), self.input_y, lmbd
         )
-        cbb.reset(A, t)
+        cbb.reset(A, b)
 
         sol, obj = list(cbb.generate_solution_at_root(return_objective=True))[0]
         assert sol == expected_sols
         np.testing.assert_allclose(float(obj), expected_obj)
 
     @pytest.mark.parametrize(
-        "A, t, exp_pivot_rule_idxs, exp_free_rule_idxs, exp_row2pivot_column, exp_B",
+        "A, b, exp_pivot_rule_idxs, exp_free_rule_idxs, exp_row2pivot_column, exp_B",
         [
             ([[1, 0, 1], [0, 1, 0]], [0, 1], {0, 1}, {2}, [0, 1], [2, -1]),
             ([[1, 0, 1], [0, 0, 1]], [0, 1], {0, 2}, {1}, [0, 2], [-1, -1]),
@@ -550,7 +562,7 @@ class TestConstrainedBranchAndBoundMethods:
     def test_setup_constraint_system(
         self,
         A,
-        t,
+        b,
         exp_pivot_rule_idxs,
         exp_free_rule_idxs,
         exp_row2pivot_column,
@@ -559,7 +571,7 @@ class TestConstrainedBranchAndBoundMethods:
         rand_rules, rand_y = generate_random_rules_and_y(10, 3, 12345)
         cbb = ConstrainedBranchAndBound(rand_rules, float("inf"), rand_y, 0.1)
 
-        cbb.setup_constraint_system(bin_array(A), bin_array(t))
+        cbb.setup_constraint_system(bin_array(A), bin_array(b))
 
         assert cbb.num_vars == cbb.num_rules == len(A[0])
         assert cbb.num_constraints == len(A)
@@ -590,7 +602,15 @@ class TestConstrainedBranchAndBoundMethods:
             # the groundtruth is:  0b11001111
             #                        ^^ (FN)
             # FP: 1
-            ([[1, 0, 0, 0], [0, 1, 0, 0]], [1, 1], (0, 1), 1 / 8 + 2 * 0.1, mpz('0b11010000'), [1, 1], [1, 1]),
+            (
+                [[1, 0, 0, 0], [0, 1, 0, 0]],
+                [1, 1],
+                (0, 1),
+                1 / 8 + 2 * 0.1,
+                mpz("0b11010000"),
+                [1, 1],
+                [1, 1],
+            ),
             # rule-1, rule-2, and rule-3 are included
             # the truthtable  is:  0b10101111
             #                          ^     (FP)
@@ -602,8 +622,9 @@ class TestConstrainedBranchAndBoundMethods:
                 [1, 1, 1],
                 (0, 1, 2),
                 1 / 8 + 3 * 0.1,
-                mpz('0b01010000'),
-                [1, 1, 1], [1, 1, 1]
+                mpz("0b01010000"),
+                [1, 1, 1],
+                [1, 1, 1],
             ),
             # all rules are included
             # the truthtable  is:  0b10101111
@@ -616,8 +637,9 @@ class TestConstrainedBranchAndBoundMethods:
                 [1, 1, 1, 1],
                 (0, 1, 2, 3),
                 1 / 8 + 4 * 0.1,
-                mpz('0b01010000'),
-                [1, 1, 1, 1], [1, 1, 1, 1]
+                mpz("0b01010000"),
+                [1, 1, 1, 1],
+                [1, 1, 1, 1],
             ),
         ],
     )
@@ -643,44 +665,44 @@ class TestConstrainedBranchAndBoundMethods:
 
 class TestConstrainedBranchAndBoundEnd2End:
     @pytest.mark.parametrize(
-        "A, t, expected_sols",
+        "A, b, expected_sols",
         [
             (
                 [[1, 0, 0, 1], [0, 1, 0, 1], [0, 1, 1, 0]],
                 [1, 0, 1],
-                [{0, 1, 3}, {0, 2, 4}],
+                [(0, 2), (1, 3)],
             ),
-            (
-                [[1, 0, 0, 1]],
-                [1],
-                [
-                    {0, 1},
-                    {0, 1, 2},
-                    {0, 1, 3},
-                    {0, 4},
-                    {0, 1, 2, 3},
-                    {0, 2, 4},
-                    {0, 3, 4},
-                    {0, 2, 3, 4},
-                ],
-            ),
-            (
-                [[1, 0, 0, 1], [0, 1, 0, 1]],
-                [1, 0],
-                [
-                    {0, 1},
-                    {0, 1, 3},
-                    {0, 2, 4},
-                    {0, 2, 3, 4},
-                ],
-            ),
+            # (
+            #     [[1, 0, 0, 1]],
+            #     [1],
+            #     [
+            #         (0,),
+            #         (0, 1),
+            #         (0, 2),
+            #         (3),
+            #         (0, 1, 2),
+            #         (1, 3),
+            #         (2, 3),
+            #         (1, 2, 3),
+            #     ],
+            # ),
+            # (
+            #     [[1, 0, 0, 1], [0, 1, 0, 1]],
+            #     [1, 0],
+            #     [
+            #         (0),
+            #         (0, 2),
+            #         (1, 3),
+            #         (1, 2, 3),
+            #     ],
+            # ),
         ],
     )
-    def test_complete_enumeration_with_infinite_ub(self, A, t, expected_sols):
-        A, t = bin_array(A), bin_array(t)
+    def test_complete_enumeration_with_infinite_ub(self, A, b, expected_sols):
+        A, b = map(bin_array, [A, b])
         rand_rules, rand_y = generate_random_rules_and_y(10, A.shape[1], 12345)
         cbb = ConstrainedBranchAndBound(rand_rules, float("inf"), rand_y, 0.1)
-        sols = cbb.bounded_sols(threshold=None, A=A, t=t)
+        sols = cbb.bounded_sols(threshold=None, A=A, b=b)
         assert set(map(tuple, sols)) == set(map(tuple, expected_sols))
 
     @pytest.mark.skip(

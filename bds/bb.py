@@ -4,7 +4,7 @@ import itertools
 
 from logzero import logger
 from gmpy2 import mpz
-from typing import Tuple, Optional, List, Iterable
+from typing import Tuple, Optional, List, Iterable, Union
 
 from .queue import Queue
 from .rule import Rule
@@ -21,6 +21,8 @@ from .bounds import (
 )
 
 # logger.setLevel(logging.INFO)
+
+Prefix = Tuple[int]
 
 
 class BranchAndBoundGeneric:
@@ -141,7 +143,7 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         parent_lower_bound: float,
         parent_not_captured: mpz,
         return_objective=False,
-    ):
+    ) -> Iterable[Union[Tuple[Prefix, float], Prefix]]:
         """
         check one node in the search tree, update the queue, and yield feasible solution if exists
 

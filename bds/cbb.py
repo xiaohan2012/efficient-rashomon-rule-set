@@ -93,19 +93,18 @@ def ensure_minimal_no_violation(
 
 
 @jit(nopython=True, cache=True)
-def count_added_pivots(j: int, A: np.ndarray, t: np.ndarray, z: np.ndarray) -> int:
-    """count the number of added pivot rules
+def count_added_pivots(j: int, A: np.ndarray, b: np.ndarray, z: np.ndarray) -> int:
+    """count the number of pivot rules to add in order to satisfy Ax=b
 
-    rationale:
+    which is equivalent to counting the number of constraints that satisfies either of the conditions below:
 
-    we basically count the number of which passes one of the conditions below:
+    - A[i][j] is False and (z[i] == b[i]) is False
+    - A[i][j] is True and (z[i] == b[i]) is True
 
-    - A[i][j-1] is False and (z[i] == t[i]) is False
-    - A[i][j-1] is True and (z[i] == t[i]) is True
-
-    equivalently, we count the number entries in A[:, j-1] == (z == t) that are true
+    which is equivalent to counting the number entries in A[:, j] == (z == b) that are True
     """
-    return (A[:, j - 1] == (z == t)).sum()
+    assert j >= 0
+    return (A[:, j] == (z == b)).sum()
 
 
 # @jit(nopython=True, cache=True)
@@ -210,14 +209,14 @@ def build_boundary_table(
 
 class ConstrainedBranchAndBound(BranchAndBoundNaive):
     def _simplify_constraint_system(
-        self, A: np.ndarray, t: np.ndarray
+        self, A: np.ndarray, b: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
         """simplify the constraint system using reduced row echelon form"""
         # logger.debug("simplifying A x = t using rref")
-        A_rref, t_rref, rank, pivot_columns = extended_rref(
-            GF(A.astype(int)), GF(t.astype(int)), verbose=False
+        A_rref, b_rref, rank, pivot_columns = extended_rref(
+            GF(A.astype(int)), GF(b.astype(int)), verbose=False
         )
-        return bin_array(A_rref), bin_array(t_rref), rank, pivot_columns
+        return bin_array(A_rref), bin_array(b_rref), rank, pivot_columns
 
     def setup_constraint_system(self, A: np.ndarray, t: np.ndarray):
         """set the constraint system, e.g., simplify the system"""
@@ -231,11 +230,11 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         # simplify the constraint system
         (
             self.A,
-            self.t,
+            self.b,
             self.rank,
             self.pivot_columns,
         ) = self._simplify_constraint_system(A, t)
-        self.is_linear_system_solvable = (self.t[self.rank :] == 0).all()
+        self.is_linear_system_solvable = (self.b[self.rank :] == 0).all()
 
         self.num_constraints = int(self.A.shape[0])
         self.num_vars = self.num_rules = int(self.A.shape[1])
@@ -268,8 +267,8 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         else:
             yield from super(ConstrainedBranchAndBound, self).generate(return_objective)
 
-    def reset(self, A: np.ndarray, t: np.ndarray):
-        self.setup_constraint_system(A, t)
+    def reset(self, A: np.ndarray, b: np.ndarray):
+        self.setup_constraint_system(A, b)
         super(ConstrainedBranchAndBound, self).reset()
 
     def __post_init__(self):
@@ -296,20 +295,17 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             z,
             s,
             self.A,
-            self.t,
+            self.b,
             self.B,
             self.row2pivot_column,
         )
         print("e1_idxs: {}".format(e1_idxs))
         if rule_id == -1:
-            print("self._lor(e1_idxs): {}".format(bin(self._lor(e1_idxs))))
-            print("u: {}".format(bin(u)))
             v = self._lor(e1_idxs) & u
-            print("up: {}".format(bin(v)))
             ext_size = len(e1_idxs)
         else:
             ext_size = len(e1_idxs) + 1
-            v = ((self._lor(e1_idxs) | self.truthtable_list[rule_id]) & u,)
+            v = (self._lor(e1_idxs) | self.truthtable_list[rule_id]) & u
 
         return (e1_idxs, v, zp, sp, ext_size)
 
@@ -321,7 +317,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             z,
             s,
             self.A,
-            self.t,
+            self.b,
             self.row2pivot_column,
         )
 
@@ -338,7 +334,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         # 0 means not satisfied yet
         # 1 means satisfied
         s = bin_zeros(self.num_constraints)
-        prefix_idxs, v, zp, sp, ext_size = self._ensure_minimal_non_violation(-1, u, z, s)
+        prefix_idxs, v, zp, sp, ext_size = self._ensure_minimal_non_violation(
+            -1, u, z, s
+        )
         up = ~(v | (~u))  # not captured by the prefix
         lb = calculate_lower_bound(
             self.rules, self.y_np, self.y_mpz, prefix_idxs, self.lmbd
@@ -386,10 +384,10 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
     def _loop(
         self,
         parent_prefix: Tuple[int],
-        parent_lower_bound: float,
-        parent_not_captured: mpz,
-        z: np.ndarray,
-        s: np.ndarray,
+        parent_lb: float,
+        parent_u: mpz,
+        parent_z: np.ndarray,
+        parent_s: np.ndarray,
         return_objective=False,
     ):
         """
@@ -400,17 +398,16 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         s: the satisfiability state vector
         return_objective: True if return the objective of the evaluated node
         """
-        parent_lb = parent_node.lower_bound
-        prefix_length = parent_node.num_rules
+        prefix_length = len(parent_prefix)
         length_ub = prefix_specific_length_upperbound(
             parent_lb, prefix_length, self.lmbd, self.ub
         )
-
+        max_rule_idx = max(parent_prefix or [-1])
         # logger.debug(f"parent node: {parent_node.get_ruleset_ids()}")
         # here we assume the rule ids are consecutive integers
         # padding = ' ' * (2 * parent_node.depth)
         # print("{}prefix: {}".format(padding, tuple(sorted(parent_node.get_ruleset_ids()))))
-        for rule in self.rules[parent_node.rule_id :]:
+        for rule in self.rules[(max_rule_idx+1) :]:
             # consider adding only free rules
             # since the addition of pivot rules are determined "automatically" by Ax=b
             if rule.id in self.pivot_rule_idxs:
@@ -425,7 +422,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
 
             lb = (
                 parent_lb
-                + self._incremental_update_lb(rule.truthtable & u, self.y_mpz)
+                + self._incremental_update_lb(rule.truthtable & parent_u, self.y_mpz)
                 + self.lmbd
             )
 
@@ -443,14 +440,11 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                     # v1 and not_w are updated here
                     (
                         e1_idxs,
+                        v1,
                         zp,
                         sp,
-                        v1,
                         extension_size,
-                    ) = self._ensure_minimal_non_violation(rule, z, s, u)
-
-                    w = v1 | ~u  # captured by the current rule set, i.e., d, e1, and r
-                    not_w = ~w  # not captured by the above
+                    ) = self._ensure_minimal_non_violation(rule.id, parent_u, parent_z, parent_s)
 
                     # update the hierarchical lower bound only if at least one pivot rules are added
                     if extension_size > 1:
@@ -458,7 +452,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                         if (prefix_length + extension_size) > length_ub:
                             continue
 
-                        # check new hierarchical lower bound
+                        # overwrite the hierarchical objective lower bound
                         lb = (
                             parent_lb
                             + self._incremental_update_lb(v1, self.y_mpz)
@@ -468,17 +462,19 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                         if lb > self.ub:
                             continue
 
-                    # all checks are passed and we add the new node
+                    new_prefix = tuple(sorted(parent_prefix + tuple(e1_idxs)))
+                    w = v1 | ~parent_u  # captured by the new prefix
+                    not_w = ~w  # not captured by the new prefix
                     self.queue.push(
-                        (child_node, not_w, zp, sp),
-                        key=child_node.lower_bound,
+                        (new_prefix, lb, not_w, zp, sp),
+                        key=lb,
                     )
                 # next we consider the feasibility d + r + the extension rules needed to satisfy Ax=b
                 # note that ext_idxs exclude the current rule
 
                 # we first check the solution length exceeds the length bound
-                # the number of added pivots are calcualted in a fast way
-                pvt_count = count_added_pivots(rule.id, self.A, self.t, z)
+                # the number of added pivots are calculated in a fast way
+                pvt_count = count_added_pivots(rule.id, self.A, self.b, parent_z)
 
                 # add 1 for the current rule, because ext_idx does not include the current rule
 
@@ -487,11 +483,11 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                     continue
 
                 # then we get the actual of added pivots to calculate the objective
-                ext_idxs = self._ensure_satisfiability(rule, z)
+                ext_idxs = self._ensure_satisfiability(rule.id, parent_z, parent_s)
 
                 # prepare to calculate the obj of the final solution
                 # v_ext: points captured by extention + current rule in the context of the prefix
-                v_ext = (rule.truthtable | self._lor(ext_idxs)) & u
+                v_ext = (rule.truthtable | self._lor(ext_idxs)) & parent_u
                 # the FP mistakes incurred by extension
                 fp_fraction = self._incremental_update_lb(v_ext, self.y_mpz)
 
@@ -504,23 +500,16 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
 
                 # calculate the true obj
                 # by adding the FN mistakes incurred by extention rules
-                fn_fraction, _ = self._incremental_update_obj(u, v_ext)
+                fn_fraction, _ = self._incremental_update_obj(parent_u, v_ext)
                 obj = obj_with_fp + fn_fraction
 
                 if obj <= self.ub:
-                    if child_node is None:
-                        # compute child_node if not done
-                        e1_idxs, _, _, _, _ = self._ensure_minimal_non_violation(
-                            rule, z, s, u
-                        )
-                    else:
-                        child_node.objective = obj  # update the obj
-                    ruleset = child_node.get_ruleset_ids() | set(ext_idxs)
+                    solution_prefix = tuple(sorted(parent_prefix + tuple(ext_idxs)))
 
                     # logger.debug(f"yielding {ruleset} with obj {obj:.2f}")
                     # print(f"{padding}    yield: {tuple(ruleset)}")
                     if return_objective:
-                        yield (ruleset, child_node.objective)
+                        yield (solution_prefix, obj)
                     else:
                         # print("self.queue._items: {}".format(self.queue._items))
-                        yield ruleset
+                        yield solution_prefix
