@@ -111,7 +111,7 @@ def bin_random(shape):
 
 
 def assert_binary_array(arr):
-    assert isinstance(arr, np.ndarray), f'{type(arr)}'
+    assert isinstance(arr, np.ndarray), f"{type(arr)}"
     assert arr.dtype == bool
 
 
@@ -223,3 +223,46 @@ def get_indices_and_indptr(A: np.ndarray, axis: int = 1):
     else:  # treat A as a csc_matrix
         A_sp = csc_matrix(A)
     return A_sp.indices, A_sp.indptr
+
+
+def calculate_obj(
+    rules: List["Rule"], y_np: np.ndarray, y_mpz: mpz, sol: Tuple[int], lmbd: float
+) -> float:
+    """calcuclate the objective for a given decision rule set (indicated by `sol`)
+    by convention, `sol` is sorted and `0` is included
+    n"""
+    assert 0 in sol, f"0 should be present in solution {sol}"
+    assert tuple(sorted(sol)) == tuple(sol), f"{sol} is not sorted lexicographically"
+    # print("sol: {}".format(sol))
+    ds_rules = [rules[i - 1] for i in sol[1:]]
+    # print("ds_rules: {}".format(ds_rules))
+    pred = lor_of_truthtable(ds_rules)
+    # print("bin(pred): {}".format(bin(pred)))
+    # print("bin(y_mpz): {}".format(bin(y_mpz)))
+    num_mistakes = gmp.popcount(y_mpz ^ pred)
+    # print("num_mistakes: {}".format(num_mistakes))
+    obj = len(sol[1:]) * lmbd + num_mistakes / y_np.shape[0]
+    return float(obj)
+
+
+def calculate_lower_bound(
+    rules: List["Rule"], y_np: np.ndarray, y_mpz: mpz, sol: Tuple[int], lmbd: float
+) -> float:
+    """calcuclate the lower bound for a given decision rule set (indicated by `sol`)
+    by convention, `sol` is sorted and `0` is included
+
+    the lower bound is basically number of false positives / total number of points + lambda \times (|sol| - 1)
+    """
+    assert 0 in sol, f"0 should be present in solution {sol}"
+    assert tuple(sorted(sol)) == tuple(sol), f"{sol} is not sorted lexicographically"
+    # print("sol: {}".format(sol))
+    ds_rules = [rules[i - 1] for i in sol[1:]]
+    # print("ds_rules: {}".format(ds_rules))
+    pred = lor_of_truthtable(ds_rules)
+    # print("bin(pred): {}".format(bin(pred)))
+    # print("bin(y_mpz): {}".format(bin(y_mpz)))
+    num_fp = gmp.popcount((y_mpz ^ pred) & pred)
+    # print("(y_mpz ^ pred) & y_mpz: {}".format(bin((y_mpz ^ pred) & y_mpz)))
+    # print("num_mistakes: {}".format(num_mistakes))
+    lb = len(sol[1:]) * lmbd + num_fp / y_np.shape[0]
+    return float(lb)
