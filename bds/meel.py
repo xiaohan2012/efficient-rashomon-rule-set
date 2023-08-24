@@ -1,4 +1,3 @@
-import itertools
 import logging
 import math
 import random
@@ -148,7 +147,7 @@ def log_search(
             )
             logger.debug(f"number of prefix evaluations: {cbb.num_prefix_evaluations}")
 
-        logger.debug(f"solving takes {timer.elapsed:.2f} secs")
+            logger.debug(f"solving takes {timer.elapsed:.2f} secs")
         time_cost_info.append((m, timer.elapsed))
 
         Y_size_arr[m] = Y_size

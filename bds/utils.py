@@ -1,6 +1,5 @@
 import itertools
 import json
-import logging
 import math
 import os
 import pickle as pkl
@@ -252,13 +251,13 @@ def calculate_obj(
 
 
 def calculate_lower_bound(
-        rules: List["Rule"], y_np: np.ndarray, y_mpz: mpz, sol: Tuple[int], lmbd: float
+    rules: List["Rule"], y_np: np.ndarray, y_mpz: mpz, sol: Tuple[int], lmbd: float
 ) -> float:
     """calcuclate the lower bound for a given decision rule set (indicated by `sol`)
-    by convention, `sol` is sorted and `0` is included
+        by convention, `sol` is sorted and `0` is included
 
-    the lower bound is basically number of false positives / total number of points + lambda \times (|sol| - 1)
-    """
+        the lower bound is basically number of false positives / total number of points + lambda \times (|sol| - 1)
+    1"""
     assert tuple(sorted(sol)) == tuple(sol), f"{sol} is not sorted lexicographically"
     # print("sol: {}".format(sol))
     ds_rules = [rules[i] for i in sol]

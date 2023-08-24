@@ -164,6 +164,7 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
 
         for rule in self.rules[(max_rule_idx + 1) :]:
             # prune by ruleset length
+            self.num_prefix_evaluations += 1
             if (parent_prefix_length + 1) > length_ub:
                 continue
 
