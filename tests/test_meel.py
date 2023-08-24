@@ -68,9 +68,9 @@ class TestLogSearch:
         ub = float("inf")
         A, b = generate_h_and_alpha(n, m, seed=rand_seed, as_numpy=True)
         # test statements
-        m, Y_size, big_cell, Y_size_arr, _, _ = log_search(
+        m, Y_size, big_cell, Y_size_arr = log_search(
             rules, y, lmbd, ub, A, b, thresh, m_prev, return_full=True
-        )
+        )[:4]
 
         self.check_output(m, Y_size, big_cell, Y_size_arr, thresh)
 
@@ -88,7 +88,7 @@ class TestLogSearch:
         random_rules, random_y, A, b = self.generate_random_input(10, 50, 1234)
 
         lmbd = 0.1
-        m, Y_size, big_cell, Y_size_arr, _, _ = log_search(
+        m, Y_size, big_cell, Y_size_arr = log_search(
             random_rules,
             random_y,
             lmbd,
@@ -98,7 +98,7 @@ class TestLogSearch:
             thresh,
             m_prev,
             return_full=True,
-        )
+        )[:4]
 
         self.check_output(m, Y_size, big_cell, Y_size_arr, thresh)
 
@@ -110,7 +110,7 @@ class TestLogSearch:
         random_rules, random_y, A, t = self.generate_random_input(20, 50, 1234)
 
         lmbd = 0.1
-        m, Y_size, big_cell, Y_size_arr, search_trajectory, _ = log_search(
+        m, Y_size, big_cell, Y_size_arr, search_trajectory = log_search(
             random_rules,
             random_y,
             lmbd,
@@ -120,7 +120,7 @@ class TestLogSearch:
             thresh,
             m_prev,
             return_full=True,
-        )
+        )[:5]
 
         # check format of the search trajectory
         for tpl in search_trajectory:
@@ -167,7 +167,7 @@ class TestLogSearch:
         m = A.shape[0]
 
         lmbd = 0.1
-        ref_m, ref_Y_size, ref_big_cell, ref_Y_size_arr, _, _ = log_search(
+        ref_m, ref_Y_size, ref_big_cell, ref_Y_size_arr = log_search(
             random_rules,
             random_y,
             lmbd,
@@ -177,14 +177,13 @@ class TestLogSearch:
             thresh,
             initial_m,
             return_full=True,
-        )
+        )[:4]
         for m_prev in range(1, m):
             (
                 actual_m,
                 actual_Y_size,
                 actual_big_cell,
-                actual_Y_size_arr,
-                _, _
+                actual_Y_size_arr
             ) = log_search(
                 random_rules,
                 random_y,
@@ -195,7 +194,7 @@ class TestLogSearch:
                 thresh,
                 m_prev=m_prev,
                 return_full=True,
-            )
+            )[:4]
             print("m_prev: {}".format(m_prev))
             np.testing.assert_equal(ref_big_cell, actual_big_cell)
             assert ref_m == actual_m
