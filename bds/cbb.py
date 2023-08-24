@@ -107,7 +107,7 @@ def count_added_pivots(j: int, A: np.ndarray, b: np.ndarray, z: np.ndarray) -> i
     return (A[:, j] == (z == b)).sum()
 
 
-# @jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True)
 def ensure_satisfiability(
     j: int,
     rank: int,
@@ -454,7 +454,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                         if lb > self.ub:
                             continue
 
-                    new_prefix = tuple(sorted(parent_prefix + tuple(e1_idxs) + (rule.id, )))
+                    new_prefix = tuple(
+                        sorted(parent_prefix + tuple(e1_idxs) + (rule.id,))
+                    )
                     w = v1 | ~parent_u  # captured by the new prefix
                     up = ~w  # not captured by the new prefix
                     self.queue.push(
@@ -496,7 +498,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                 obj = obj_with_fp + fn_fraction
 
                 if obj <= self.ub:
-                    solution_prefix = tuple(sorted(parent_prefix + tuple(ext_idxs) + (rule.id, )))
+                    solution_prefix = tuple(
+                        sorted(parent_prefix + tuple(ext_idxs) + (rule.id,))
+                    )
 
                     # logger.debug(f"yielding {ruleset} with obj {obj:.2f}")
                     # print(f"{padding}    yield: {tuple(ruleset)}")

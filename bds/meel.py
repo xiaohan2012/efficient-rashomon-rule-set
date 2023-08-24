@@ -131,6 +131,8 @@ def log_search(
 
     time_cost_info = []  # time cost for each tried m
 
+    num_prefix_evals = []  # number of prefix evaluaations per call
+
     cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
     while True:
         logger.debug(
@@ -148,7 +150,8 @@ def log_search(
             logger.debug(f"number of prefix evaluations: {cbb.num_prefix_evaluations}")
 
             logger.debug(f"solving takes {timer.elapsed:.2f} secs")
-        time_cost_info.append((m, timer.elapsed))
+            time_cost_info.append((m, timer.elapsed))
+            num_prefix_evals.append((m, cbb.num_prefix_evaluations))
 
         Y_size_arr[m] = Y_size
 
@@ -227,7 +230,15 @@ def log_search(
     for cur_m, etime in time_cost_info:
         print("|{}|{}|".format(cur_m, etime))
     if return_full:
-        return m, Y_size_arr[m], big_cell, Y_size_arr, search_trajectory, time_cost_info
+        return (
+            m,
+            Y_size_arr[m],
+            big_cell,
+            Y_size_arr,
+            search_trajectory,
+            time_cost_info,
+            num_prefix_evals,
+        )
     else:
         return m, Y_size_arr[m]
 
