@@ -144,39 +144,9 @@ def ensure_satisfiability(
     return selected_rules[:num_rules_selected]
 
 
-# def ensure_satisfiability_at_root(
-#     rank: int,
-#     z: np.ndarray,
-#     t: np.ndarray,
-#     num_rules: int,
-#     row2pivot_column: np.ndarray,
-# ) -> np.ndarray:
-#     """
-#     return the pivot variables that are assigned to 1s if no free rules are added
-#     """
-#     selected_rules = np.empty(num_rules, np.int_)
-#     num_rules_selected = 0
-
-#     for i in range(rank):  # loop up to rank
-#         if z[i] != t[i]:
-#             # j is the default rule
-#             selected_rules[num_rules_selected] = row2pivot_column[i] + 1
-#             num_rules_selected += 1
-#     return selected_rules[:num_rules_selected]
-
-
 def lor(vs: List[mpz]) -> mpz:
     """logical OR over a list of bit arrays"""
     return functools.reduce(lambda x, y: x | y, vs, mpz())
-
-
-@jit(nopython=True, cache=True, nogil=True)
-def negate_at_idxs(v: np.ndarray, idxs: np.ndarray) -> np.ndarray:
-    """negate the values of v at idxs"""
-    vp = v.copy()
-    for i in idxs:
-        vp[i] = ~vp[i]
-    return vp
 
 
 @jit(nopython=True, cache=True)
