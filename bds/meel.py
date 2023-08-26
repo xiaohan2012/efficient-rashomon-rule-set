@@ -129,9 +129,7 @@ def log_search(
     # as well as the solution size and threshold
     search_trajectory = []
 
-    time_cost_info = []  # time cost for each tried m
-
-    num_prefix_evals = []  # number of prefix evaluaations per call
+    time_cost_info = []
 
     cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
     while True:
@@ -147,11 +145,20 @@ def log_search(
             Y_size = cbb.bounded_count(
                 thresh, A=A[:m], b=b[:m]  # , solver_status=latest_solver_status
             )
+            logger.debug(f"number of popped items: {cbb.queue.popped_count}")
+            logger.debug(f"number of pushed items: {cbb.queue.pushed_count}")
             logger.debug(f"number of prefix evaluations: {cbb.num_prefix_evaluations}")
 
             logger.debug(f"solving takes {timer.elapsed:.2f} secs")
-            time_cost_info.append((m, timer.elapsed))
-            num_prefix_evals.append((m, cbb.num_prefix_evaluations))
+            time_cost_info.append(
+                {
+                    "m": m,
+                    "elapsed": timer.elapsed,
+                    "popped_count": cbb.queue.popped_count,
+                    "pushed_count": cbb.queue.pushed_count,
+                    "num_prefix_evaluations": cbb.num_prefix_evaluations
+                }
+            )
 
         Y_size_arr[m] = Y_size
 
@@ -174,7 +181,7 @@ def log_search(
                 fill_array_until(big_cell, m - 1, 1)
                 logger.debug(f"big_cell[{m+1}]={big_cell[m+1]}, return {m+1}")
                 m = m + 1
-                print("m (to return): {}".format(m))
+                # print("m (to return): {}".format(m))
                 break
 
             fill_array_until(big_cell, m, 1)
@@ -226,9 +233,9 @@ def log_search(
     # to make sure that the search trajectory is logical
     _check_log_search_trajectory(search_trajectory)
 
-    print("time_cost_info: ")
-    for cur_m, etime in time_cost_info:
-        print("|{}|{}|".format(cur_m, etime))
+    # print("time_cost_info: ")
+    # for cur_m, etime in time_cost_info:
+    #     print("|{}|{}|".format(cur_m, etime))
     if return_full:
         return (
             m,
@@ -236,8 +243,7 @@ def log_search(
             big_cell,
             Y_size_arr,
             search_trajectory,
-            time_cost_info,
-            num_prefix_evals,
+            time_cost_info
         )
     else:
         return m, Y_size_arr[m]

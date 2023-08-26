@@ -56,6 +56,11 @@ class BranchAndBoundGeneric:
 
         self.__post_init__()
 
+    def _print_rules_and_y(self):
+        for r in self.rules:
+            print(f"r{r.id:>3}: {bin(r.truthtable)[2:]:>20}")
+        print(f"y   : {bin(self.y_mpz)[2:]:>20}")
+
     def __post_init__(self):
         """hook function to be called after __init__ is called"""
         pass

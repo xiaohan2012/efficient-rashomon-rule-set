@@ -837,10 +837,10 @@ class TestConstrainedBranchAndBoundEnd2End:
     @pytest.mark.parametrize("ub", [0.801, 0.501, 0.001])  # float("inf"),  # , 0.01
     @pytest.mark.parametrize("rand_seed", randints(5))
     # @pytest.mark.parametrize("num_rules", [10])
-    # @pytest.mark.parametrize("num_constraints", [5])
+    # @pytest.mark.parametrize("num_constraints", [2])
     # @pytest.mark.parametrize("lmbd", [0.1])
-    # @pytest.mark.parametrize("ub", [0.501])  # float("inf"),  # , 0.01
-    # @pytest.mark.parametrize("rand_seed", [162140838])
+    # @pytest.mark.parametrize("ub", [0.801])  # float("inf"),  # , 0.01
+    # @pytest.mark.parametrize("rand_seed", [1320602510])
     def test_solution_correctness(
         self, num_rules, num_constraints, lmbd, ub, rand_seed
     ):
@@ -851,6 +851,7 @@ class TestConstrainedBranchAndBoundEnd2End:
         # print(rand_y[::-1].astype(int))
         cbb = ConstrainedBranchAndBound(rand_rules, ub, rand_y, lmbd)
 
+        # cbb._print_rules_and_y()
         A, b = generate_h_and_alpha(
             num_rules, num_constraints, rand_seed, as_numpy=True
         )

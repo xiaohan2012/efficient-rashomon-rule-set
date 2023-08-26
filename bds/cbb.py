@@ -204,8 +204,8 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             self.rank,
             self.pivot_columns,
         ) = self._simplify_constraint_system(A, t)
-        # print("A\n: {}".format(self.A.astype(int)))
-        # print("b\n: {}".format(self.b.astype(int)))
+        # print("A:\n {}".format(self.A.astype(int)))
+        # print("b:\n {}".format(self.b.astype(int)))
         self.is_linear_system_solvable = (self.b[self.rank :] == 0).all()
 
         self.num_constraints = int(self.A.shape[0])
@@ -368,15 +368,14 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         )
         free_rules_in_prefix = set(parent_prefix) - self.pivot_rule_idxs
         max_rule_idx = max(free_rules_in_prefix or [-1])
-        # print("parent_prefix: {}".format(parent_prefix))
+        # print("extending parent_prefix: {}".format(parent_prefix))
         for rule in self.rules[(max_rule_idx + 1) :]:
-            # print("rule.id: {}".format(rule.id))
             # consider adding only free rules
             # since the addition of pivot rules are determined "automatically" by Ax=b
             if rule.id in self.pivot_rule_idxs:
                 continue
 
-            # print("{}  rule.id: {}".format(padding, rule.id))
+            # print("   rule.id: {}".format(rule.id))
             self.num_prefix_evaluations += 1
 
             # prune by ruleset length
@@ -407,32 +406,32 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                         rule.id, parent_u, parent_z, parent_s
                     )
 
-                    # update the hierarchical lower bound only if at least one pivot rules are added
-                    # prune if needed
-                    if extension_size > 1:
-                        _ = 1 + 1  # dummy statement for profiling purposes
-                        if (prefix_length + extension_size) > length_ub:
-                            continue
+                    if (extension_size == 1) or (
+                        (extension_size > 1)
+                        and ((prefix_length + extension_size) <= length_ub)
+                    ):
+                        # update lb if pivots are added
+                        if extension_size > 1:
+                            lb = (
+                                parent_lb
+                                + self._incremental_update_lb(v1, self.y_mpz)
+                                + extension_size * self.lmbd
+                            )
 
-                        # overwrite the hierarchical objective lower bound
-                        lb = (
-                            parent_lb
-                            + self._incremental_update_lb(v1, self.y_mpz)
-                            + extension_size * self.lmbd
-                        )
+                        if (
+                            lb + self.lmbd
+                        ) <= self.ub:  # + 1 because we apply look-ahead bound
+                            new_prefix = tuple(
+                                sorted(parent_prefix + tuple(e1_idxs) + (rule.id,))
+                            )
+                            w = v1 | ~parent_u  # captured by the new prefix
+                            up = ~w  # not captured by the new prefix
+                            # print(f"pushing {new_prefix} to queue with lb={lb:.1f}")
+                            self.queue.push(
+                                (new_prefix, lb, up, zp, sp),
+                                key=lb,
+                            )
 
-                        if lb > self.ub:
-                            continue
-
-                    new_prefix = tuple(
-                        sorted(parent_prefix + tuple(e1_idxs) + (rule.id,))
-                    )
-                    w = v1 | ~parent_u  # captured by the new prefix
-                    up = ~w  # not captured by the new prefix
-                    self.queue.push(
-                        (new_prefix, lb, up, zp, sp),
-                        key=lb,
-                    )
                 # next we consider the feasibility d + r + the extension rules needed to satisfy Ax=b
                 # note that ext_idxs exclude the current rule
 
@@ -466,6 +465,18 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                 # by adding the FN mistakes incurred by extention rules
                 fn_fraction, _ = self._incremental_update_obj(parent_u, v_ext)
                 obj = obj_with_fp + fn_fraction
+
+                # print(f"adding {ext_idxs} s.t. Ax=b")
+                # print(
+                #     "solution_prefix: {}".format(
+                #         tuple(sorted(parent_prefix + tuple(ext_idxs) + (rule.id,)))
+                #     )
+                # )
+                # print("v_ext: {}".format(bin(v_ext)[2:]))
+                # print("parent_lb: {}".format(parent_lb))
+                # print("fp_fraction: {}".format(fp_fraction))
+                # print("fn_fraction: {}".format(fn_fraction))
+                # print("obj: {:.2f}".format(obj))
 
                 if obj <= self.ub:
                     solution_prefix = tuple(

@@ -69,6 +69,9 @@ def brute_force_enumeration(
                 obj = calculate_obj(rules, y, y_mpz, sol, lmbd)
                 # print("obj: {}".format(obj))
                 # and obj is upper boudned by ub
+                if sol in {(0, 2, 4, 9), (0, 2, 4, 8), (0, 4, 8, 9)}:
+                    print("sol: {}".format(sol))
+                    print("obj: {}".format(obj))
                 if obj <= ub:
                     yield (tuple(sorted(sol)), obj)
 
