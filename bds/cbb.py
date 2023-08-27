@@ -225,9 +225,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         )
 
         if self.A.shape[0] >= 1:
-            random_row_idx = np.random.randint(0, self.A.shape[0])
+            row_idx = self.A.sum(axis=1).argmin()
             ordered_free_idxs = np.argsort(
-                np.array(self.A[random_row_idx, free_cols], dtype=int)
+                np.array(self.A[row_idx, free_cols], dtype=int)
             )[::-1]
         else:
             # when A is empty, do not re-order
