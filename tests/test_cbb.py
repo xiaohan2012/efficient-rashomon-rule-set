@@ -9,6 +9,7 @@ from bds.cbb import (
     count_added_pivots,
     ensure_minimal_no_violation,
     ensure_satisfiability,
+    get_column_order,
 )
 from bds.gf2 import GF, extended_rref
 from bds.random_hash import generate_h_and_alpha
@@ -31,6 +32,24 @@ from .utils import (
     generate_random_rules_and_y,
     normalize_solutions,
 )
+
+
+class TestGetColumnOrder:
+    @pytest.mark.parametrize(
+        "A, expected",
+        [
+            # pivots: 0 and 1
+            ([[0, 1, 0], [0, 0, 1]], [1, 2, 0]),
+            # pivots: 1 and 2
+            ([[0, 1, 0, 0], [0, 0, 1, 1]], [1, 2, 3, 0]),
+        ],
+    )
+    def test_basic(self, A, expected):
+        A, b = map(GF, [A, np.ones(A.shape[0])])
+        A, b, rank, pivot_columns = extended_rref(A, b)
+        actual = get_column_order(A, b, rank, pivot_columns)
+
+        np.testing.assert_allclose(actual, expected)
 
 
 @pytest.mark.parametrize(

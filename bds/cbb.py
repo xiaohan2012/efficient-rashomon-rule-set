@@ -177,6 +177,14 @@ def build_boundary_table(
     return np.array(result, dtype=int)
 
 
+def get_column_order(A: np.ndarray, rank: int, pivot_columns: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """return an ordering of the columns in A such that pivot columns appear first on the left, and free columns follow, which are ranked by the number of 1s of that column in descending order"""
+    res = np.sort(pivot_columns)
+
+    # get free columns positions
+    # get the number of 1s per column
+    # rank the columns
+
 class ConstrainedBranchAndBound(BranchAndBoundNaive):
     def _simplify_constraint_system(
         self, A: np.ndarray, b: np.ndarray
@@ -204,6 +212,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             self.rank,
             self.pivot_columns,
         ) = self._simplify_constraint_system(A, t)
+
+        self._reorder_columns(self.A, self.b, self.rank, self.pivot_columns)
+
         # print("A:\n {}".format(self.A.astype(int)))
         # print("b:\n {}".format(self.b.astype(int)))
         self.is_linear_system_solvable = (self.b[self.rank :] == 0).all()
