@@ -6,6 +6,7 @@ import numpy as np
 from gmpy2 import mpfr, mpz
 from logzero import logger
 from numba import jit
+from copy import deepcopy
 
 from .bb import BranchAndBoundNaive
 from .bounds import prefix_specific_length_upperbound
@@ -178,13 +179,16 @@ def build_boundary_table(
     return np.array(result, dtype=int)
 
 
-def get_column_order(A: np.ndarray, rank: int, pivot_columns: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def get_column_order(
+    A: np.ndarray, rank: int, pivot_columns: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """return an ordering of the columns in A such that pivot columns appear first on the left, and free columns follow, which are ranked by the number of 1s of that column in descending order"""
     res = np.sort(pivot_columns)
 
     # get free columns positions
     # get the number of 1s per column
     # rank the columns
+
 
 class ConstrainedBranchAndBound(BranchAndBoundNaive):
     def _simplify_constraint_system(
@@ -214,7 +218,27 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             self.pivot_columns,
         ) = self._simplify_constraint_system(A, t)
 
-        self._reorder_columns(self.A, self.b, self.rank, self.pivot_columns)
+        print(f"apply re-ordering")
+        # do the re-orderingg
+        free_cols = np.array(
+            list(set(np.arange(self.A.shape[1])) - set(self.pivot_columns)), dtype=int
+        )
+        nnz = np.array(self.A[:, free_cols], dtype=int).sum(axis=0)
+        ordered_free_idxs = np.argsort(nnz)[::-1]
+        ordered_idxs = np.concatenate(
+            [self.pivot_columns, free_cols[ordered_free_idxs]]
+        )
+
+        self.pivot_columns = np.arange(self.rank)
+
+        # re-order the columns, rule, and truthtable_list
+        self.A = self.A[:, ordered_idxs]
+        self.rules = deepcopy([self.rules[i] for i in ordered_idxs])
+        self.truthtable_list = [self.truthtable_list[i] for i in ordered_idxs]
+
+        # re-assign the rule ids
+        for i, rule in enumerate(self.rules):
+            rule.id = i
 
         # print("A:\n {}".format(self.A.astype(int)))
         # print("b:\n {}".format(self.b.astype(int)))
@@ -226,10 +250,8 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         # build the boundary table
         self.B = build_boundary_table(self.A, self.rank, self.pivot_columns)
 
-        self.pivot_rule_idxs = set(map(lambda v: v, self.pivot_columns))
-        self.free_rule_idxs = (
-            set(map(lambda v: v, range(self.num_vars))) - self.pivot_rule_idxs
-        )
+        self.pivot_rule_idxs = set(self.pivot_columns)
+        self.free_rule_idxs = set(range(self.num_vars)) - self.pivot_rule_idxs
         # mapping from row index to the pivot column index
         self.row2pivot_column = np.array(self.pivot_columns, dtype=int)
 
