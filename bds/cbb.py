@@ -223,8 +223,16 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         free_cols = np.array(
             list(set(np.arange(self.A.shape[1])) - set(self.pivot_columns)), dtype=int
         )
-        nnz = np.array(self.A[:, free_cols], dtype=int).sum(axis=0)
-        ordered_free_idxs = np.argsort(nnz)[::-1]
+
+        if self.A.shape[0] >= 1:
+            random_row_idx = np.random.randint(0, self.A.shape[0])
+            ordered_free_idxs = np.argsort(
+                np.array(self.A[random_row_idx, free_cols], dtype=int)
+            )[::-1]
+        else:
+            # when A is empty, do not re-order
+            ordered_free_idxs = np.arange(len(free_cols))
+
         ordered_idxs = np.concatenate(
             [self.pivot_columns, free_cols[ordered_free_idxs]]
         )
