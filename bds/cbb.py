@@ -165,6 +165,7 @@ def build_boundary_table(
     A: np.ndarray, rank: int, pivot_columns: np.ndarray
 ) -> np.ndarray:
     """for a 2D matrix A, compute the maximum non-zero non-pivot index per row, if it does not exist, use -1"""
+    assert isinstance(A, np.ndarray)
     assert A.ndim == 2
     Ap = A.copy()
     result = []
