@@ -218,7 +218,6 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             self.pivot_columns,
         ) = self._simplify_constraint_system(A, t)
 
-        print(f"apply re-ordering")
         # do the re-orderingg
         free_cols = np.array(
             list(set(np.arange(self.A.shape[1])) - set(self.pivot_columns)), dtype=int
