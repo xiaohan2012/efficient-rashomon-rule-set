@@ -9,7 +9,6 @@ from bds.cbb import (
     count_added_pivots,
     ensure_minimal_no_violation,
     ensure_satisfiability,
-    get_column_order,
 )
 from bds.gf2 import GF, extended_rref
 from bds.random_hash import generate_h_and_alpha
@@ -32,24 +31,6 @@ from .utils import (
     generate_random_rules_and_y,
     normalize_solutions,
 )
-
-
-class TestGetColumnOrder:
-    @pytest.mark.parametrize(
-        "A, expected",
-        [
-            # pivots: 0 and 1
-            ([[0, 1, 0], [0, 0, 1]], [1, 2, 0]),
-            # pivots: 1 and 2
-            ([[0, 1, 0, 0], [0, 0, 1, 1]], [1, 2, 3, 0]),
-        ],
-    )
-    def test_basic(self, A, expected):
-        A, b = map(GF, [A, np.ones(A.shape[0])])
-        A, b, rank, pivot_columns = extended_rref(A, b)
-        actual = get_column_order(A, b, rank, pivot_columns)
-
-        np.testing.assert_allclose(actual, expected)
 
 
 @pytest.mark.parametrize(
@@ -502,7 +483,7 @@ class TestConstrainedBranchAndBoundMethods:
 
     def test_init(self):
         cbb = ConstrainedBranchAndBound(
-            self.input_rules, float("inf"), self.input_y, 0.1
+            self.input_rules, float("inf"), self.input_y, 0.1, reorder_columns=False
         )
         assert len(cbb.truthtable_list) == len(self.input_rules)
 
@@ -568,7 +549,7 @@ class TestConstrainedBranchAndBoundMethods:
         cbb.reset(A, b)
 
         sol, obj = list(cbb.generate_solution_at_root(return_objective=True))[0]
-        assert sol == expected_sols
+        assert sol == tuple(expected_sols)
         np.testing.assert_allclose(float(obj), expected_obj)
 
     @pytest.mark.parametrize(
@@ -590,7 +571,7 @@ class TestConstrainedBranchAndBoundMethods:
         exp_B,
     ):
         rand_rules, rand_y = generate_random_rules_and_y(10, 3, 12345)
-        cbb = ConstrainedBranchAndBound(rand_rules, float("inf"), rand_y, 0.1)
+        cbb = ConstrainedBranchAndBound(rand_rules, float("inf"), rand_y, 0.1, reorder_columns=False)
 
         cbb.setup_constraint_system(bin_array(A), bin_array(b))
 
@@ -669,7 +650,7 @@ class TestConstrainedBranchAndBoundMethods:
         lmbd = 0.1
 
         cbb = ConstrainedBranchAndBound(
-            self.input_rules, float("inf"), self.input_y, lmbd
+            self.input_rules, float("inf"), self.input_y, lmbd, reorder_columns=False
         )
         cbb.setup_constraint_system(A, b)
         cbb.reset_queue()
@@ -732,7 +713,7 @@ class TestConstrainedBranchAndBoundEnd2End:
     def test_complete_enumeration_with_infinite_ub(self, A, b, expected_sols):
         A, b = map(bin_array, [A, b])
         rand_rules, rand_y = generate_random_rules_and_y(10, A.shape[1], 12345)
-        cbb = ConstrainedBranchAndBound(rand_rules, float("inf"), rand_y, 0.1)
+        cbb = ConstrainedBranchAndBound(rand_rules, float("inf"), rand_y, 0.1, reorder_columns=False)
         sols = cbb.bounded_sols(threshold=None, A=A, b=b)
         assert normalize_solutions(sols) == normalize_solutions(expected_sols)
 
@@ -751,7 +732,7 @@ class TestConstrainedBranchAndBoundEnd2End:
     )
     def test_varying_ub_case_1(self, rules, y, ub, expected):
         lmbd = 0.1
-        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
+        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd, reorder_columns=False)
 
         # 3 rules
         # 2 constraints
@@ -775,7 +756,7 @@ class TestConstrainedBranchAndBoundEnd2End:
     )
     def test_varying_ub_case_2(self, rules, y, ub, expected):
         lmbd = 0.1
-        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
+        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd, reorder_columns=False)
 
         A = bin_array([[1, 0, 1], [0, 1, 0]])  # 1  # 0
         b = bin_array([1, 0])
@@ -794,7 +775,7 @@ class TestConstrainedBranchAndBoundEnd2End:
     )
     def test_varying_ub_case_3(self, rules, y, ub, expected):
         lmbd = 0.1
-        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
+        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd, reorder_columns=False)
 
         A = bin_array([[1, 0, 1], [1, 1, 0]])
         b = bin_array([0, 0])
@@ -813,7 +794,7 @@ class TestConstrainedBranchAndBoundEnd2End:
     )
     def test_varying_ub_case_4(self, rules, y, ub, expected):
         lmbd = 0.1
-        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
+        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd, reorder_columns=False)
 
         A = bin_array([[1, 0, 1], [1, 1, 0]])
         b = bin_array([0, 1])
@@ -829,7 +810,7 @@ class TestConstrainedBranchAndBoundEnd2End:
     def test_bounded_count(self, rules, y, thresh, count):
         ub = float("inf")
         lmbd = 0.1
-        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
+        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd, reorder_columns=False)
 
         A = bin_array([[1, 0, 1], [1, 1, 0]])
         b = bin_array([0, 1])
@@ -842,7 +823,7 @@ class TestConstrainedBranchAndBoundEnd2End:
     def test_bounded_sols(self, rules, y, thresh, count):
         ub = float("inf")
         lmbd = 0.1
-        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
+        cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd, reorder_columns=False)
 
         A = bin_array([[1, 0, 1], [1, 1, 0]])
         b = bin_array([0, 1])
@@ -869,7 +850,7 @@ class TestConstrainedBranchAndBoundEnd2End:
         # for r in rand_rules:
         #     print(f'{r.name}: {bin(r.truthtable)}')
         # print(rand_y[::-1].astype(int))
-        cbb = ConstrainedBranchAndBound(rand_rules, ub, rand_y, lmbd)
+        cbb = ConstrainedBranchAndBound(rand_rules, ub, rand_y, lmbd, reorder_columns=False)
 
         # cbb._print_rules_and_y()
         A, b = generate_h_and_alpha(
@@ -883,6 +864,22 @@ class TestConstrainedBranchAndBoundEnd2End:
         # print(expected)
         # assert set(actual.keys()) == set(expected.keys())
         assert_dict_allclose(actual, expected)
-        # print("len(expected): {}".format(len(expected)))
-        # print("expected: {}".format(expected))
-        # raise ValueError(expected)
+
+    @pytest.mark.parametrize("num_rules", [10])
+    @pytest.mark.parametrize("num_constraints", [2, 4, 8])
+    @pytest.mark.parametrize("lmbd", [0.1])
+    @pytest.mark.parametrize("ub", [0.801, 0.501, 0.001])  # float("inf"),  # , 0.01
+    @pytest.mark.parametrize("rand_seed", randints(5))
+    def test_column_reodering(self, num_rules, num_constraints, lmbd, ub, rand_seed):
+        """the output with column reordering should be the same as without column reordering"""
+        rand_rules, rand_y = generate_random_rules_and_y(10, num_rules, rand_seed)
+        cbb_ref = ConstrainedBranchAndBound(rand_rules, ub, rand_y, lmbd, reorder_columns=False)
+        cbb_test = ConstrainedBranchAndBound(rand_rules, ub, rand_y, lmbd, reorder_columns=True)
+
+        A, b = generate_h_and_alpha(
+            num_rules, num_constraints, rand_seed, as_numpy=True
+        )
+        expected = solutions_to_dict(list(cbb_ref.run(return_objective=True, A=A, b=b)))
+        actual = solutions_to_dict(list(cbb_test.run(return_objective=True, A=A, b=b)))
+
+        assert_dict_allclose(actual, expected)

@@ -94,7 +94,7 @@ def log_search(
       is True if returning all information relevant to the call,
       otherwise return the m value and the corresponding solution set size
     """
-    logger.debug(f"calling log_search with thresh={thresh}")
+    logger.debug(f"calling log_search with m_prev={m_prev} and thresh={thresh}")
     # TODO: cache the number of solutions and return the one corresponding to the m
     if thresh <= 1:
         raise ValueError("thresh should be at least 1")

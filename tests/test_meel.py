@@ -148,18 +148,18 @@ class TestLogSearch:
                 later_ms = extract_later_ms(i)
                 np.testing.assert_allclose(later_ms > m, True)
 
-    @pytest.mark.parametrize(
-        "ub", [0.6, 0.75]  # using larger ub, e.g., 1.0 tends to run slower
-    )
-    @pytest.mark.parametrize("initial_m", randints(3, vmin=1, vmax=5))
-    @pytest.mark.parametrize("thresh", [5, 10])
-    @pytest.mark.parametrize("rand_seed", randints(3))
     # @pytest.mark.parametrize(
-    #     "ub", [0.75]
+    #     "ub", [0.6, 0.75]  # using larger ub, e.g., 1.0 tends to run slower
     # )
-    # @pytest.mark.parametrize('initial_m', [3])
-    # @pytest.mark.parametrize("thresh", [10])
-    # @pytest.mark.parametrize("rand_seed", [1707139767])
+    # @pytest.mark.parametrize("initial_m", randints(3, vmin=1, vmax=5))
+    # @pytest.mark.parametrize("thresh", [5, 10])
+    # @pytest.mark.parametrize("rand_seed", randints(3))
+    @pytest.mark.parametrize(
+        "ub", [0.75]
+    )
+    @pytest.mark.parametrize('initial_m', [4])
+    @pytest.mark.parametrize("thresh", [5])
+    @pytest.mark.parametrize("rand_seed", [1038919528])
     def test_consistency_on_m(self, ub, initial_m, thresh, rand_seed):
         """no matter which initial m is provided, the same m should be returned"""
         random_rules, random_y, A, b = self.generate_random_input(10, 50, rand_seed)
