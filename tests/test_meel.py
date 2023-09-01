@@ -151,15 +151,15 @@ class TestLogSearch:
     @pytest.mark.parametrize(
         "ub", [0.6, 0.75]  # using larger ub, e.g., 1.0 tends to run slower
     )
-    @pytest.mark.parametrize('initial_m', randints(3, vmin=1, vmax=5))
+    @pytest.mark.parametrize("initial_m", randints(3, vmin=1, vmax=5))
     @pytest.mark.parametrize("thresh", [5, 10])
     @pytest.mark.parametrize("rand_seed", randints(3))
     # @pytest.mark.parametrize(
     #     "ub", [0.75]
     # )
-    # @pytest.mark.parametrize('initial_m', [3])
-    # @pytest.mark.parametrize("thresh", [10])
-    # @pytest.mark.parametrize("rand_seed", [1707139767])
+    # @pytest.mark.parametrize('initial_m', [4])
+    # @pytest.mark.parametrize("thresh", [5])
+    # @pytest.mark.parametrize("rand_seed", [1038919528])
     def test_consistency_on_m(self, ub, initial_m, thresh, rand_seed):
         """no matter which initial m is provided, the same m should be returned"""
         random_rules, random_y, A, b = self.generate_random_input(10, 50, rand_seed)
@@ -179,12 +179,7 @@ class TestLogSearch:
             return_full=True,
         )[:4]
         for m_prev in range(1, m):
-            (
-                actual_m,
-                actual_Y_size,
-                actual_big_cell,
-                actual_Y_size_arr
-            ) = log_search(
+            (actual_m, actual_Y_size, actual_big_cell, actual_Y_size_arr) = log_search(
                 random_rules,
                 random_y,
                 lmbd,
@@ -199,7 +194,6 @@ class TestLogSearch:
             np.testing.assert_equal(ref_big_cell, actual_big_cell)
             assert ref_m == actual_m
             assert ref_Y_size == actual_Y_size
-
 
     @pytest.mark.parametrize("m_prev", [2, 3, 4])
     def test_too_large_m_prev(self, m_prev):
@@ -328,8 +322,6 @@ class TestApproxMC2:
             num_pts, num_rules, rand_seed=1234
         )
 
-
-
         estimate_actual = approx_mc2(
             random_rules,
             random_y,
@@ -352,8 +344,6 @@ class TestApproxMC2:
             parallel=False,  # sequential run
         )
         assert estimate_expected == estimate_actual
-        
-        
 
     @pytest.mark.parametrize("ub", [0.6, 0.9, 1.0])
     @pytest.mark.parametrize("eps", [0.8, 0.5])

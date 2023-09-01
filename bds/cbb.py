@@ -6,6 +6,7 @@ import numpy as np
 from gmpy2 import mpfr, mpz
 from logzero import logger
 from numba import jit
+from copy import deepcopy
 
 from .bb import BranchAndBoundNaive
 from .bounds import prefix_specific_length_upperbound
@@ -179,6 +180,13 @@ def build_boundary_table(
 
 
 class ConstrainedBranchAndBound(BranchAndBoundNaive):
+    def __init__(self, *args, reorder_columns=True, **kwargs):
+        super(ConstrainedBranchAndBound, self).__init__(*args, **kwargs)
+        self.reorder_column = reorder_columns
+        # copy the rules for later use
+        self.rules_before_ordering = deepcopy(self.rules)
+
+        
     def _simplify_constraint_system(
         self, A: np.ndarray, b: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -189,14 +197,52 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         )
         return bin_array(A_rref), bin_array(b_rref), rank, pivot_columns
 
-    def setup_constraint_system(self, A: np.ndarray, t: np.ndarray):
+    def _do_reorder_columns(self):
+        """re-order the columns of A and reflect the new ordering in the rules"""        
+        free_cols = np.array(
+            list(set(np.arange(self.A.shape[1])) - set(self.pivot_columns)), dtype=int
+        )
+
+        if self.A.shape[0] >= 1:
+            row_idx = self.A.sum(axis=1).argmin()
+            ordered_free_idxs = np.argsort(
+                np.array(self.A[row_idx, free_cols], dtype=int)
+            )[::-1]
+        else:
+            # when A is empty, do not re-order
+            ordered_free_idxs = np.arange(len(free_cols))
+
+        ordered_idxs = np.concatenate(
+            [self.pivot_columns, free_cols[ordered_free_idxs]]
+        )
+        # mapping from new column idx to old idx
+        self.idx_map_new2old = ordered_idxs.copy()
+
+        self.pivot_columns = np.arange(self.rank)
+
+        # re-order the columns, rule, and truthtable_list
+        self.A = self.A[:, ordered_idxs]
+        self.rules = [self.rules[i] for i in ordered_idxs]
+        self.truthtable_list = [r.truthtable for r in self.rules]
+
+        # re-assign the rule ids
+        for i, rule in enumerate(self.rules):
+            rule.id = i
+
+    def setup_constraint_system(self, A: np.ndarray, b: np.ndarray):
         """set the constraint system, e.g., simplify the system"""
+        # print("rules:\n")
+        # for r in self.rules:
+        #     print(r)
+        # print("A:\n {}".format(A.astype(int)))
+        # print("b:\n {}".format(b.astype(int)))
+        
         logger.debug("setting up the parity constraint system")
-        assert_binary_array(t)
+        assert_binary_array(b)
 
         assert (
-            A.shape[0] == t.shape[0]
-        ), f"dimension mismatch: {A.shape[0]} != {t.shape[0]}"
+            A.shape[0] == b.shape[0]
+        ), f"dimension mismatch: {A.shape[0]} != {b.shape[0]}"
 
         # simplify the constraint system
         (
@@ -204,7 +250,11 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             self.b,
             self.rank,
             self.pivot_columns,
-        ) = self._simplify_constraint_system(A, t)
+        ) = self._simplify_constraint_system(A, b)
+        
+        if self.reorder_column:
+            self._do_reorder_columns()
+
         # print("A:\n {}".format(self.A.astype(int)))
         # print("b:\n {}".format(self.b.astype(int)))
         self.is_linear_system_solvable = (self.b[self.rank :] == 0).all()
@@ -215,10 +265,8 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         # build the boundary table
         self.B = build_boundary_table(self.A, self.rank, self.pivot_columns)
 
-        self.pivot_rule_idxs = set(map(lambda v: v, self.pivot_columns))
-        self.free_rule_idxs = (
-            set(map(lambda v: v, range(self.num_vars))) - self.pivot_rule_idxs
-        )
+        self.pivot_rule_idxs = set(self.pivot_columns)
+        self.free_rule_idxs = set(range(self.num_vars)) - self.pivot_rule_idxs
         # mapping from row index to the pivot column index
         self.row2pivot_column = np.array(self.pivot_columns, dtype=int)
 
@@ -231,6 +279,10 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             yield from super(ConstrainedBranchAndBound, self).generate(return_objective)
 
     def reset(self, A: np.ndarray, b: np.ndarray):
+        # important: restore the original ordering first
+        # otherwise, previous calls may mess up the ordering        
+        self.rules = deepcopy(self.rules_before_ordering)
+        
         self.setup_constraint_system(A, b)
         super(ConstrainedBranchAndBound, self).reset()
 
@@ -243,6 +295,15 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         for i in idxs:
             r |= self.truthtable_list[i]
         return r
+
+    def _pack_solution(self, sol, obj=None):
+        """return the solution (and objective if it is given), always return the original rule ids"""
+        if self.reorder_column:
+            sol = tuple([self.idx_map_new2old[i] for i in sol])
+        if obj is not None:
+            return sol, obj
+        else:
+            return sol
 
     def _ensure_minimal_non_violation(
         self, rule_id: int, u: mpz, z: np.ndarray, s: np.ndarray
@@ -329,9 +390,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         # logger.debug(f"solution at root: {sol} (obj={obj:.2f})")
         if len(sol) >= 1 and obj <= self.ub:
             if return_objective:
-                yield sol, obj
+                yield self._pack_solution(sol, obj)
             else:
-                yield sol
+                yield self._pack_solution(sol)
 
     def generate(self, return_objective=False) -> Iterable:
         if not self.is_linear_system_solvable:
@@ -480,14 +541,14 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                 # print("obj: {:.2f}".format(obj))
 
                 if obj <= self.ub:
-                    solution_prefix = tuple(
+                    sol = tuple(
                         sorted(parent_prefix + tuple(ext_idxs) + (rule.id,))
                     )
 
                     # logger.debug(f"yielding {ruleset} with obj {obj:.2f}")
                     # print(f"{padding}    yield: {tuple(ruleset)}")
                     if return_objective:
-                        yield (solution_prefix, obj)
+                        yield self._pack_solution(sol, obj)
                     else:
                         # print("self.queue._items: {}".format(self.queue._items))
-                        yield solution_prefix
+                        yield self._pack_solution(sol)

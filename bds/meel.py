@@ -94,7 +94,7 @@ def log_search(
       is True if returning all information relevant to the call,
       otherwise return the m value and the corresponding solution set size
     """
-    logger.debug(f"calling log_search with thresh={thresh}")
+    logger.debug(f"calling log_search with m_prev={m_prev} and thresh={thresh}")
     # TODO: cache the number of solutions and return the one corresponding to the m
     if thresh <= 1:
         raise ValueError("thresh should be at least 1")
@@ -131,7 +131,7 @@ def log_search(
 
     time_cost_info = []
 
-    cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
+    cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd, reorder_columns=True)
     while True:
         logger.debug(
             "---- solve m = {}----".format(
@@ -142,12 +142,13 @@ def log_search(
 
         # obtain only the first `thresh` solutions in the random cell
         with Timer() as timer:
+            # print("m: {}".format(m))
             Y_size = cbb.bounded_count(
                 thresh, A=A[:m], b=b[:m]  # , solver_status=latest_solver_status
             )
             logger.debug(f"number of popped items: {cbb.queue.popped_count}")
             logger.debug(f"number of pushed items: {cbb.queue.pushed_count}")
-            logger.debug(f"number of prefix evaluations: {cbb.num_prefix_evaluations}")
+            # logger.debug(f"number of prefix evaluations: {cbb.num_prefix_evaluations}")
 
             logger.debug(f"solving takes {timer.elapsed:.2f} secs")
             time_cost_info.append(
