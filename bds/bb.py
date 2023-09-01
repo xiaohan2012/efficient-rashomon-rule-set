@@ -5,6 +5,7 @@ import itertools
 from logzero import logger
 from gmpy2 import mpz
 from typing import Tuple, Optional, List, Iterable, Union
+from copy import deepcopy
 
 from .queue import Queue
 from .rule import Rule
@@ -36,8 +37,8 @@ class BranchAndBoundGeneric:
         lmbd: the parameter that controls regularization strength
         """
         assert_binary_array(y)
-        self.y_np = y  # np.ndarray version of y
-        self.rules = rules
+        self.y_np = y.copy()  # np representation of y
+        self.rules = deepcopy(rules)
         self.ub = ub
         self.y_mpz = mpz_set_bits(
             mpz(), y.nonzero()[0]

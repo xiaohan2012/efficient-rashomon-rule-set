@@ -131,7 +131,7 @@ def log_search(
 
     time_cost_info = []
 
-    cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
+    cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd, reorder_columns=True)
     while True:
         logger.debug(
             "---- solve m = {}----".format(
@@ -142,12 +142,13 @@ def log_search(
 
         # obtain only the first `thresh` solutions in the random cell
         with Timer() as timer:
+            # print("m: {}".format(m))
             Y_size = cbb.bounded_count(
                 thresh, A=A[:m], b=b[:m]  # , solver_status=latest_solver_status
             )
             logger.debug(f"number of popped items: {cbb.queue.popped_count}")
             logger.debug(f"number of pushed items: {cbb.queue.pushed_count}")
-            logger.debug(f"number of prefix evaluations: {cbb.num_prefix_evaluations}")
+            # logger.debug(f"number of prefix evaluations: {cbb.num_prefix_evaluations}")
 
             logger.debug(f"solving takes {timer.elapsed:.2f} secs")
             time_cost_info.append(

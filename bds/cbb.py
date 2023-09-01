@@ -183,6 +183,8 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
     def __init__(self, *args, reorder_columns=True, **kwargs):
         super(ConstrainedBranchAndBound, self).__init__(*args, **kwargs)
         self.reorder_column = reorder_columns
+        # copy the rules for later use
+        self.rules_before_ordering = deepcopy(self.rules)
 
         
     def _simplify_constraint_system(
@@ -196,7 +198,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         return bin_array(A_rref), bin_array(b_rref), rank, pivot_columns
 
     def _do_reorder_columns(self):
-        """re-order the columns of A and reflect the new ordering in the rules"""
+        """re-order the columns of A and reflect the new ordering in the rules"""        
         free_cols = np.array(
             list(set(np.arange(self.A.shape[1])) - set(self.pivot_columns)), dtype=int
         )
@@ -219,9 +221,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         self.pivot_columns = np.arange(self.rank)
 
         # re-order the columns, rule, and truthtable_list
-        self.A = self.A.copy()[:, ordered_idxs]
-        self.rules = deepcopy([self.rules[i] for i in ordered_idxs])
-        self.truthtable_list = [self.truthtable_list[i] for i in ordered_idxs]
+        self.A = self.A[:, ordered_idxs]
+        self.rules = [self.rules[i] for i in ordered_idxs]
+        self.truthtable_list = [r.truthtable for r in self.rules]
 
         # re-assign the rule ids
         for i, rule in enumerate(self.rules):
@@ -229,9 +231,11 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
 
     def setup_constraint_system(self, A: np.ndarray, b: np.ndarray):
         """set the constraint system, e.g., simplify the system"""
-        print("rules:\n {}".format(self.rules))
-        print("A:\n {}".format(A.astype(int)))
-        print("b:\n {}".format(b.astype(int)))
+        # print("rules:\n")
+        # for r in self.rules:
+        #     print(r)
+        # print("A:\n {}".format(A.astype(int)))
+        # print("b:\n {}".format(b.astype(int)))
         
         logger.debug("setting up the parity constraint system")
         assert_binary_array(b)
@@ -247,9 +251,10 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             self.rank,
             self.pivot_columns,
         ) = self._simplify_constraint_system(A, b)
-
+        
         if self.reorder_column:
             self._do_reorder_columns()
+
         # print("A:\n {}".format(self.A.astype(int)))
         # print("b:\n {}".format(self.b.astype(int)))
         self.is_linear_system_solvable = (self.b[self.rank :] == 0).all()
@@ -274,6 +279,10 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             yield from super(ConstrainedBranchAndBound, self).generate(return_objective)
 
     def reset(self, A: np.ndarray, b: np.ndarray):
+        # important: restore the original ordering first
+        # otherwise, previous calls may mess up the ordering        
+        self.rules = deepcopy(self.rules_before_ordering)
+        
         self.setup_constraint_system(A, b)
         super(ConstrainedBranchAndBound, self).reset()
 
