@@ -1,7 +1,6 @@
-import gmpy2 as gmp
 import numpy as np
 import pytest
-from gmpy2 import mpfr, mpz
+from gmpy2 import mpz
 
 from bds.cbb import (
     ConstrainedBranchAndBound,
@@ -12,7 +11,7 @@ from bds.cbb import (
 )
 from bds.gf2 import GF, extended_rref
 from bds.random_hash import generate_h_and_alpha
-from bds.rule import Rule, lor_of_truthtable
+from bds.rule import Rule
 from bds.utils import (
     bin_array,
     bin_ones,

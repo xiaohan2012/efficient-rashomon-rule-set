@@ -22,7 +22,7 @@ from .utils import (
     calculate_lower_bound,
     calculate_obj,
 )
-
+from .types import RuleSet
 
 @jit(nopython=True, cache=True)
 def ensure_minimal_no_violation(
@@ -365,7 +365,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         lb = calculate_lower_bound(
             self.rules, self.y_np, self.y_mpz, prefix_idxs, self.lmbd
         )
-        prefix = tuple(sorted(prefix_idxs))
+        prefix = RuleSet(prefix_idxs)
         item = (prefix, lb, up, zp, sp)
         self.queue.push(item, key=lb)
 
@@ -483,8 +483,8 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                         if (
                             lb + self.lmbd
                         ) <= self.ub:  # + 1 because we apply look-ahead bound
-                            new_prefix = tuple(
-                                sorted(parent_prefix + tuple(e1_idxs) + (rule.id,))
+                            new_prefix = RuleSet(
+                                parent_prefix + tuple(e1_idxs) + (rule.id,)
                             )
                             w = v1 | ~parent_u  # captured by the new prefix
                             up = ~w  # not captured by the new prefix
@@ -529,22 +529,14 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                 obj = obj_with_fp + fn_fraction
 
                 # print(f"adding {ext_idxs} s.t. Ax=b")
-                # print(
-                #     "solution_prefix: {}".format(
-                #         tuple(sorted(parent_prefix + tuple(ext_idxs) + (rule.id,)))
-                #     )
-                # )
                 # print("v_ext: {}".format(bin(v_ext)[2:]))
                 # print("parent_lb: {}".format(parent_lb))
                 # print("fp_fraction: {}".format(fp_fraction))
                 # print("fn_fraction: {}".format(fn_fraction))
                 # print("obj: {:.2f}".format(obj))
-
+                sol = RuleSet(parent_prefix + tuple(ext_idxs) + (rule.id,))
+                
                 if obj <= self.ub:
-                    sol = tuple(
-                        sorted(parent_prefix + tuple(ext_idxs) + (rule.id,))
-                    )
-
                     # logger.debug(f"yielding {ruleset} with obj {obj:.2f}")
                     # print(f"{padding}    yield: {tuple(ruleset)}")
                     if return_objective:
