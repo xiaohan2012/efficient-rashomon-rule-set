@@ -570,7 +570,9 @@ class TestConstrainedBranchAndBoundMethods:
         exp_B,
     ):
         rand_rules, rand_y = generate_random_rules_and_y(10, 3, 12345)
-        cbb = ConstrainedBranchAndBound(rand_rules, float("inf"), rand_y, 0.1, reorder_columns=False)
+        cbb = ConstrainedBranchAndBound(
+            rand_rules, float("inf"), rand_y, 0.1, reorder_columns=False
+        )
 
         cbb.setup_constraint_system(bin_array(A), bin_array(b))
 
@@ -664,6 +666,68 @@ class TestConstrainedBranchAndBoundMethods:
         np.testing.assert_allclose(s, exp_s)
 
 
+class TestContinuedSearch:
+    # @pytest.mark.parametrize("num_rules", [10])
+    # @pytest.mark.parametrize("num_constraints", [2, 4, 8])
+    # @pytest.mark.parametrize("lmbd", [0.1])
+    # @pytest.mark.parametrize("ub", [0.801, 0.501, 0.001])  # float("inf"),  # , 0.01
+    # @pytest.mark.parametrize("rand_seed", randints(5))
+    @pytest.mark.parametrize("num_rules", [10])
+    @pytest.mark.parametrize("num_constraints", [2])
+    @pytest.mark.parametrize("lmbd", [0.1])
+    @pytest.mark.parametrize("ub", [0.801])  # float("inf"),  # , 0.01
+    @pytest.mark.parametrize("rand_seed", [1320602510])
+    @pytest.mark.parametrize("num_continuations", [3])
+    def test_basic(
+        self, num_rules, num_constraints, lmbd, ub, rand_seed, num_continuations
+    ):
+        """the output should be the same as ground truth"""
+        rand_rules, rand_y = generate_random_rules_and_y(10, num_rules, rand_seed)
+
+        cbb_ref = ConstrainedBranchAndBound(
+            rand_rules, ub, rand_y, lmbd, reorder_columns=True
+        )
+
+        A, b = generate_h_and_alpha(
+            num_rules, num_constraints, rand_seed, as_numpy=True
+        )
+
+        sols_expected = list(cbb_ref.run(return_objective=True, A=A, b=b))
+
+        num_sols = len(sols_expected)
+        threshold = len(num_sols / num_continuations)
+
+        cbb_cur = ConstrainedBranchAndBound(
+            rand_rules, ub, rand_y, lmbd, reorder_columns=True
+        )
+        cbb_cur.setup(A=A, b=b)
+
+        sols_actual = cbb_cur.bounded_sols(threshold, return_objective=True)
+        for i in range(num_continuations):
+            cbb_next = ConstrainedBranchAndBound(
+                rand_rules, ub, rand_y, lmbd, reorder_columns=True
+            )
+            cbb_next.setup(
+                A=A,
+                b=b,
+                # insert the continutation status
+                queue=cbb_cur.queue,
+                R=cbb_cur.R,
+                S=cbb_cur.S,
+            )
+            sols = cbb_next.bounded_sols(threshold, return_objective=True)
+            # expectation 1:
+            # the solutions from each continutation search should disjoint from the others
+            assert (set(sols_actual) & set(sols)) == set()
+            sols_actual += sols
+            cbb_cur = cbb_next
+
+        # expectation 2: the solutions from continuation search should be the same as solving from scratch
+        assert set(sols_actual) == set(sols_expected)
+        assert len(sols_actual) == len(sols_expected)
+        assert set(sols_expected) == cbb_cur.S
+
+
 class TestConstrainedBranchAndBoundEnd2End:
     @pytest.mark.parametrize(
         "A, b, expected_sols",
@@ -712,7 +776,9 @@ class TestConstrainedBranchAndBoundEnd2End:
     def test_complete_enumeration_with_infinite_ub(self, A, b, expected_sols):
         A, b = map(bin_array, [A, b])
         rand_rules, rand_y = generate_random_rules_and_y(10, A.shape[1], 12345)
-        cbb = ConstrainedBranchAndBound(rand_rules, float("inf"), rand_y, 0.1, reorder_columns=False)
+        cbb = ConstrainedBranchAndBound(
+            rand_rules, float("inf"), rand_y, 0.1, reorder_columns=False
+        )
         sols = cbb.bounded_sols(threshold=None, A=A, b=b)
         assert normalize_solutions(sols) == normalize_solutions(expected_sols)
 
@@ -849,7 +915,9 @@ class TestConstrainedBranchAndBoundEnd2End:
         # for r in rand_rules:
         #     print(f'{r.name}: {bin(r.truthtable)}')
         # print(rand_y[::-1].astype(int))
-        cbb = ConstrainedBranchAndBound(rand_rules, ub, rand_y, lmbd, reorder_columns=False)
+        cbb = ConstrainedBranchAndBound(
+            rand_rules, ub, rand_y, lmbd, reorder_columns=False
+        )
 
         # cbb._print_rules_and_y()
         A, b = generate_h_and_alpha(
@@ -872,8 +940,12 @@ class TestConstrainedBranchAndBoundEnd2End:
     def test_column_reodering(self, num_rules, num_constraints, lmbd, ub, rand_seed):
         """the output with column reordering should be the same as without column reordering"""
         rand_rules, rand_y = generate_random_rules_and_y(10, num_rules, rand_seed)
-        cbb_ref = ConstrainedBranchAndBound(rand_rules, ub, rand_y, lmbd, reorder_columns=False)
-        cbb_test = ConstrainedBranchAndBound(rand_rules, ub, rand_y, lmbd, reorder_columns=True)
+        cbb_ref = ConstrainedBranchAndBound(
+            rand_rules, ub, rand_y, lmbd, reorder_columns=False
+        )
+        cbb_test = ConstrainedBranchAndBound(
+            rand_rules, ub, rand_y, lmbd, reorder_columns=True
+        )
 
         A, b = generate_h_and_alpha(
             num_rules, num_constraints, rand_seed, as_numpy=True

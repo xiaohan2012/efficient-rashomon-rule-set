@@ -231,12 +231,6 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
 
     def setup_constraint_system(self, A: np.ndarray, b: np.ndarray):
         """set the constraint system, e.g., simplify the system"""
-        # print("rules:\n")
-        # for r in self.rules:
-        #     print(r)
-        # print("A:\n {}".format(A.astype(int)))
-        # print("b:\n {}".format(b.astype(int)))
-        
         logger.debug("setting up the parity constraint system")
         assert_binary_array(b)
 
@@ -255,8 +249,6 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         if self.reorder_column:
             self._do_reorder_columns()
 
-        # print("A:\n {}".format(self.A.astype(int)))
-        # print("b:\n {}".format(self.b.astype(int)))
         self.is_linear_system_solvable = (self.b[self.rank :] == 0).all()
 
         self.num_constraints = int(self.A.shape[0])
@@ -369,13 +361,8 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         item = (prefix, lb, up, zp, sp)
         self.queue.push(item, key=lb)
 
-    # def _get_rules_by_idxs(self, idxs: List[int]) -> List[Rule]:
-    #     """extract rules from a list of indices, the indices start from 1"""
-    #     return [self.rules[idx] for idx in idxs]
-
     def generate_solution_at_root(self, return_objective=False) -> Iterable:
         """check the solution at the root, e.g., all free variables assigned to zero"""
-        # print(f"generate at root")
         # add pivot rules if necessary to satistify Ax=b
         rule_idxs = self._ensure_satisfiability(
             -1, bin_zeros(self.num_constraints), bin_zeros(self.num_constraints)
@@ -383,11 +370,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         captured = self._lor(rule_idxs)
         num_mistakes = gmp.popcount(captured ^ self.y_mpz)
 
-        # print("bin(captured): {}".format(bin(captured)))
         obj = num_mistakes / self.num_train_pts + len(rule_idxs) * self.lmbd
-        # print("num_mistakes: {}".format(num_mistakes))
         sol = set(rule_idxs)
-        # logger.debug(f"solution at root: {sol} (obj={obj:.2f})")
+
         if len(sol) >= 1 and obj <= self.ub:
             if return_objective:
                 yield self._pack_solution(sol, obj)
@@ -430,17 +415,15 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         )
         free_rules_in_prefix = set(parent_prefix) - self.pivot_rule_idxs
         max_rule_idx = max(free_rules_in_prefix or [-1])
-        # print("extending parent_prefix: {}".format(parent_prefix))
+
         for rule in self.rules[(max_rule_idx + 1) :]:
             # consider adding only free rules
             # since the addition of pivot rules are determined "automatically" by Ax=b
             if rule.id in self.pivot_rule_idxs:
                 continue
 
-            # print("   rule.id: {}".format(rule.id))
             self.num_prefix_evaluations += 1
 
-            # prune by ruleset length
             if (prefix_length + 1) > length_ub:
                 continue
 
@@ -488,7 +471,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                             )
                             w = v1 | ~parent_u  # captured by the new prefix
                             up = ~w  # not captured by the new prefix
-                            # print(f"pushing {new_prefix} to queue with lb={lb:.1f}")
+
                             self.queue.push(
                                 (new_prefix, lb, up, zp, sp),
                                 key=lb,
@@ -501,9 +484,6 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                 # the number of added pivots are calculated in a fast way
                 pvt_count = count_added_pivots(rule.id, self.A, self.b, parent_z)
 
-                # add 1 for the current rule, because ext_idx does not include the current rule
-
-                # (prefix_length + 1 + pvt_count) > length_ub:
                 if check_pivot_length_bound(prefix_length, pvt_count, length_ub):
                     continue
 
@@ -528,19 +508,10 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                 fn_fraction, _ = self._incremental_update_obj(parent_u, v_ext)
                 obj = obj_with_fp + fn_fraction
 
-                # print(f"adding {ext_idxs} s.t. Ax=b")
-                # print("v_ext: {}".format(bin(v_ext)[2:]))
-                # print("parent_lb: {}".format(parent_lb))
-                # print("fp_fraction: {}".format(fp_fraction))
-                # print("fn_fraction: {}".format(fn_fraction))
-                # print("obj: {:.2f}".format(obj))
                 sol = RuleSet(parent_prefix + tuple(ext_idxs) + (rule.id,))
                 
                 if obj <= self.ub:
-                    # logger.debug(f"yielding {ruleset} with obj {obj:.2f}")
-                    # print(f"{padding}    yield: {tuple(ruleset)}")
                     if return_objective:
                         yield self._pack_solution(sol, obj)
                     else:
-                        # print("self.queue._items: {}".format(self.queue._items))
                         yield self._pack_solution(sol)
