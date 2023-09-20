@@ -16,9 +16,10 @@ from scipy.sparse import csc_matrix, csr_matrix
 
 
 from gmpy2 import mpz
-from logzero import logger, setup_logger
+from logzero import logger
 
 from .common import loglevel
+from .types import RuleSet
 
 ii32 = np.iinfo(np.int32)
 
@@ -232,7 +233,7 @@ def lor_of_truthtable(rules: List["Rule"]) -> mpz:
 
 
 def calculate_obj(
-    rules: List["Rule"], y_np: np.ndarray, y_mpz: mpz, sol: Tuple[int], lmbd: float
+    rules: List["Rule"], y_np: np.ndarray, y_mpz: mpz, sol: RuleSet, lmbd: float
 ) -> float:
     """calcuclate the objective for a given decision rule set (indicated by `sol`)
     by convention, `sol` is sorted and `0` is included
@@ -251,7 +252,7 @@ def calculate_obj(
 
 
 def calculate_lower_bound(
-    rules: List["Rule"], y_np: np.ndarray, y_mpz: mpz, sol: Tuple[int], lmbd: float
+    rules: List["Rule"], y_np: np.ndarray, y_mpz: mpz, sol: RuleSet, lmbd: float
 ) -> float:
     """calcuclate the lower bound for a given decision rule set (indicated by `sol`)
         by convention, `sol` is sorted and `0` is included

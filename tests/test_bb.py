@@ -13,7 +13,7 @@ from bds.utils import (
 )
 
 from .fixtures import rules, y
-from .utils import assert_dict_allclose, assert_close_mpfr
+from .utils import assert_dict_allclose, normalize_solutions
 
 
 class TestBranchAndBoundNaive:
@@ -48,7 +48,7 @@ class TestBranchAndBoundNaive:
 
         # front and tree root are both accessible
         # and refer to the same node
-        prefix, lb, not_captured = bb.queue.front()
+        prefix, lb, not_captured = bb.status.queue_front()
         assert prefix == tuple()
         assert lb == 0.0
         assert not_captured == mpz_all_ones(y.shape[0])
@@ -85,17 +85,17 @@ class TestBranchAndBoundNaive:
         bb = BranchAndBoundNaive(rules, ub=ub, y=y, lmbd=lmbd)
         bb.reset()
 
-        prefix, lb, not_captured = bb.queue.pop()
+        prefix, lb, not_captured = bb.status.pop_from_queue()
 
         iter_obj = bb._loop(prefix, lb, not_captured, return_objective=True)
         feasible_ruleset_ids = list(iter_obj)  # evoke the generator
 
         assert len(feasible_ruleset_ids) == 3  # all singleton rulesets are feasible
 
-        assert bb.queue.size == 3
-        prefix_1, lb_1, not_captured_1 = bb.queue.pop()
-        prefix_2, lb_2, not_captured_2 = bb.queue.pop()
-        prefix_3, lb_3, not_captured_3 = bb.queue.pop()
+        assert bb.status.queue_size() == 3
+        prefix_1, lb_1, not_captured_1 = bb.status.pop_from_queue()
+        prefix_2, lb_2, not_captured_2 = bb.status.pop_from_queue()
+        prefix_3, lb_3, not_captured_3 = bb.status.pop_from_queue()
 
         # the order of nodes in the queue in determined by lb
         assert prefix_1 == (1,)
@@ -118,6 +118,8 @@ class TestBranchAndBoundNaive:
         assert not_captured_2 == mpz("0b01010")
         assert not_captured_3 == mpz("0b10101")
 
+        assert bb.status.solution_set == {prefix_1, prefix_2, prefix_3}
+
     @pytest.mark.skip("due the addition of look-ahead bound")
     @pytest.mark.parametrize(
         "ub, num_feasible_solutions, queue_size",
@@ -136,14 +138,14 @@ class TestBranchAndBoundNaive:
         bb = BranchAndBoundNaive(rules, ub=ub, y=y, lmbd=lmbd)
         bb.reset()
 
-        d, lb, u = bb.queue.pop()
+        d, lb, u = bb.status.pop_from_queue()
 
         iter_obj = bb._loop(d, lb, u)
         feasible_ruleset_ids = list(iter_obj)  # evoke the generator
 
         assert len(feasible_ruleset_ids) == num_feasible_solutions
 
-        assert bb.queue.size == queue_size
+        assert bb.status.queue_size() == queue_size
 
     def test_run_infinite_ub(self, rules, y):
         # we run the branch-and-bound with infinite upper bounds
@@ -156,16 +158,30 @@ class TestBranchAndBoundNaive:
         assert len(feasible_solutions) == 7  #
 
         all_feasible_solutions_ordered_by_appearance = [
-            (0, ),
-            (1, ),
-            (2, ),
-            (1, 2, ),
-            (0, 1, ),
-            (0, 2, ),
-            (0, 1, 2, ),
+            (0,),
+            (1,),
+            (2,),
+            (
+                1,
+                2,
+            ),
+            (
+                0,
+                1,
+            ),
+            (
+                0,
+                2,
+            ),
+            (
+                0,
+                1,
+                2,
+            ),
         ]
         # the order of yielded solutions should be exactly the same
         assert feasible_solutions == all_feasible_solutions_ordered_by_appearance
+        assert bb.status.solution_set == set(feasible_solutions)
 
     @pytest.mark.parametrize(
         "ub, num_feasible_solutions",
@@ -201,20 +217,27 @@ class TestBranchAndBoundNaive:
         all_feasible_solutions_sorted_by_objective = [
             (1,),
             (2,),
-            (1, 2,),
-            (0, 1,),
-            (0, 2,),
+            (
+                1,
+                2,
+            ),
+            (
+                0,
+                1,
+            ),
+            (
+                0,
+                2,
+            ),
             (0, 1, 2),
             (0,),
         ]
 
         # we compare by set not list since the yielding order may not be the same as ordering by objective
-        assert feasible_solutions == set(
-            map(
-                tuple,
-                all_feasible_solutions_sorted_by_objective[:num_feasible_solutions],
-            )
+        assert feasible_solutions == normalize_solutions(
+            all_feasible_solutions_sorted_by_objective[:num_feasible_solutions]
         )
+        assert bb.status.solution_set == set(feasible_solutions)
 
     def test_check_objective_calculation(self, rules, y):
         lmbd = 0.1
@@ -224,13 +247,17 @@ class TestBranchAndBoundNaive:
 
         actual = solutions_to_dict(feasible_solutions)
         expected = {
-            (1, ): 0.1,
-            (2, ): 0.3,
+            (1,): 0.1,
+            (2,): 0.3,
             (1, 2): 0.4,
             (0, 1): 0.6,
             (0, 2): 0.8,
-            (0, 1, 2,): 0.9,
-            (0, ): 0.9,
+            (
+                0,
+                1,
+                2,
+            ): 0.9,
+            (0,): 0.9,
         }
 
         # compare the two dict

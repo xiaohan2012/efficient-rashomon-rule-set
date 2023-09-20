@@ -14,13 +14,16 @@ from .utils import (
     mpz_set_bits,
     mpz_all_ones,
     count_iter,
+    calculate_lower_bound,
+    calculate_obj
 )
+from .types import RuleSet
 from .bounds import (
     incremental_update_lb,
     incremental_update_obj,
     prefix_specific_length_upperbound,
 )
-
+from .solver_status import SolverStatus
 # logger.setLevel(logging.INFO)
 
 Prefix = Tuple[int]
@@ -71,21 +74,28 @@ class BranchAndBoundGeneric:
         rule_ids = np.array([r.id for r in self.rules])
         np.testing.assert_allclose(rule_ids, np.arange(0, len(rule_ids)))
 
-    def reset_queue(self):
-        raise NotImplementedError()
-
     def reset(self):
         # logger.debug("initializing search tree and priority queue")
-        self.reset_queue()
+        self.status = SolverStatus()
 
     def _captured_by_rule(self, rule: Rule, parent_not_captured: mpz):
         """return the captured array for the rule in the context of parent"""
         return parent_not_captured & rule.truthtable
 
+    def _calculate_lb(self, prefix: RuleSet) -> float:
+        return calculate_lower_bound(
+            self.rules, self.y_np, self.y_mpz, prefix, self.lmbd
+        )
+
+    def _calculate_obj(self, prefix: RuleSet) -> float:
+        return calculate_obj(
+            self.rules, self.y_np, self.y_mpz, prefix, self.lmbd
+        )
+
     # @profile
     def generate(self, return_objective=False) -> Iterable:
-        while not self.queue.is_empty:
-            queue_item = self.queue.pop()
+        while not self.status.is_queue_empty():
+            queue_item = self.status.pop_from_queue()
             yield from self._loop(*queue_item, return_objective=return_objective)
 
     # @profile
@@ -128,13 +138,13 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         """
         return mpz_all_ones(self.num_train_pts)
 
-    def reset_queue(self):
-        self.queue: Queue = Queue()
+    def reset(self):
+        self.status = SolverStatus()
 
         not_captured = self._not_captured_by_default_rule()
         lb = 0.0
         item = (tuple(), lb, not_captured)
-        self.queue.push(item, key=lb)
+        self.status.push_to_queue(lb, item)
 
     def _incremental_update_lb(self, v: mpz, y: np.ndarray) -> float:
         return incremental_update_lb(v, y, self.num_train_pts)
@@ -174,7 +184,7 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
             if (parent_prefix_length + 1) > length_ub:
                 continue
 
-            prefix = parent_prefix + (rule.id,)
+            prefix = RuleSet(parent_prefix + (rule.id,))
             captured = self._captured_by_rule(rule, parent_not_captured)
             prefix_lower_bound = (
                 parent_lower_bound
@@ -191,11 +201,12 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
                 lookahead_lb = prefix_lower_bound + self.lmbd
 
                 if lookahead_lb <= self.ub:
-                    self.queue.push(
-                        (prefix, prefix_lower_bound, not_captured),
-                        key=prefix_lower_bound,  # the choice of key shouldn't matter for complete enumeration
+                    self.status.push_to_queue(
+                        prefix_lower_bound,  # the choice of key shouldn't matter for complete enumeration
+                        (prefix, prefix_lower_bound, not_captured)                        
                     )
                 if prefix_obj <= self.ub:
+                    self.status.add_to_solution_set(prefix)
                     if return_objective:
                         yield (prefix, float(prefix_obj))
                     else:
