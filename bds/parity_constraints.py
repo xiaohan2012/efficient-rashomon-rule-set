@@ -1,0 +1,141 @@
+import numpy as np
+from typing import Optional, List, Dict, Tuple, Union
+from numba import jit
+
+
+def build_boundary_table(
+    A: np.ndarray, rank: int, pivot_columns: np.ndarray
+) -> np.ndarray:
+    """for a 2D matrix A, compute the maximum non-zero non-pivot index per row, if it does not exist, use -1"""
+    assert isinstance(A, np.ndarray)
+    assert A.ndim == 2
+    Ap = A.copy()
+    result = []
+    for i in range(rank):
+        Ap[i, pivot_columns[i]] = 0
+        if Ap[i, :].sum() == 0:
+            result.append(-1)
+        else:
+            result.append((Ap[i, :] > 0).nonzero()[0].max())
+    return np.array(result, dtype=int)
+
+
+@jit(nopython=True, cache=True)
+def ensure_minimal_no_violation(
+    j: int,
+    z: np.ndarray,
+    s: np.ndarray,
+    A: np.ndarray,
+    b: np.ndarray,
+    B: np.ndarray,
+    row2pivot_column: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    upon adding rule j to the current prefix (represented  by `z` and `s`),
+    add a set of pivot rules to ensure that the new prefix is minimally non-violating
+
+    return:
+
+    - selected pivot rule indices after adding the jth rule to the current prefix
+    - the satisfiability vector
+    - the updated parity states vector
+
+    note that the rule index must correspond to a non-pivot column
+
+    the parity states vector `s` and satisfiability vector `z` for the current prefix are provided for incremental computation
+
+    row2pivot_column is the mapping from row id to the corresponding pivot column
+
+    for performance reasons, the following data structures are given:
+
+    - max_nz_idx_array: the array of largest non-zero idx per constraint
+    """
+    zp: np.ndarray = z.copy()
+    sp: np.ndarray = s.copy()
+
+    selected_rules = np.empty(A.shape[1], np.int_)
+    num_rules_selected = 0
+    for i in range(A.shape[0]):
+        if j == -1:
+            # the initial case, where no rules are added
+            if j == B[i]:
+                sp[i] = 1
+                if b[i] == 1:
+                    selected_rules[num_rules_selected] = row2pivot_column[i]
+                    num_rules_selected += 1
+                    zp[i] = not zp[i]
+            continue
+        if sp[i] == 0:
+            # constraint i is not satisfied yet
+            if j >= B[i]:
+                # j is exterior
+                # the corresponding pivot rule maybe added
+                sp[i] = 1
+                if A[i][j]:
+                    #  j is relevant
+                    if b[i] == zp[i]:
+                        selected_rules[num_rules_selected] = row2pivot_column[i]
+                        num_rules_selected += 1
+                    else:
+                        zp[i] = not zp[i]
+                elif b[i] != zp[i]:
+                    # j is irrelevant
+                    selected_rules[num_rules_selected] = row2pivot_column[i]
+                    num_rules_selected += 1
+                    zp[i] = not zp[i]
+            elif A[i][j]:
+                # j is interior and relevant
+                zp[i] = not zp[i]
+    return selected_rules[:num_rules_selected], zp, sp
+
+
+@jit(nopython=True, cache=True)
+def count_added_pivots(j: int, A: np.ndarray, b: np.ndarray, z: np.ndarray) -> int:
+    """count the number of pivot rules to add in order to satisfy Ax=b
+
+    which is equivalent to counting the number of constraints that satisfies either of the conditions below:
+
+    - A[i][j] is False and (z[i] == b[i]) is False
+    - A[i][j] is True and (z[i] == b[i]) is True
+
+    which is equivalent to counting the number entries in A[:, j] == (z == b) that are True
+    """
+    assert j >= 0
+    return (A[:, j] == (z == b)).sum()
+
+
+@jit(nopython=True, cache=True)
+def ensure_satisfiability(
+    j: int,
+    rank: int,
+    z: np.ndarray,
+    s: np.ndarray,
+    A: np.ndarray,
+    b: np.ndarray,
+    row2pivot_column: np.ndarray,
+) -> np.ndarray:
+    """
+    return the pivot variables that are assigned to 1s if no rules with index larger than j are added further.
+
+    j must corresponds to a free variable, meaning:
+
+    1. it is not the default one (j=0)
+    2. and it does not correspond to any pivot variable
+    """
+    selected_rules = np.empty(A.shape[1], np.int_)
+    num_rules_selected = 0
+
+    for i in range(rank):  # loop up to rank
+        if j == -1:
+            if b[i] == 1:
+                selected_rules[num_rules_selected] = row2pivot_column[i]
+                num_rules_selected += 1
+        elif s[i] == 0:
+            if ((A[i][j] == 0) and (z[i] != b[i])) or (
+                (A[i][j] == 1) and (z[i] == b[i])
+            ):
+                # case 1: the rule is irrelevant
+                # case 2: the rule is relevant
+                selected_rules[num_rules_selected] = row2pivot_column[i]
+                num_rules_selected += 1
+    return selected_rules[:num_rules_selected]
