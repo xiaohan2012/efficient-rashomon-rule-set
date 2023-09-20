@@ -313,3 +313,15 @@ def get_equivalent_point_lb(
     )  # normalize as usual for mistakes
 
     return tot_update_bound
+
+
+@jit(nopython=True, cache=True)
+def check_look_ahead_bound(lb: float, lmbd: float, ub: float) -> bool:
+    return (lb + lmbd) <= ub
+
+
+@jit(nopython=True, cache=True)
+def check_pivot_length_bound(
+    prefix_length: int, pvt_count: int, length_ub: int
+) -> bool:
+    return (prefix_length + 1 + pvt_count) > length_ub
