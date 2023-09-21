@@ -78,3 +78,8 @@ def brute_force_enumeration(
 
 def normalize_solutions(sols: List[Set[int]]) -> Set[Tuple[int]]:
     return set(map(tuple, map(sorted, sols)))
+
+
+def is_disjoint(left: Iterable, right: Iterable) -> bool:
+    """determines if two iteratables  after converting to sets are disjoint"""
+    return len(set(left) & set(right)) == 0

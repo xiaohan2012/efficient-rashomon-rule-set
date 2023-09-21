@@ -9,7 +9,11 @@ from numba import jit
 from copy import deepcopy
 
 from .bb import BranchAndBoundNaive
-from .bounds import prefix_specific_length_upperbound
+from .bounds import (
+    prefix_specific_length_upperbound,
+    check_look_ahead_bound,
+    check_pivot_length_bound,
+)
 from .gf2 import GF, extended_rref
 from .queue import Queue
 from .rule import Rule, lor_of_truthtable
@@ -22,161 +26,19 @@ from .utils import (
     calculate_lower_bound,
     calculate_obj,
 )
+from .parity_constraints import (
+    ensure_minimal_no_violation,
+    ensure_satisfiability,
+    count_added_pivots,
+    build_boundary_table,
+)
 from .types import RuleSet
-
-@jit(nopython=True, cache=True)
-def ensure_minimal_no_violation(
-    j: int,
-    z: np.ndarray,
-    s: np.ndarray,
-    A: np.ndarray,
-    b: np.ndarray,
-    B: np.ndarray,
-    row2pivot_column: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    upon adding rule j to the current prefix (represented  by `z` and `s`),
-    add a set of pivot rules to ensure that the new prefix is minimally non-violating
-
-    return:
-
-    - selected pivot rule indices after adding the jth rule to the current prefix
-    - the satisfiability vector
-    - the updated parity states vector
-
-    note that the rule index must correspond to a non-pivot column
-
-    the parity states vector `s` and satisfiability vector `z` for the current prefix are provided for incremental computation
-
-    row2pivot_column is the mapping from row id to the corresponding pivot column
-
-    for performance reasons, the following data structures are given:
-
-    - max_nz_idx_array: the array of largest non-zero idx per constraint
-    """
-    zp: np.ndarray = z.copy()
-    sp: np.ndarray = s.copy()
-
-    selected_rules = np.empty(A.shape[1], np.int_)
-    num_rules_selected = 0
-    for i in range(A.shape[0]):
-        if j == -1:
-            # the initial case, where no rules are added
-            if j == B[i]:
-                sp[i] = 1
-                if b[i] == 1:
-                    selected_rules[num_rules_selected] = row2pivot_column[i]
-                    num_rules_selected += 1
-                    zp[i] = not zp[i]
-            continue
-        if sp[i] == 0:
-            # constraint i is not satisfied yet
-            if j >= B[i]:
-                # j is exterior
-                # the corresponding pivot rule maybe added
-                sp[i] = 1
-                if A[i][j]:
-                    #  j is relevant
-                    if b[i] == zp[i]:
-                        selected_rules[num_rules_selected] = row2pivot_column[i]
-                        num_rules_selected += 1
-                    else:
-                        zp[i] = not zp[i]
-                elif b[i] != zp[i]:
-                    # j is irrelevant
-                    selected_rules[num_rules_selected] = row2pivot_column[i]
-                    num_rules_selected += 1
-                    zp[i] = not zp[i]
-            elif A[i][j]:
-                # j is interior and relevant
-                zp[i] = not zp[i]
-    return selected_rules[:num_rules_selected], zp, sp
+from .solver_status import SolverStatus
 
 
-@jit(nopython=True, cache=True)
-def count_added_pivots(j: int, A: np.ndarray, b: np.ndarray, z: np.ndarray) -> int:
-    """count the number of pivot rules to add in order to satisfy Ax=b
-
-    which is equivalent to counting the number of constraints that satisfies either of the conditions below:
-
-    - A[i][j] is False and (z[i] == b[i]) is False
-    - A[i][j] is True and (z[i] == b[i]) is True
-
-    which is equivalent to counting the number entries in A[:, j] == (z == b) that are True
-    """
-    assert j >= 0
-    return (A[:, j] == (z == b)).sum()
-
-
-@jit(nopython=True, cache=True)
-def ensure_satisfiability(
-    j: int,
-    rank: int,
-    z: np.ndarray,
-    s: np.ndarray,
-    A: np.ndarray,
-    b: np.ndarray,
-    row2pivot_column: np.ndarray,
-) -> np.ndarray:
-    """
-    return the pivot variables that are assigned to 1s if no rules with index larger than j are added further.
-
-    j must corresponds to a free variable, meaning:
-
-    1. it is not the default one (j=0)
-    2. and it does not correspond to any pivot variable
-    """
-    selected_rules = np.empty(A.shape[1], np.int_)
-    num_rules_selected = 0
-
-    for i in range(rank):  # loop up to rank
-        if j == -1:
-            if b[i] == 1:
-                selected_rules[num_rules_selected] = row2pivot_column[i]
-                num_rules_selected += 1
-        elif s[i] == 0:
-            if ((A[i][j] == 0) and (z[i] != b[i])) or (
-                (A[i][j] == 1) and (z[i] == b[i])
-            ):
-                # case 1: the rule is irrelevant
-                # case 2: the rule is relevant
-                selected_rules[num_rules_selected] = row2pivot_column[i]
-                num_rules_selected += 1
-    return selected_rules[:num_rules_selected]
-
-
-def lor(vs: List[mpz]) -> mpz:
-    """logical OR over a list of bit arrays"""
-    return functools.reduce(lambda x, y: x | y, vs, mpz())
-
-
-@jit(nopython=True, cache=True)
-def check_look_ahead_bound(lb: float, lmbd: float, ub: float) -> bool:
-    return (lb + lmbd) <= ub
-
-
-@jit(nopython=True, cache=True)
-def check_pivot_length_bound(
-    prefix_length: int, pvt_count: int, length_ub: int
-) -> bool:
-    return (prefix_length + 1 + pvt_count) > length_ub
-
-
-def build_boundary_table(
-    A: np.ndarray, rank: int, pivot_columns: np.ndarray
-) -> np.ndarray:
-    """for a 2D matrix A, compute the maximum non-zero non-pivot index per row, if it does not exist, use -1"""
-    assert isinstance(A, np.ndarray)
-    assert A.ndim == 2
-    Ap = A.copy()
-    result = []
-    for i in range(rank):
-        Ap[i, pivot_columns[i]] = 0
-        if Ap[i, :].sum() == 0:
-            result.append(-1)
-        else:
-            result.append((Ap[i, :] > 0).nonzero()[0].max())
-    return np.array(result, dtype=int)
+# def lor(vs: List[mpz]) -> mpz:
+#     """logical OR over a list of bit arrays"""
+#     return functools.reduce(lambda x, y: x | y, vs, mpz())
 
 
 class ConstrainedBranchAndBound(BranchAndBoundNaive):
@@ -186,7 +48,6 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         # copy the rules for later use
         self.rules_before_ordering = deepcopy(self.rules)
 
-        
     def _simplify_constraint_system(
         self, A: np.ndarray, b: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -198,7 +59,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         return bin_array(A_rref), bin_array(b_rref), rank, pivot_columns
 
     def _do_reorder_columns(self):
-        """re-order the columns of A and reflect the new ordering in the rules"""        
+        """re-order the columns of A and reflect the new ordering in the rules"""
         free_cols = np.array(
             list(set(np.arange(self.A.shape[1])) - set(self.pivot_columns)), dtype=int
         )
@@ -245,7 +106,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             self.rank,
             self.pivot_columns,
         ) = self._simplify_constraint_system(A, b)
-        
+
         if self.reorder_column:
             self._do_reorder_columns()
 
@@ -262,21 +123,26 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         # mapping from row index to the pivot column index
         self.row2pivot_column = np.array(self.pivot_columns, dtype=int)
 
-    # @profile
-    def generate(self, return_objective=False) -> Iterable:
-        if not self.is_linear_system_solvable:
-            logger.debug("abort the search since the linear system is not solvable")
-            yield from ()
-        else:
-            yield from super(ConstrainedBranchAndBound, self).generate(return_objective)
-
-    def reset(self, A: np.ndarray, b: np.ndarray):
+    def reset(
+        self, A: np.ndarray, b: np.ndarray, solver_status: Optional[SolverStatus] = None
+    ):
+        """
+        if queue and d_last is given, the search continues from that queue | {d_last}
+        solutions and reserve solutions are added to S and S, respectively
+        """
         # important: restore the original ordering first
-        # otherwise, previous calls may mess up the ordering        
+        # otherwise, previous calls may mess up the ordering
         self.rules = deepcopy(self.rules_before_ordering)
-        
+
         self.setup_constraint_system(A, b)
-        super(ConstrainedBranchAndBound, self).reset()
+
+        if solver_status is not None:
+            # continuation search
+            self.status = solver_status.copy()
+            self.status.push_d_last_to_queue(self._calculate_lb(self.status.d_last))
+        else:
+            self.reset_status()
+            self.reset_queue()
 
     def __post_init__(self):
         self.truthtable_list = [r.truthtable for r in self.rules]
@@ -288,14 +154,20 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             r |= self.truthtable_list[i]
         return r
 
-    def _pack_solution(self, sol, obj=None):
-        """return the solution (and objective if it is given), always return the original rule ids"""
+    def _restore_rule_ids(self, prefix: RuleSet) -> RuleSet:
+        """return the rule ids if reorder_column is enabled"""
         if self.reorder_column:
-            sol = tuple([self.idx_map_new2old[i] for i in sol])
+            return RuleSet([self.idx_map_new2old[i] for i in prefix])
+        return RuleSet(prefix)
+
+    def _pack_solution(
+        self, prefix: RuleSet, obj=None
+    ) -> Union[RuleSet, Tuple[RuleSet, float]]:
+        """return the solution (and objective if it is given)"""
         if obj is not None:
-            return sol, obj
+            return prefix, obj
         else:
-            return sol
+            return prefix
 
     def _ensure_minimal_non_violation(
         self, rule_id: int, u: mpz, z: np.ndarray, s: np.ndarray
@@ -337,8 +209,14 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             self.row2pivot_column,
         )
 
+    def reset_status(self):
+        self.status = SolverStatus()
+
     def reset_queue(self):
-        self.queue: Queue = Queue()
+        assert hasattr(self, "status") and isinstance(
+            self.status, SolverStatus
+        ), "self.status is not set"
+
         u = self._not_captured_by_default_rule()
 
         # the parity status vector
@@ -354,40 +232,48 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             -1, u, z, s
         )
         up = ~(v | (~u))  # not captured by the prefix
-        lb = calculate_lower_bound(
-            self.rules, self.y_np, self.y_mpz, prefix_idxs, self.lmbd
-        )
+        lb = self._calculate_lb(prefix_idxs)
         prefix = RuleSet(prefix_idxs)
         item = (prefix, lb, up, zp, sp)
-        self.queue.push(item, key=lb)
+        self.status.push_to_queue(lb, item)
 
-    def generate_solution_at_root(self, return_objective=False) -> Iterable:
+    def _generate_solution_at_root(self, return_objective=False) -> Iterable:
         """check the solution at the root, e.g., all free variables assigned to zero"""
         # add pivot rules if necessary to satistify Ax=b
-        rule_idxs = self._ensure_satisfiability(
-            -1, bin_zeros(self.num_constraints), bin_zeros(self.num_constraints)
+        prefix = RuleSet(
+            self._ensure_satisfiability(
+                -1, bin_zeros(self.num_constraints), bin_zeros(self.num_constraints)
+            )
         )
-        captured = self._lor(rule_idxs)
-        num_mistakes = gmp.popcount(captured ^ self.y_mpz)
 
-        obj = num_mistakes / self.num_train_pts + len(rule_idxs) * self.lmbd
-        sol = set(rule_idxs)
+        obj = self._calculate_obj(prefix)
 
-        if len(sol) >= 1 and obj <= self.ub:
-            if return_objective:
-                yield self._pack_solution(sol, obj)
-            else:
-                yield self._pack_solution(sol)
+        # restore the rule ids in the prefix
+        prefix_restored = self._restore_rule_ids(prefix)
+
+        # record R
+        if self._calculate_lb(prefix) <= self.ub:
+            self.status.add_to_reserve_set(prefix_restored)
+
+        if len(prefix_restored) >= 1 and obj <= self.ub:
+            # record and yield the prefix if it is not yet in the solution set
+            # this check is needed for incremental/continuation search
+            if prefix_restored not in self.status.solution_set:
+                self.status.add_to_solution_set(prefix_restored)
+
+                yield self._pack_solution(
+                    prefix_restored, (obj if return_objective else None)
+                )
 
     def generate(self, return_objective=False) -> Iterable:
         if not self.is_linear_system_solvable:
             logger.debug("abort the search since the linear system is not solvable")
             yield from ()
         else:
-            yield from self.generate_solution_at_root(return_objective)
+            yield from self._generate_solution_at_root(return_objective)
 
-            while not self.queue.is_empty:
-                queue_item = self.queue.pop()
+            while not self.status.is_queue_empty():
+                queue_item = self.status.pop_from_queue()
                 yield from self._loop(*queue_item, return_objective=return_objective)
 
     # @profile
@@ -414,6 +300,10 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             parent_lb, prefix_length, self.lmbd, self.ub
         )
         free_rules_in_prefix = set(parent_prefix) - self.pivot_rule_idxs
+
+        # udpate d_last in search status
+        self.status.update_d_last(self._restore_rule_ids(free_rules_in_prefix))
+
         max_rule_idx = max(free_rules_in_prefix or [-1])
 
         for rule in self.rules[(max_rule_idx + 1) :]:
@@ -437,7 +327,6 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             if lb <= self.ub:
                 # apply look-ahead bound
                 # parent + current rule + any next rule
-
                 if check_look_ahead_bound(lb, self.lmbd, self.ub):
                     # ensure that Ax=b is not violated
                     # v1, zp, and sp are updated here
@@ -472,10 +361,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                             w = v1 | ~parent_u  # captured by the new prefix
                             up = ~w  # not captured by the new prefix
 
-                            self.queue.push(
-                                (new_prefix, lb, up, zp, sp),
-                                key=lb,
-                            )
+                            self.status.push_to_queue(lb, (new_prefix, lb, up, zp, sp))
 
                 # next we consider the feasibility d + r + the extension rules needed to satisfy Ax=b
                 # note that ext_idxs exclude the current rule
@@ -508,10 +394,14 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                 fn_fraction, _ = self._incremental_update_obj(parent_u, v_ext)
                 obj = obj_with_fp + fn_fraction
 
-                sol = RuleSet(parent_prefix + tuple(ext_idxs) + (rule.id,))
-                
+                prefix_restored = self._restore_rule_ids(
+                    RuleSet(parent_prefix + tuple(ext_idxs) + (rule.id,))
+                )
+
+                self.status.add_to_reserve_set(prefix_restored)
+
                 if obj <= self.ub:
-                    if return_objective:
-                        yield self._pack_solution(sol, obj)
-                    else:
-                        yield self._pack_solution(sol)
+                    self.status.add_to_solution_set(prefix_restored)
+                    yield self._pack_solution(
+                        prefix_restored, (obj if return_objective else None)
+                    )
