@@ -1,4 +1,6 @@
 import heapq
+import numpy as np
+
 from typing import Any, Union
 from copy import deepcopy
 
@@ -40,17 +42,34 @@ class Queue:
 
     def copy(self) -> "Queue":
         return deepcopy(self)
-        # new_queue = self.__class__()
-        # new_queue._items = deepcopy(self._items)
-        # new_queue.popped_count = self.popped_count
-        # new_queue.pushed_count = self.pushed_count
-        
-        # return new_queue
+
+    def __items_eq__(self, items: list) -> bool:
+        """check if the items are equal"""
+        if len(self._items) != len(items):
+            return False
+
+        for i1, i2 in zip(self._items, items):
+            if len(i1) != len(i2):
+                return False
+            k1, k2 = i1[0], i2[0]
+            if k1 != k2:
+                # keys are different
+                return False
+            for e1, e2 in zip(i1[1], i2[1]):
+                # check the item content
+                if type(e1) != type(e2):
+                    return False
+                if isinstance(e1, np.ndarray):
+                    if not np.allclose(e1, e2):
+                        return False
+                elif e1 != e2:
+                    return False
+        return True
 
     def __eq__(self, other: "Queue") -> bool:
         assert isinstance(other, Queue)
         return (
-            (self._items == other._items)
+            (self.__items_eq__(other._items))
             and (self.popped_count == other.popped_count)
             and (self.pushed_count == other.pushed_count)
         )

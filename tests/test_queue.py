@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
+from gmpy2 import mpz
 from bds.queue import Queue
-from bds.utils import randints
+from bds.utils import randints, bin_array
 
 
 class TestQueue:
@@ -13,7 +14,9 @@ class TestQueue:
 
         q = Queue()
 
-        print("self.items_with_key_permutated: {}".format(self.items_with_key_permutated))
+        print(
+            "self.items_with_key_permutated: {}".format(self.items_with_key_permutated)
+        )
         for item, key in self.items_with_key_permutated:
             q.push(item, key=key)
 
@@ -27,9 +30,7 @@ class TestQueue:
         assert q.size == total_queue_size
         assert not q.is_empty
 
-        for i, expected_item_and_key in zip(
-            range(q.size), self.items_with_key
-        ):
+        for i, expected_item_and_key in zip(range(q.size), self.items_with_key):
             actual_item = q.front()
             expected_item, _ = expected_item_and_key
             assert expected_item == actual_item
@@ -58,3 +59,45 @@ class TestQueue:
 
         q.pop()
         assert q != q_cp
+
+    def test__items_eq__case_1(self):
+        """different lengths"""
+        q1 = Queue()
+        item0 = (mpz("0b001"), bin_array([0, 0, 1]))
+        item1 = (mpz("0b010"), bin_array([0, 1, 0]))
+
+        q1.push(item0, key=0)
+
+        q2 = Queue()
+        q2.push(item0, key=0)
+
+        assert q1.__items_eq__(q2._items)
+
+        q1.push(item1, key=1)
+        assert not q1.__items_eq__(q2._items)
+
+    def test__items_eq__case_2(self):
+        """different content"""
+        q1 = Queue()
+        item0 = (mpz("0b001"), bin_array([0, 0, 1]))
+        item1 = (mpz("0b010"), bin_array([0, 1, 0]))
+
+        q1.push(item0, key=0)
+
+        q2 = Queue()
+        q2.push(item1, key=0)
+
+        assert not q1.__items_eq__(q2._items)
+
+    def test__items_eq__case_3(self):
+        """different types"""
+        q1 = Queue()
+        item0 = (mpz("0b001"), bin_array([0, 0, 1]))
+        item1 = (bin_array([0, 1, 0]), mpz("0b010"))
+
+        q1.push(item0, key=0)
+
+        q2 = Queue()
+        q2.push(item1, key=0)
+
+        assert not q1.__items_eq__(q2._items)
