@@ -48,15 +48,23 @@ class SolverStatus:
 
     @property
     def reserve_set(self):
+        """the set of prefixes whose lower bound is below the objective upper bound"""
         return self._reserve_set
 
     @property
     def solution_set(self):
+        """the set of feasible prefixes, i.e., whose objective value is below the objective upper bound"""
         return self._solution_set
 
     @property
     def d_last(self):
-        return self._d_last    
+        """the prefix that was last checked by some branch-and-bound procedure"""
+        return self._d_last
+
+    def push_d_last_to_queue(self, key: float):
+        """if d_last is set, push d_last to the queue using key"""
+        if self._d_last is not None:
+            self.push_to_queue(key, self._d_last)
 
     def update_d_last(self, prefix: RuleSet):
         self._d_last = prefix

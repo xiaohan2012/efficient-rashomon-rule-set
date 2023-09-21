@@ -52,6 +52,15 @@ class TestSolverStatus:
         s.update_d_last(RuleSet([0, 1]))
         assert s.d_last == (0, 1)
 
+    def test_push_d_last_to_queue(self):
+        s = SolverStatus()
+        s.push_d_last_to_queue(0)  # nothign is pushed because d_last is None
+        assert s.queue_size() == 0
+
+        s.update_d_last(RuleSet([0, 1]))
+        s.push_d_last_to_queue(0)
+        assert s.queue_size() == 1
+
     def test___eq__(self):
         s = SolverStatus()
         key = 0
