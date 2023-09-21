@@ -42,8 +42,19 @@ class TestQueue:
         q_cp = q.copy()
 
         assert q._items == q_cp._items
+        assert q.pushed_count == q_cp.pushed_count
+        assert q.popped_count == q_cp.popped_count
 
         # modifying the original queue shouldn't affect the new queue
         q.pop()
         assert q._items != q_cp._items
         assert q.size == (q_cp.size - 1)
+        assert q.popped_count == (q_cp.popped_count + 1)
+
+    def test___eq__(self):
+        q = self.get_simple_queue(1234)
+        q_cp = q.copy()
+        assert q == q_cp
+
+        q.pop()
+        assert q != q_cp

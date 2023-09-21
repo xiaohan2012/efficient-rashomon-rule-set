@@ -1,7 +1,8 @@
-from typing import Set, Any, Optional
 from numbers import Number
-from .types import RuleSet
+from typing import Any, Optional, Set
+from copy import deepcopy
 from .queue import Queue
+from .types import RuleSet
 
 
 class SolverStatus:
@@ -53,5 +54,21 @@ class SolverStatus:
     def solution_set(self):
         return self._solution_set
 
-    def set_d_last(self, prefix: RuleSet):
+    @property
+    def d_last(self):
+        return self._d_last    
+
+    def update_d_last(self, prefix: RuleSet):
         self._d_last = prefix
+
+    def copy(self):
+        return deepcopy(self)
+
+    def __eq__(self, other: "SolverStatus") -> bool:
+        assert isinstance(other, SolverStatus)
+        return (
+            (self.queue == other.queue)
+            and (self.d_last == other.d_last)
+            and (self.solution_set == other.solution_set)
+            and (self.reserve_set == other.reserve_set)
+        )

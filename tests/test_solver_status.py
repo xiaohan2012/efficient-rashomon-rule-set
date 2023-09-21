@@ -1,4 +1,5 @@
 from bds.solver_status import SolverStatus
+from bds.types import RuleSet
 
 
 class TestSolverStatus:
@@ -44,3 +45,24 @@ class TestSolverStatus:
         assert s.pop_from_queue() == "one"
         assert s.queue_size() == 0
         assert s.is_queue_empty()
+
+    def test_d_last(self):
+        s = SolverStatus()
+        assert s.d_last is None
+        s.update_d_last(RuleSet([0, 1]))
+        assert s.d_last == (0, 1)
+
+    def test___eq__(self):
+        s = SolverStatus()
+        key = 0
+        item = "zero"
+        s.push_to_queue(key, item)
+
+        s_cp = s.copy()
+
+        assert s is not s_cp
+        assert s == s_cp
+
+        s.pop_from_queue()
+        assert s is not s_cp
+        assert s != s_cp
