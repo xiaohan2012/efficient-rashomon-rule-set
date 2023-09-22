@@ -4,10 +4,12 @@ from bds.gf2 import GF, extended_rref
 from bds.utils import bin_array, bin_zeros
 from bds.parity_constraints import (
     build_boundary_table,
-    ensure_minimal_no_violation,
-    ensure_satisfiability,
-    count_added_pivots
+    inc_ensure_minimal_no_violation,
+    inc_ensure_satisfiability,
+    ensure_minimal_non_violation,
+    count_added_pivots,
 )
+from bds.types import RuleSet
 
 
 @pytest.mark.parametrize(
@@ -38,7 +40,7 @@ def test_build_boundary_table(A, expected):
     np.testing.assert_allclose(expected, actual)
 
 
-class TestEnsureMinimalNoViolation:
+class TestIncEnsureMinimalNoViolation:
     @pytest.mark.parametrize(
         "test_name, A, b, j, z, s, exp_rules, exp_zp, exp_sp",
         [
@@ -171,7 +173,7 @@ class TestEnsureMinimalNoViolation:
 
         z = bin_array(z)
         s = bin_array(s)
-        actual_rules, actual_zp, actual_sp = ensure_minimal_no_violation(
+        actual_rules, actual_zp, actual_sp = inc_ensure_minimal_no_violation(
             j, z, s, A, b, B, pivot_columns
         )
         np.testing.assert_allclose(actual_rules, np.array(exp_rules, dtype=int))
@@ -207,7 +209,7 @@ class TestEnsureMinimalNoViolation:
                 [0, 0],
                 [0, 0],
                 # add 3, which determines both constraints
-                # rule 1 and 2 are added
+                # rule 0 and 1 are added
                 3,
                 [0, 1],
                 [1, 0],
@@ -223,7 +225,7 @@ class TestEnsureMinimalNoViolation:
                 [0, 0],
                 [0, 0],
                 # add 3, which determines both constraints
-                # rule 1 and 2 are added
+                # rule 1 is added
                 3,
                 [1],
                 [0, 0],
@@ -271,14 +273,14 @@ class TestEnsureMinimalNoViolation:
         A, b, rank, pivot_columns = extended_rref(
             GF(np.array(A, dtype=int)), GF(np.array(b, dtype=int)), verbose=False
         )
-        A, t = map(bin_array, (A, b))
+        A, b = map(bin_array, (A, b))
 
         B = build_boundary_table(A, rank, pivot_columns)
         m, n = A.shape
 
         z = bin_zeros(m)
         s = bin_zeros(m)
-        actual_rules1, actual_zp1, actual_sp1 = ensure_minimal_no_violation(
+        actual_rules1, actual_zp1, actual_sp1 = inc_ensure_minimal_no_violation(
             j1, z, s, A, b, B, pivot_columns
         )
 
@@ -286,13 +288,127 @@ class TestEnsureMinimalNoViolation:
         np.testing.assert_allclose(actual_zp1, zp1)
         np.testing.assert_allclose(actual_sp1, sp1)
 
-        actual_rules2, actual_zp2, actual_sp2 = ensure_minimal_no_violation(
+        actual_rules2, actual_zp2, actual_sp2 = inc_ensure_minimal_no_violation(
             j2, actual_zp1, actual_sp1, A, b, B, pivot_columns
         )
 
         np.testing.assert_allclose(actual_rules2, rules2)
         np.testing.assert_allclose(actual_zp2, zp2)
         np.testing.assert_allclose(actual_sp2, sp2)  # all constraints are satisfied
+
+
+class TestEnsusreMinimalNonViolation:
+    @pytest.mark.parametrize(
+        "test_name, prefix, A, b, expected_added_rules, expected_z, expected_s",
+        [
+            (
+                "t1",
+                # add rule 2, whcih does not change anything
+                RuleSet([2]),
+                # the case that the added rules are irrelevant
+                [[1, 0, 0, 0], [0, 1, 0, 0]],
+                [1, 1],
+                [0, 1],  # rules
+                [1, 1],  # z
+                [1, 1],  # s
+            ),
+            (
+                "t2.1",
+                # add 3, which determines both constraints
+                # rule 0 and 1 are added
+                RuleSet([3]),
+                [[1, 0, 1, 0], [0, 1, 0, 1]],
+                [1, 0],
+                [0, 1],  # rules
+                [1, 0],  # z
+                [1, 1],  # s
+            ),
+            (
+                "t2.2",
+                # add 3, which determines both constraints
+                # but only rule 1 added
+                RuleSet([3]),
+                [[1, 0, 1, 0], [0, 1, 0, 1]],
+                [0, 0],
+                # the root case, no rules are added
+                [1],
+                [0, 0],
+                [1, 1],
+            ),
+            (
+                "t3.1",
+                RuleSet([2]),
+                [[1, 0, 1, 0], [0, 1, 0, 1]],
+                [1, 0],
+                # the root case, no rules are added
+                # add 2, which determines C1, but no rule is added
+                [],
+                [1, 0],
+                [1, 0],
+            ),
+            (
+                "t3.2",
+                RuleSet([2, 3]),
+                [[1, 0, 1, 0], [0, 1, 0, 1]],
+                [0, 0],
+                # add 2 and 3, which determines both constraints
+                # rule 0 and 1 is added
+                [0, 1],
+                [0, 0],
+                [1, 1],
+            ),
+            (
+                "t4.1",
+                RuleSet([3]),
+                [[1, 0, 0, 1, 0, 0], [0, 1, 0, 0, 1, 0], [0, 0, 1, 0, 0, 1]],
+                [0, 0, 1],
+                # add 2 and 3, which determines both constraints
+                # rule 0 and 1 is added
+                [0],
+                [0, 0, 0],
+                [1, 0, 0],
+            ),
+            (
+                "t4.2",
+                RuleSet([3, 4]),
+                [[1, 0, 0, 1, 0, 0], [0, 1, 0, 0, 1, 0], [0, 0, 1, 0, 0, 1]],
+                [0, 0, 1],
+                # add 2 and 3, which determines both constraints
+                # rule 0 and 1 is added
+                [0, 1],
+                [0, 0, 0],
+                [1, 1, 0],
+            ),
+            (
+                "t4.3",
+                RuleSet([3, 4, 5]),
+                [[1, 0, 0, 1, 0, 0], [0, 1, 0, 0, 1, 0], [0, 0, 1, 0, 0, 1]],
+                [0, 0, 1],
+                # add 2 and 3, which determines both constraints
+                # rule 0 and 1 is added
+                [0, 1],
+                [0, 0, 1],
+                [1, 1, 1],
+            ),
+        ],
+    )
+    def test_basic(
+        self, test_name, prefix, A, b, expected_added_rules, expected_z, expected_s
+    ):
+        A, b, rank, pivot_columns = extended_rref(
+            GF(np.array(A, dtype=int)), GF(np.array(b, dtype=int)), verbose=False
+        )
+        A, b = map(bin_array, (A, b))
+
+        B = build_boundary_table(A, rank, pivot_columns)
+        m, n = A.shape
+
+        actual_added_rules, actual_z, actual_s = ensure_minimal_non_violation(
+            prefix, A, b, B, pivot_columns
+        )
+        assert set(actual_added_rules) == set(expected_added_rules)
+        np.testing.assert_allclose(expected_z, actual_z)
+        np.testing.assert_allclose(expected_s, actual_s)
 
 
 class TestCountAddedPivots:
@@ -310,7 +426,7 @@ class TestCountAddedPivots:
         assert count_added_pivots(j, A, b, z) == exp_count
 
 
-class TestEnsureSatisfiability:
+class TestIncEnsureSatisfiability:
     @pytest.mark.parametrize(
         "name, A, b, z, s, j, expected_rules",
         [
@@ -438,7 +554,7 @@ class TestEnsureSatisfiability:
 
         z = bin_array(z)
         s = bin_array(s)
-        actual_rules = ensure_satisfiability(
+        actual_rules = inc_ensure_satisfiability(
             j, rank, z, s, A, b, row2pivot_column  # A_indices, A_indptr,
         )
         np.testing.assert_allclose(actual_rules, np.array(expected_rules, dtype=int))

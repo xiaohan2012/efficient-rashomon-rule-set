@@ -1,6 +1,8 @@
 import numpy as np
 from typing import Optional, List, Dict, Tuple, Union
 from numba import jit
+from .types import RuleSet
+from .utils import bin_zeros
 
 
 def build_boundary_table(
@@ -20,8 +22,44 @@ def build_boundary_table(
     return np.array(result, dtype=int)
 
 
+def ensure_minimal_non_violation(
+    prefix: RuleSet,
+    A: np.ndarray,
+    b: np.ndarray,
+    B: np.ndarray,
+    row2pivot_column: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """ensure minimal non violation for a prefix w.r.t. parity constraint system Ax=b
+
+    the following information is provided for incremental computation:
+    A and b define the parity constraint system
+    B: the boundary table
+    row2pivot_column: mapping from row index to the index of pivot column
+
+    returns:
+
+    1. the set of pivot rules being added
+    2. parity status vector
+    3. satisfiability status vector
+    """
+    m = A.shape[0]
+    z = bin_zeros(m)
+    s = bin_zeros(m)
+
+    # at root
+    all_rules_added, z, s = inc_ensure_minimal_no_violation(
+        -1, z, s, A, b, B, row2pivot_column
+    )
+    for j in prefix:
+        rules_added, z, s = inc_ensure_minimal_no_violation(
+            j, z, s, A, b, B, row2pivot_column
+        )
+        all_rules_added = np.concatenate((all_rules_added, rules_added))
+    return all_rules_added, z, s
+
+
 @jit(nopython=True, cache=True)
-def ensure_minimal_no_violation(
+def inc_ensure_minimal_no_violation(
     j: int,
     z: np.ndarray,
     s: np.ndarray,
@@ -31,6 +69,8 @@ def ensure_minimal_no_violation(
     row2pivot_column: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
+    incrementally ensure minimal non violation
+
     upon adding rule j to the current prefix (represented  by `z` and `s`),
     add a set of pivot rules to ensure that the new prefix is minimally non-violating
 
@@ -105,7 +145,7 @@ def count_added_pivots(j: int, A: np.ndarray, b: np.ndarray, z: np.ndarray) -> i
 
 
 @jit(nopython=True, cache=True)
-def ensure_satisfiability(
+def inc_ensure_satisfiability(
     j: int,
     rank: int,
     z: np.ndarray,
