@@ -1,4 +1,7 @@
+import numpy as np
+
 from bds.solver_status import SolverStatus
+from gmpy2 import mpz
 from bds.types import RuleSet
 
 
@@ -52,7 +55,7 @@ class TestSolverStatus:
         s.update_d_last(RuleSet([0, 1]))
         assert s.d_last == (0, 1)
 
-    def test_push_d_last_to_queue(self):
+    def test_push_d_last_to_queue_without_other_data(self):
         s = SolverStatus()
         s.push_d_last_to_queue(0)  # nothign is pushed because d_last is None
         assert s.queue_size() == 0
@@ -60,6 +63,21 @@ class TestSolverStatus:
         s.update_d_last(RuleSet([0, 1]))
         s.push_d_last_to_queue(0)
         assert s.queue_size() == 1
+
+    def test_push_d_last_to_queue_with_other_data(self):
+        s = SolverStatus()
+        s.push_d_last_to_queue(0)  # nothign is pushed because d_last is None
+        assert s.queue_size() == 0
+
+        s.update_d_last(RuleSet([0, 1]),)
+        s.push_d_last_to_queue(0, other_data=(mpz(), np.zeros(10)))
+        assert s.queue_size() == 1
+
+        prefix, other_data_1, other_data_2 = s.pop_from_queue()
+        assert s.queue_size() == 0
+        assert prefix == RuleSet([0, 1])
+        assert other_data_1 == mpz()
+        np.testing.assert_allclose(other_data_2, 0)
 
     def test___eq__(self):
         s = SolverStatus()

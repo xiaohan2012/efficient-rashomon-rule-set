@@ -1,5 +1,5 @@
 from numbers import Number
-from typing import Any, Optional, Set
+from typing import Any, Optional, Set, Tuple
 from copy import deepcopy
 from .queue import Queue
 from .types import RuleSet
@@ -61,10 +61,15 @@ class SolverStatus:
         """the prefix that was last checked by some branch-and-bound procedure"""
         return self._d_last
 
-    def push_d_last_to_queue(self, key: float):
+    def push_d_last_to_queue(self, key: float, other_data: Optional[Tuple[Any]] = None):
         """if d_last is set, push d_last to the queue using key"""
         if self._d_last is not None:
-            self.push_to_queue(key, self._d_last)
+            data_to_push = (
+                ((self._d_last,) + other_data)
+                if other_data is not None
+                else self.d_last
+            )
+            self.push_to_queue(key, data_to_push)
 
     def update_d_last(self, prefix: RuleSet):
         self._d_last = prefix
