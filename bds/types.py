@@ -1,10 +1,14 @@
-from typing import Set, Iterable
+from typing import Iterable, Set, Union
 
 
 class RuleSet(tuple):
     def __new__(self, rule_ids: Iterable[int]):
         rule_ids = list(sorted(rule_ids))
         return tuple.__new__(RuleSet, rule_ids)
+
+    def __sub__(self, other: Union[Set[int], "RuleSet"]) -> "RuleSet":
+        """remove ids in other from self"""
+        return RuleSet(tuple(set(self) - set(other)))
 
 
 SolutionSet = Set[RuleSet]
