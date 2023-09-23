@@ -56,7 +56,8 @@ class TestSolverStatus:
         other_data = {"u": mpz(), "s": mpz("0b11")}
         s.update_last_checked_prefix(RuleSet([0, 1]), other_data=other_data)
 
-        assert s.last_checked_prefix == ((0, 1), other_data)
+        assert s.last_checked_prefix == (0, 1)
+        assert s.other_data_for_last_checked_prefix == other_data
 
     def test___eq__(self):
         s = SolverStatus()

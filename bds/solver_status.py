@@ -58,18 +58,13 @@ class SolverStatus:
     @property
     def last_checked_prefix(self):
         """return the prefix that was last checked by some branch-and-bound procedure
-
-        if it is not set, raise an error
-
-        return associated data if self._other_data_for_last_checked_prefix is set
         """
-        if self._last_checked_prefix is None:
-            return None
+        return self._last_checked_prefix
 
-        if self._other_data_for_last_checked_prefix is not None:
-            return self._last_checked_prefix, self._other_data_for_last_checked_prefix
-        else:
-            return self._last_checked_prefix
+    @property
+    def other_data_for_last_checked_prefix(self):
+        """return the associated data for the last checked prefix"""
+        return self._other_data_for_last_checked_prefix
 
     def update_last_checked_prefix(
         self, prefix: RuleSet, other_data: Optional[Dict[str, Any]] = None
@@ -85,6 +80,7 @@ class SolverStatus:
         return (
             (self.queue == other.queue)
             and (self.last_checked_prefix == other.last_checked_prefix)
+            and (self.other_data_for_last_checked_prefix == other.other_data_for_last_checked_prefix)
             and (self.solution_set == other.solution_set)
             and (self.reserve_set == other.reserve_set)
         )
