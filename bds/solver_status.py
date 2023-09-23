@@ -8,12 +8,10 @@ from .types import RuleSet
 class SolverStatus:
     """a utility class to record the solver status"""
 
-    def __init__(
-        self,
-    ):
+    def __init__(self, queue_class=Queue):
         self._reserve_set: Set[RuleSet] = set()
         self._solution_set: Set[RuleSet] = set()
-        self._queue: Queue = Queue()
+        self._queue: Queue = queue_class()
         self._last_checked_prefix: Optional[RuleSet] = None
         self._other_data_for_last_checked_prefix: Optional[Dict[Any]] = None
 
