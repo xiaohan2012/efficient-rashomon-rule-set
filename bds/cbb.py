@@ -15,7 +15,7 @@ from .bounds import (
     check_pivot_length_bound,
 )
 from .gf2 import GF, extended_rref
-from .queue import Queue
+from .queue import NonRedundantQueue
 from .rule import Rule, lor_of_truthtable
 from .utils import (
     assert_binary_array,
@@ -27,10 +27,11 @@ from .utils import (
     calculate_obj,
 )
 from .parity_constraints import (
-    ensure_minimal_no_violation,
-    ensure_satisfiability,
+    inc_ensure_minimal_no_violation,
+    inc_ensure_satisfiability,
     count_added_pivots,
     build_boundary_table,
+    ensure_minimal_non_violation,
 )
 from .types import RuleSet
 from .solver_status import SolverStatus
@@ -44,7 +45,7 @@ from .solver_status import SolverStatus
 class ConstrainedBranchAndBound(BranchAndBoundNaive):
     def __init__(self, *args, reorder_columns=True, **kwargs):
         super(ConstrainedBranchAndBound, self).__init__(*args, **kwargs)
-        self.reorder_column = reorder_columns
+        self.reorder_columns = reorder_columns
         # copy the rules for later use
         self.rules_before_ordering = deepcopy(self.rules)
 
@@ -107,7 +108,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             self.pivot_columns,
         ) = self._simplify_constraint_system(A, b)
 
-        if self.reorder_column:
+        if self.reorder_columns:
             self._do_reorder_columns()
 
         self.is_linear_system_solvable = (self.b[self.rank :] == 0).all()
@@ -139,7 +140,18 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         if solver_status is not None:
             # continuation search
             self.status = solver_status.copy()
-            self.status.push_d_last_to_queue(self._calculate_lb(self.status.d_last))
+            if self.status.last_checked_prefix is not None:
+                last_checked_prefix, aux_info = self.status.last_checked_prefix
+                self.status.push_to_queue(
+                    (aux_info["lb"], last_checked_prefix),
+                    (
+                        last_checked_prefix,
+                        aux_info["lb"],
+                        aux_info["u"],
+                        aux_info["z"],
+                        aux_info["s"],
+                    ),
+                )
         else:
             self.reset_status()
             self.reset_queue()
@@ -156,7 +168,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
 
     def _restore_rule_ids(self, prefix: RuleSet) -> RuleSet:
         """return the rule ids if reorder_column is enabled"""
-        if self.reorder_column:
+        if self.reorder_columns:
             return RuleSet([self.idx_map_new2old[i] for i in prefix])
         return RuleSet(prefix)
 
@@ -170,6 +182,19 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
             return prefix
 
     def _ensure_minimal_non_violation(
+        self, prefix: RuleSet
+    ) -> Tuple[RuleSet, mpz, np.ndarray, np.ndarray]:
+        """wrapper of ensure_minimal_non_violation, but also returns the captured vector"""
+        if len(set(prefix) & self.pivot_rule_idxs) != 0:
+            raise ValueError(f"prefix should not contain any pivots: {prefix}")
+
+        pivot_rules_array, z, s = ensure_minimal_non_violation(
+            prefix, self.A, self.b, self.B, self.row2pivot_column
+        )
+        v = self._lor(pivot_rules_array)
+        return RuleSet(pivot_rules_array), v, z, s
+
+    def _inc_ensure_minimal_non_violation(
         self, rule_id: int, u: mpz, z: np.ndarray, s: np.ndarray
     ) -> Tuple[np.ndarray, mpz, np.ndarray, np.ndarray, int]:
         """a wrapper around ensure_no_violation
@@ -178,7 +203,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         where v is the captured vector in the context of the current prefix
         """
         assert rule_id >= -1
-        e1_idxs, zp, sp = ensure_minimal_no_violation(
+        e1_idxs, zp, sp = inc_ensure_minimal_no_violation(
             rule_id,
             z,
             s,
@@ -197,9 +222,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
 
         return (e1_idxs, v, zp, sp, ext_size)
 
-    def _ensure_satisfiability(self, rule_id: int, z: np.ndarray, s: np.ndarray):
+    def _inc_ensure_satisfiability(self, rule_id: int, z: np.ndarray, s: np.ndarray):
         """a wrapper around assign_pivot_variables"""
-        return ensure_satisfiability(
+        return inc_ensure_satisfiability(
             rule_id,
             self.rank,
             z,
@@ -210,7 +235,12 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         )
 
     def reset_status(self):
-        self.status = SolverStatus()
+        self.status = SolverStatus(
+            # a queue class that avoids pushing existing keys in the queue is used, to avoid checking duplicate items
+            # in our case, the key of a prefix is defined by (lower bound value of the prefix, the prefix)
+            # prefix is added to guanratee a unique mapping betwee the prefix and the key
+            queue_class=NonRedundantQueue
+        )
 
     def reset_queue(self):
         assert hasattr(self, "status") and isinstance(
@@ -228,20 +258,26 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         # 0 means not satisfied yet
         # 1 means satisfied
         s = bin_zeros(self.num_constraints)
-        prefix_idxs, v, zp, sp, ext_size = self._ensure_minimal_non_violation(
+        prefix_idxs, v, zp, sp, ext_size = self._inc_ensure_minimal_non_violation(
             -1, u, z, s
         )
         up = ~(v | (~u))  # not captured by the prefix
         lb = self._calculate_lb(prefix_idxs)
         prefix = RuleSet(prefix_idxs)
         item = (prefix, lb, up, zp, sp)
-        self.status.push_to_queue(lb, item)
+        self.status.push_to_queue(
+            key=(
+                lb,
+                prefix,
+            ),  # we use a combination of lb and prefix to avoid two entries with the same key
+            item=item,
+        )
 
     def _generate_solution_at_root(self, return_objective=False) -> Iterable:
         """check the solution at the root, e.g., all free variables assigned to zero"""
         # add pivot rules if necessary to satistify Ax=b
         prefix = RuleSet(
-            self._ensure_satisfiability(
+            self._inc_ensure_satisfiability(
                 -1, bin_zeros(self.num_constraints), bin_zeros(self.num_constraints)
             )
         )
@@ -302,7 +338,16 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         free_rules_in_prefix = set(parent_prefix) - self.pivot_rule_idxs
 
         # udpate d_last in search status
-        self.status.update_d_last(self._restore_rule_ids(free_rules_in_prefix))
+        self.status.update_last_checked_prefix(
+            parent_prefix,  # prefix with the reordering
+            other_data=dict(
+                prefix_restored=self._restore_rule_ids(parent_prefix),
+                lb=parent_lb,
+                u=parent_u,
+                z=parent_z,
+                s=parent_s,
+            ),
+        )
 
         max_rule_idx = max(free_rules_in_prefix or [-1])
 
@@ -336,7 +381,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                         zp,
                         sp,
                         extension_size,
-                    ) = self._ensure_minimal_non_violation(
+                    ) = self._inc_ensure_minimal_non_violation(
                         rule.id, parent_u, parent_z, parent_s
                     )
 
@@ -361,7 +406,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                             w = v1 | ~parent_u  # captured by the new prefix
                             up = ~w  # not captured by the new prefix
 
-                            self.status.push_to_queue(lb, (new_prefix, lb, up, zp, sp))
+                            self.status.push_to_queue(
+                                (lb, new_prefix), (new_prefix, lb, up, zp, sp)
+                            )
 
                 # next we consider the feasibility d + r + the extension rules needed to satisfy Ax=b
                 # note that ext_idxs exclude the current rule
@@ -374,7 +421,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                     continue
 
                 # then we get the actual of added pivots to calculate the objective
-                ext_idxs = self._ensure_satisfiability(rule.id, parent_z, parent_s)
+                ext_idxs = self._inc_ensure_satisfiability(rule.id, parent_z, parent_s)
 
                 # prepare to calculate the obj of the final solution
                 # v_ext: points captured by extention + current rule in the context of the prefix
@@ -401,7 +448,8 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                 self.status.add_to_reserve_set(prefix_restored)
 
                 if obj <= self.ub:
-                    self.status.add_to_solution_set(prefix_restored)
-                    yield self._pack_solution(
-                        prefix_restored, (obj if return_objective else None)
-                    )
+                    if prefix_restored not in self.status.solution_set:
+                        self.status.add_to_solution_set(prefix_restored)
+                        yield self._pack_solution(
+                            prefix_restored, (obj if return_objective else None)
+                        )

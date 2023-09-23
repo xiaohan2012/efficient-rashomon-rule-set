@@ -8,8 +8,8 @@ from bds.cbb import (
     ConstrainedBranchAndBound,
     build_boundary_table,
     count_added_pivots,
-    ensure_minimal_no_violation,
-    ensure_satisfiability,
+    inc_ensure_minimal_no_violation,
+    inc_ensure_satisfiability,
 )
 from bds.random_hash import generate_h_and_alpha
 from bds.rule import Rule
@@ -37,6 +37,7 @@ from .utils import (
 
 class UtilityMixin:
     def _create_input_data(self, num_rules, num_constraints, rand_seed):
+        """return rules, y, A, b"""
         rand_rules, rand_y = generate_random_rules_and_y(10, num_rules, rand_seed)
         A, b = generate_h_and_alpha(
             num_rules, num_constraints, rand_seed, as_numpy=True
@@ -44,7 +45,7 @@ class UtilityMixin:
         return rand_rules, rand_y, A, b
 
 
-class TestConstrainedBranchAndBoundMethods:
+class TestConstrainedBranchAndBoundMethods(UtilityMixin):
     @property
     def input_rules(self):
         return [
@@ -250,6 +251,33 @@ class TestConstrainedBranchAndBoundMethods:
         assert cbb.status.solution_set == {sol}
         assert cbb.status.reserve_set == {sol}
 
+    def test__ensure_minimal_non_violation_returned_types(self):
+        """check the types of the returned data"""
+        num_constraints = 2
+        rand_rules, rand_y, A, b = self._create_input_data(10, num_constraints, 1234)
+        cbb = ConstrainedBranchAndBound(
+            rand_rules, float("inf"), rand_y, lmbd=0.1, reorder_columns=False
+        )
+        cbb.reset(A=A, b=b)
+        pvts, v, z, s = cbb._ensure_minimal_non_violation(RuleSet([0, 1]))
+        assert isinstance(pvts, RuleSet)
+        assert isinstance(v, mpz)
+        assert isinstance(z, np.ndarray)
+        assert z.shape == (num_constraints,)
+        assert isinstance(s, np.ndarray)
+        assert s.shape == (num_constraints,)
+
+    def test__ensure_minimal_non_violation_invalid_input(self):
+        """pivot rules are wrongly included in the input"""
+        num_constraints = 2
+        rand_rules, rand_y, A, b = self._create_input_data(10, num_constraints, 1234)
+        cbb = ConstrainedBranchAndBound(
+            rand_rules, float("inf"), rand_y, lmbd=0.1, reorder_columns=False
+        )
+        cbb.reset(A=A, b=b)
+        with pytest.raises(ValueError, match="prefix should not contain any pivots.*"):
+            cbb._ensure_minimal_non_violation(RuleSet([list(cbb.pivot_rule_idxs)[0]]))
+
 
 class TestContinuedSearch(UtilityMixin):
     @pytest.mark.parametrize("num_rules", [10, 20])
@@ -279,7 +307,7 @@ class TestContinuedSearch(UtilityMixin):
         assert len(sols) == len(cbb.status.solution_set)
         assert set(sols) == cbb.status.solution_set
         assert cbb.status.solution_set.issubset(cbb.status.reserve_set)
-        assert isinstance(cbb.status.d_last, RuleSet)
+        assert isinstance(cbb.status.last_checked_prefix, RuleSet)
 
     def test_reset_with_status_given(self):
         """the status should be set and be the same as the previous run"""
@@ -306,28 +334,29 @@ class TestContinuedSearch(UtilityMixin):
     @pytest.mark.parametrize("num_constraints", [5, 8])
     @pytest.mark.parametrize("lmbd", [0.1])
     @pytest.mark.parametrize("ub", [0.501, 0.801])  # float("inf"),  # , 0.01
-    @pytest.mark.parametrize("threshold", randints(5, 1, 100))
+    @pytest.mark.parametrize("threshold", randints(3, 1, 100))
     @pytest.mark.parametrize("rand_seed", randints(3))
+    @pytest.mark.parametrize("reorder_columns", [False, True])
     def test_continue_from_previous_run(
-        self, num_rules, num_constraints, lmbd, ub, threshold, rand_seed
+            self, num_rules, num_constraints, lmbd, ub, threshold, rand_seed, reorder_columns
     ):
         """check if continuing CBB from a previous run gives the expected behaviour"""
         rand_rules, rand_y, A, b = self._create_input_data(
             num_rules, num_constraints, rand_seed
         )
         cbb_full = ConstrainedBranchAndBound(
-            rand_rules, ub, rand_y, lmbd, reorder_columns=False
+            rand_rules, ub, rand_y, lmbd, reorder_columns=reorder_columns
         )
         all_sols_expected = set(cbb_full.bounded_sols(threshold=None, A=A, b=b))
-        
+
         # reference CBB solves from scratch
         cbb_prev = ConstrainedBranchAndBound(
-            rand_rules, ub, rand_y, lmbd, reorder_columns=False
+            rand_rules, ub, rand_y, lmbd, reorder_columns=reorder_columns            
         )
         sols_prev = cbb_prev.bounded_sols(threshold, A=A, b=b)
 
         cbb_cur = ConstrainedBranchAndBound(
-            rand_rules, ub, rand_y, lmbd, reorder_columns=False
+            rand_rules, ub, rand_y, lmbd, reorder_columns=reorder_columns
         )
         sols_cur = cbb_cur.bounded_sols(
             threshold=None, A=A, b=b, solver_status=cbb_prev.status
@@ -335,7 +364,7 @@ class TestContinuedSearch(UtilityMixin):
 
         assert is_disjoint(
             sols_prev, sols_cur
-        ), f"share entries: {set(sols_prev) & set(sols_cur)}"  # solutions from the two runs should be disjoint
+        ), f"shared entries: {set(sols_prev) & set(sols_cur)}"  # solutions from the two runs should be disjoint
 
         all_sols_actual = set(sols_cur) | set(sols_prev)
         assert (
