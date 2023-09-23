@@ -1,5 +1,5 @@
 from numbers import Number
-from typing import Any, Optional, Set, Tuple
+from typing import Any, Optional, Set, Tuple, Dict
 from copy import deepcopy
 from .queue import Queue
 from .types import RuleSet
@@ -14,7 +14,8 @@ class SolverStatus:
         self._reserve_set: Set[RuleSet] = set()
         self._solution_set: Set[RuleSet] = set()
         self._queue: Queue = Queue()
-        self._d_last: Optional[RuleSet] = None
+        self._last_checked_prefix: Optional[RuleSet] = None
+        self._other_data_for_last_checked_prefix: Optional[Dict[Any]] = None
 
     def set_status(self, new_status: "SolverStatus"):
         pass
@@ -57,22 +58,26 @@ class SolverStatus:
         return self._solution_set
 
     @property
-    def d_last(self):
-        """the prefix that was last checked by some branch-and-bound procedure"""
-        return self._d_last
+    def last_checked_prefix(self):
+        """return the prefix that was last checked by some branch-and-bound procedure
 
-    def push_d_last_to_queue(self, key: float, other_data: Optional[Tuple[Any]] = None):
-        """if d_last is set, push d_last to the queue using key"""
-        if self._d_last is not None:
-            data_to_push = (
-                ((self._d_last,) + other_data)
-                if other_data is not None
-                else self.d_last
-            )
-            self.push_to_queue(key, data_to_push)
+        if it is not set, raise an error
 
-    def update_d_last(self, prefix: RuleSet):
-        self._d_last = prefix
+        return associated data if self._other_data_for_last_checked_prefix is set
+        """
+        if self._last_checked_prefix is None:
+            return None
+
+        if self._other_data_for_last_checked_prefix is not None:
+            return self._last_checked_prefix, self._other_data_for_last_checked_prefix
+        else:
+            return self._last_checked_prefix
+
+    def update_last_checked_prefix(
+        self, prefix: RuleSet, other_data: Optional[Dict[str, Any]] = None
+    ):
+        self._last_checked_prefix = prefix
+        self._other_data_for_last_checked_prefix = other_data
 
     def copy(self):
         return deepcopy(self)
@@ -81,7 +86,7 @@ class SolverStatus:
         assert isinstance(other, SolverStatus)
         return (
             (self.queue == other.queue)
-            and (self.d_last == other.d_last)
+            and (self.last_checked_prefix == other.last_checked_prefix)
             and (self.solution_set == other.solution_set)
             and (self.reserve_set == other.reserve_set)
         )
