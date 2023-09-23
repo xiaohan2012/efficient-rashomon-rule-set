@@ -73,3 +73,22 @@ class Queue:
             and (self.popped_count == other.popped_count)
             and (self.pushed_count == other.pushed_count)
         )
+
+
+class NonRedundantQueue(Queue):
+    """a subclass of Queue which avoids pushing keys that already exist in the queue"""
+
+    def __init__(self):
+        super(NonRedundantQueue, self).__init__()
+        self._existing_keys = set()
+
+    def push(self, item: Any, key: Union[float, int]):
+        if key not in self._existing_keys:
+            super(NonRedundantQueue, self).push(item, key)
+            self._existing_keys.add(key)
+
+    def pop(self):
+        key, item = heapq.heappop(self._items)
+        self.popped_count += 1
+        self._existing_keys.remove(key)
+        return item

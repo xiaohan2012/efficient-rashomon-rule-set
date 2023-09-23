@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from gmpy2 import mpz
-from bds.queue import Queue
+from bds.queue import Queue, NonRedundantQueue
 from bds.utils import randints, bin_array
 
 
@@ -101,3 +101,25 @@ class TestQueue:
         q2.push(item1, key=0)
 
         assert not q1.__items_eq__(q2._items)
+
+
+class TestNonRedundantQueue:
+    def test_basic(self):
+        non_redundant_queue = NonRedundantQueue()
+
+        item0 = (mpz("0b001"), bin_array([0, 0, 1]))
+        item1 = (mpz("0b101"), bin_array([0, 1, 0]))
+
+        non_redundant_queue.push(item0, key=0)
+        assert non_redundant_queue.size == 1
+
+        non_redundant_queue.push(item1, key=0)
+        non_redundant_queue._existing_keys == {0}
+        assert non_redundant_queue.size == 1
+
+        non_redundant_queue.pop()
+        non_redundant_queue._existing_keys == set()
+        assert non_redundant_queue.size == 0
+        non_redundant_queue.push(item1, key=1)
+        non_redundant_queue._existing_keys == {1}
+        assert non_redundant_queue.size == 1
