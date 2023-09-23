@@ -124,6 +124,27 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         # mapping from row index to the pivot column index
         self.row2pivot_column = np.array(self.pivot_columns, dtype=int)
 
+    def _push_last_checked_prefix_to_queue(self):
+        """
+        push last checked prefix to the queue
+
+        to be used only in continuation search mode"""
+        if self.status.last_checked_prefix is not None:
+            last_checked_prefix, aux_info = (
+                self.status.last_checked_prefix,
+                self.status.other_data_for_last_checked_prefix,
+            )
+            self.status.push_to_queue(
+                (aux_info["lb"], last_checked_prefix),
+                (
+                    last_checked_prefix,
+                    aux_info["lb"],
+                    aux_info["u"],
+                    aux_info["z"],
+                    aux_info["s"],
+                ),
+            )
+
     def reset(
         self, A: np.ndarray, b: np.ndarray, solver_status: Optional[SolverStatus] = None
     ):
@@ -140,18 +161,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         if solver_status is not None:
             # continuation search
             self.status = solver_status.copy()
-            if self.status.last_checked_prefix is not None:
-                last_checked_prefix, aux_info = self.status.last_checked_prefix
-                self.status.push_to_queue(
-                    (aux_info["lb"], last_checked_prefix),
-                    (
-                        last_checked_prefix,
-                        aux_info["lb"],
-                        aux_info["u"],
-                        aux_info["z"],
-                        aux_info["s"],
-                    ),
-                )
+            self._push_last_checked_prefix_to_queue()
         else:
             self.reset_status()
             self.reset_queue()

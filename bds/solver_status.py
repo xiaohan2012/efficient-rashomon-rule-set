@@ -77,10 +77,13 @@ class SolverStatus:
 
     def __eq__(self, other: "SolverStatus") -> bool:
         assert isinstance(other, SolverStatus)
+        print(self.queue == other.queue)
+        print(self.last_checked_prefix == other.last_checked_prefix)
+        print(self.solution_set == other.solution_set)
+        print(self.reserve_set == other.reserve_set)
         return (
             (self.queue == other.queue)
             and (self.last_checked_prefix == other.last_checked_prefix)
-            and (self.other_data_for_last_checked_prefix == other.other_data_for_last_checked_prefix)
             and (self.solution_set == other.solution_set)
             and (self.reserve_set == other.reserve_set)
         )

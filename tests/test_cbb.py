@@ -3,6 +3,7 @@ import math
 import numpy as np
 import pytest
 from gmpy2 import mpz
+from operator import itemgetter
 
 from bds.cbb import (
     ConstrainedBranchAndBound,
@@ -283,7 +284,7 @@ class TestContinuedSearch(UtilityMixin):
     @pytest.mark.parametrize("num_rules", [10, 20])
     @pytest.mark.parametrize("num_constraints", [5, 8])
     @pytest.mark.parametrize("ub", [0.501, 0.801])  # float("inf"),  # , 0.01
-    @pytest.mark.parametrize("threshold", randints(2, 1, 100))
+    @pytest.mark.parametrize("threshold", randints(2, 2, 100))
     @pytest.mark.parametrize("rand_seed", randints(3))
     @pytest.mark.parametrize("reorder_columns", [True, False])
     def test_recording_of_R_and_S_and_update_of_d_last(
@@ -318,7 +319,10 @@ class TestContinuedSearch(UtilityMixin):
         cbb_prev = ConstrainedBranchAndBound(
             rand_rules, float("inf"), rand_y, lmbd=0.1, reorder_columns=False
         )
-        cbb_prev.bounded_sols(threshold=5, A=A, b=b)
+
+        cbb_prev.bounded_sols(5, A=A, b=b)
+        # push last checked prefix to to align with what is done in reset method
+        cbb_prev._push_last_checked_prefix_to_queue()
 
         cbb_cur = ConstrainedBranchAndBound(
             rand_rules, float("inf"), rand_y, lmbd=0.1, reorder_columns=False
@@ -328,7 +332,7 @@ class TestContinuedSearch(UtilityMixin):
         assert (
             cbb_cur.status is not cbb_prev.status
         )  # former status is copied from latter
-        assert cbb_cur.status == cbb_prev.status  # but they have identical values
+        assert cbb_cur.status == cbb_prev.status
 
     @pytest.mark.parametrize("num_rules", [10, 20])
     @pytest.mark.parametrize("num_constraints", [5, 8])
@@ -337,8 +341,15 @@ class TestContinuedSearch(UtilityMixin):
     @pytest.mark.parametrize("threshold", randints(3, 1, 100))
     @pytest.mark.parametrize("rand_seed", randints(3))
     @pytest.mark.parametrize("reorder_columns", [False, True])
-    def test_continue_from_previous_run(
-            self, num_rules, num_constraints, lmbd, ub, threshold, rand_seed, reorder_columns
+    def test_continuation_from_previous_run(
+        self,
+        num_rules,
+        num_constraints,
+        lmbd,
+        ub,
+        threshold,
+        rand_seed,
+        reorder_columns,
     ):
         """check if continuing CBB from a previous run gives the expected behaviour"""
         rand_rules, rand_y, A, b = self._create_input_data(
@@ -351,7 +362,7 @@ class TestContinuedSearch(UtilityMixin):
 
         # reference CBB solves from scratch
         cbb_prev = ConstrainedBranchAndBound(
-            rand_rules, ub, rand_y, lmbd, reorder_columns=reorder_columns            
+            rand_rules, ub, rand_y, lmbd, reorder_columns=reorder_columns
         )
         sols_prev = cbb_prev.bounded_sols(threshold, A=A, b=b)
 
@@ -375,66 +386,89 @@ class TestContinuedSearch(UtilityMixin):
             cbb_cur.status.reserve_set
         )  # reserve set is always a superset of solution set
 
-    # @pytest.mark.parametrize("num_rules", [10])
-    # @pytest.mark.parametrize("num_constraints", [2, 4, 8])
-    # @pytest.mark.parametrize("lmbd", [0.1])
-    # @pytest.mark.parametrize("ub", [0.801, 0.501, 0.001])  # float("inf"),  # , 0.01
-    # @pytest.mark.parametrize("rand_seed", randints(5))
-    @pytest.mark.parametrize("num_rules", [10])
-    @pytest.mark.parametrize("num_constraints", [2])
+    def _extract_sols(self, sol_obj_tuples):
+        return list(map(itemgetter(0), sol_obj_tuples))
+
+    def _extract_objs(self, sol_obj_tuples):
+        return list(map(itemgetter(1), sol_obj_tuples))
+    
+    @pytest.mark.parametrize("num_rules", [20])
+    @pytest.mark.parametrize("num_constraints", [2, 4, 6])
     @pytest.mark.parametrize("lmbd", [0.1])
     @pytest.mark.parametrize("ub", [0.801])  # float("inf"),  # , 0.01
-    @pytest.mark.parametrize("rand_seed", [1320602510])
-    @pytest.mark.parametrize("num_continuations", [3])
-    def test_basic(
-        self, num_rules, num_constraints, lmbd, ub, rand_seed, num_continuations
+    @pytest.mark.parametrize("rand_seed", randints(5))
+    # @pytest.mark.parametrize("num_rules", [10])
+    # @pytest.mark.parametrize("num_constraints", [2])
+    # @pytest.mark.parametrize("lmbd", [0.1])
+    # @pytest.mark.parametrize("ub", [0.801])  # float("inf"),  # , 0.01
+    # @pytest.mark.parametrize("rand_seed", [1320602510])
+    @pytest.mark.parametrize("num_continuations", [3, 4, 5])
+    @pytest.mark.parametrize("reorder_columns", [True, False])
+    def test_continuation_search_the_general_case(
+        self,
+        num_rules,
+        num_constraints,
+        lmbd,
+        ub,
+        rand_seed,
+        num_continuations,
+        reorder_columns,
     ):
-        """the output should be the same as ground truth"""
+        """the output should be the same as ground truth for more than 1 continuations
+
+        also check the objectives are calculated correctly
+        """
         rand_rules, rand_y = generate_random_rules_and_y(10, num_rules, rand_seed)
 
         # reference CBB solves from scratch
         cbb_ref = ConstrainedBranchAndBound(
-            rand_rules, ub, rand_y, lmbd, reorder_columns=True
+            rand_rules, ub, rand_y, lmbd, reorder_columns=reorder_columns
         )
 
         A, b = generate_h_and_alpha(
             num_rules, num_constraints, rand_seed, as_numpy=True
         )
 
-        sols_expected = list(cbb_ref.run(return_objective=True, A=A, b=b))
+        sols_with_obj_expected = list(cbb_ref.run(return_objective=True, A=A, b=b))
 
-        num_sols = len(sols_expected)
+        num_sols = len(sols_with_obj_expected)
         threshold_per_run = int(math.ceil(num_sols / num_continuations))
 
         # test CBB solves the problem in "segments"
         # each solver continues from the previous run
-        cbb_cur = ConstrainedBranchAndBound(rand_rules, ub, rand_y, lmbd)
-        sols_accumulated = cbb_cur.bounded_sols(
+        cbb_cur = ConstrainedBranchAndBound(
+            rand_rules, ub, rand_y, lmbd, reorder_columns=reorder_columns
+        )
+        sols_with_obj_actual = cbb_cur.bounded_sols(
             threshold_per_run, return_objective=True, A=A, b=b
         )
 
         for i in range(num_continuations):
-            cbb_next = ConstrainedBranchAndBound(rand_rules, ub, rand_y, lmbd)
+            cbb_next = ConstrainedBranchAndBound(
+                rand_rules, ub, rand_y, lmbd, reorder_columns=reorder_columns
+            )
             sols_in_this_run = cbb_next.bounded_sols(
                 threshold_per_run,
                 return_objective=True,
                 A=A,
                 b=b,
-                # insert the continutation status
-                queue=cbb_cur.queue,
-                R=cbb_cur.R,  # cbb_cur.R and cbb_cur.S keeps growing
-                S=cbb_cur.S,
+                solver_status=cbb_cur.status,
             )
             # expectation 1:
             # the solutions from each continutation search should be disjoint from the others
-            assert len(set(sols_accumulated) & set(sols_in_this_run)) == 0
-            sols_accumulated += sols_in_this_run
+            assert is_disjoint(
+                self._extract_sols(sols_with_obj_actual),
+                self._extract_sols(sols_in_this_run),
+            )
+            sols_with_obj_actual += sols_in_this_run
             cbb_cur = cbb_next
 
         # expectation 2: the solutions from continuation search should be the same as solving from scratch
-        assert set(sols_accumulated) == set(sols_expected)
-        assert len(sols_accumulated) == len(sols_expected)
-        assert set(sols_expected) == cbb_cur.S
+        assert set(self._extract_sols(sols_with_obj_actual)) == set(self._extract_sols(sols_with_obj_expected))
+        assert set(self._extract_objs(sols_with_obj_actual)) == set(self._extract_objs(sols_with_obj_expected))
+        assert len(sols_with_obj_actual) == len(sols_with_obj_expected)
+
+        assert set(self._extract_sols(sols_with_obj_expected)) == cbb_cur.status.solution_set
 
 
 class TestConstrainedBranchAndBoundEnd2End:

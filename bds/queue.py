@@ -46,28 +46,35 @@ class Queue:
     def __items_eq__(self, items: list) -> bool:
         """check if the items are equal"""
         if len(self._items) != len(items):
+            print("len(self._items) != len(items): {}!= {}".format(len(self._items), len(items)))
             return False
 
         for i1, i2 in zip(self._items, items):
             if len(i1) != len(i2):
+                print("len(i1) != len(i2): {}".format(len(i1) != len(i2)))
                 return False
             k1, k2 = i1[0], i2[0]
             if k1 != k2:
                 # keys are different
+                print("k1 != k2: {}".format(k1 != k2))
                 return False
             for e1, e2 in zip(i1[1], i2[1]):
                 # check the item content
                 if type(e1) != type(e2):
+                    print("type(e1) != type(e2): {}".format(type(e1) != type(e2)))
                     return False
                 if isinstance(e1, np.ndarray):
                     if not np.allclose(e1, e2):
+                        print("not np.allclose(e1, e2): {}".format(not np.allclose(e1, e2)))
                         return False
                 elif e1 != e2:
+                    print("e1 != e2: {}".format(e1 != e2))
                     return False
         return True
 
     def __eq__(self, other: "Queue") -> bool:
         assert isinstance(other, Queue)
+        print("self.__items_eq__(other._items): {}".format(self.__items_eq__(other._items)))
         return (
             (self.__items_eq__(other._items))
             and (self.popped_count == other.popped_count)
