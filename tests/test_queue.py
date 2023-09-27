@@ -102,6 +102,16 @@ class TestQueue:
 
         assert not q1.__items_eq__(q2._items)
 
+    def test_iterators(self):
+        q = Queue()
+        q.push("zero", 0)
+        q.push("one", 1)
+        q.push("two", 2)
+        q.push("two", 2)
+
+        assert len(list(q)) == 4
+        assert set(q) == {"zero", "one", "two"}
+
 
 class TestNonRedundantQueue:
     def test_basic(self):

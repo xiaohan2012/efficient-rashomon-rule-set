@@ -1,6 +1,6 @@
 import heapq
 import numpy as np
-
+from operator import itemgetter
 from typing import Any, Union
 from copy import deepcopy
 
@@ -81,6 +81,9 @@ class Queue:
             and (self.pushed_count == other.pushed_count)
         )
 
+    def __iter__(self):
+        """when iterating through the object, the items (with the keys) are actually iterated through"""
+        return map(itemgetter(1), self._items)
 
 class NonRedundantQueue(Queue):
     """a subclass of Queue which avoids pushing keys that already exist in the queue"""
