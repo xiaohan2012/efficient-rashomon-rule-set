@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from copy import copy
 from bds.solver_status import SolverStatus
 from gmpy2 import mpz
 from bds.types import RuleSet
@@ -73,3 +74,23 @@ class TestSolverStatus:
         s.pop_from_queue()
         assert s is not s_cp
         assert s != s_cp
+
+    def test_reset_reserve_set(self):
+        s = SolverStatus()
+        s.add_to_reserve_set(RuleSet([0, 1]))
+        s.add_to_reserve_set(RuleSet([1, 2]))
+        reserve_set = copy(s.reserve_set)
+
+        s.reset_reserve_set()
+        assert s.reserve_set == set()
+        assert len(reserve_set) == 2  # we can restore the reserve set before
+
+    def test_reset_solution_set(self):
+        s = SolverStatus()
+        s.add_to_solution_set(RuleSet([0, 1]))
+        s.add_to_solution_set(RuleSet([1, 2]))
+        solution_set = copy(s.solution_set)
+
+        s.reset_solution_set()
+        assert s.solution_set == set()
+        assert len(solution_set) == 2        

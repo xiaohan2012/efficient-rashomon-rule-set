@@ -15,8 +15,13 @@ class SolverStatus:
         self._last_checked_prefix: Optional[RuleSet] = None
         self._other_data_for_last_checked_prefix: Optional[Dict[Any]] = None
 
-    def set_status(self, new_status: "SolverStatus"):
-        pass
+    def reset_reserve_set(self):
+        """assign reserve_set to an empty set"""
+        self._reserve_set: Set[RuleSet] = set()
+
+    def reset_solution_set(self):
+        """assign solution_set to an empty set"""
+        self._solution_set: Set[RuleSet] = set()
 
     def add_to_reserve_set(self, prefix: RuleSet):
         """add a prefix to the reserve set"""
