@@ -1,6 +1,6 @@
 from numbers import Number
 from typing import Any, Optional, Set, Tuple, Dict
-from copy import deepcopy
+from copy import deepcopy, copy
 from .queue import Queue
 from .types import RuleSet
 
@@ -50,6 +50,11 @@ class SolverStatus:
     def queue(self):
         return self._queue
 
+    def set_queue(self, new_queue: Queue):
+        if not isinstance(new_queue, Queue):
+            raise TypeError(f"expecting Queue, got {type(new_queue)} instead")
+        self._queue = new_queue.copy()
+
     @property
     def reserve_set(self):
         """the set of prefixes whose lower bound is below the objective upper bound"""
@@ -62,8 +67,7 @@ class SolverStatus:
 
     @property
     def last_checked_prefix(self):
-        """return the prefix that was last checked by some branch-and-bound procedure
-        """
+        """return the prefix that was last checked by some branch-and-bound procedure"""
         return self._last_checked_prefix
 
     @property

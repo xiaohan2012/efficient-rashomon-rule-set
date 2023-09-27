@@ -94,3 +94,23 @@ class TestSolverStatus:
         s.reset_solution_set()
         assert s.solution_set == set()
         assert len(solution_set) == 2        
+
+    def test_queue_setter(self):
+        s1 = SolverStatus()
+        s1.push_to_queue(0, "zero")
+        s1.push_to_queue(1, "one")
+
+        s2 = SolverStatus()
+        s2.push_to_queue(2, "two")
+        s2.push_to_queue(3, "three")
+
+        s1.set_queue(s2.queue)
+        s1.push_to_queue(4, "four")
+        assert s1.queue_size() == 3
+        assert set(s1.queue) == {"two", "three", "four"}
+
+        # queue of s2 does not change
+        assert set(s2.queue) == {"two", "three"}
+
+        with pytest.raises(TypeError):
+            s1.set_queue(1)
