@@ -32,19 +32,23 @@ from .parity_constraints import (
     count_added_pivots,
     build_boundary_table,
     ensure_minimal_non_violation,
+    ensure_satisfaction
 )
 from .types import RuleSet
 from .solver_status import SolverStatus
 
 
-# def lor(vs: List[mpz]) -> mpz:
-#     """logical OR over a list of bit arrays"""
-#     return functools.reduce(lambda x, y: x | y, vs, mpz())
-
-
 class ConstrainedBranchAndBound(BranchAndBoundNaive):
-    def __init__(self, *args, reorder_columns=True, **kwargs):
-        super(ConstrainedBranchAndBound, self).__init__(*args, **kwargs)
+    def __init__(
+        self,
+        rules: List[Rule],
+        ub: float,
+        y: np.ndarray,
+        lmbd: float,
+        reorder_columns=True,
+        **kwargs,
+    ):
+        super(ConstrainedBranchAndBound, self).__init__(rules, ub, y, lmbd, **kwargs)
         self.reorder_columns = reorder_columns
         # copy the rules for later use
         self.rules_before_ordering = deepcopy(self.rules)
@@ -123,6 +127,10 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         self.free_rule_idxs = set(range(self.num_vars)) - self.pivot_rule_idxs
         # mapping from row index to the pivot column index
         self.row2pivot_column = np.array(self.pivot_columns, dtype=int)
+
+        # save A and b in gf2.GF format
+        self.A_gf = GF(np.array(self.A, dtype=int))
+        self.b_gf = GF(np.array(self.b, dtype=int))
 
     def _push_last_checked_prefix_to_queue(self):
         """
@@ -204,6 +212,15 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         v = self._lor(pivot_rules_array)
         return RuleSet(pivot_rules_array), v, z, s
 
+    def _ensure_satisfaction(self, prefix: RuleSet):
+        if len(set(prefix) & self.pivot_rule_idxs) != 0:
+            raise ValueError(f"prefix should not contain any pivots: {prefix}")
+
+        pivot_rules_array = ensure_satisfaction(
+            prefix, self.A_gf, self.b_gf, self.row2pivot_column
+        )
+        return RuleSet(pivot_rules_array)
+
     def _inc_ensure_minimal_non_violation(
         self, rule_id: int, u: mpz, z: np.ndarray, s: np.ndarray
     ) -> Tuple[np.ndarray, mpz, np.ndarray, np.ndarray, int]:
@@ -248,7 +265,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         self.status = SolverStatus(
             # a queue class that avoids pushing existing keys in the queue is used, to avoid checking duplicate items
             # in our case, the key of a prefix is defined by (lower bound value of the prefix, the prefix)
-            # prefix is added to guanratee a unique mapping betwee the prefix and the key
+            # prefix is added to guanratee a unique mapping between the prefix and the key
             queue_class=NonRedundantQueue
         )
 

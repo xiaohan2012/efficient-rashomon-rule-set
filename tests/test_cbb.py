@@ -12,6 +12,7 @@ from bds.cbb import (
     inc_ensure_minimal_no_violation,
     inc_ensure_satisfiability,
 )
+from bds.gf2 import GF
 from bds.random_hash import generate_h_and_alpha
 from bds.rule import Rule
 from bds.types import RuleSet
@@ -44,6 +45,48 @@ class UtilityMixin:
             num_rules, num_constraints, rand_seed, as_numpy=True
         )
         return rand_rules, rand_y, A, b
+
+
+class TestParityConstraintRelatedMethods(UtilityMixin):
+    def _create_cbb(self):
+        num_constraints = 2
+        rand_rules, rand_y, A, b = self._create_input_data(10, num_constraints, 1234)
+        cbb = ConstrainedBranchAndBound(
+            rand_rules, float("inf"), rand_y, lmbd=0.1, reorder_columns=False
+        )
+        cbb.reset(A=A, b=b)
+        return cbb
+
+    def test__ensure_satisfaction_returned_types(self):
+        """check the types of the returned data"""
+        cbb = self._create_cbb()
+        pvts = cbb._ensure_satisfaction(RuleSet({0, 1} - cbb.pivot_rule_idxs))
+        assert isinstance(pvts, RuleSet)
+
+    def test__ensure_satisfaction_invalid_input(self):
+        """pivot rules are wrongly included in the input"""
+        cbb = self._create_cbb()
+        with pytest.raises(ValueError, match="prefix should not contain any pivots.*"):
+            cbb._ensure_satisfaction(RuleSet([list(cbb.pivot_rule_idxs)[0]]))
+
+    def test__ensure_minimal_non_violation_returned_types(self):
+        """check the types of the returned data"""
+        cbb = self._create_cbb()
+        pvts, v, z, s = cbb._ensure_minimal_non_violation(
+            RuleSet({0, 1} - cbb.pivot_rule_idxs)
+        )
+        assert isinstance(pvts, RuleSet)
+        assert isinstance(v, mpz)
+        assert isinstance(z, np.ndarray)
+        assert z.shape == (cbb.A.shape[0],)
+        assert isinstance(s, np.ndarray)
+        assert s.shape == (cbb.A.shape[0],)
+
+    def test__ensure_minimal_non_violation_invalid_input(self):
+        """pivot rules are wrongly included in the input"""
+        cbb = self._create_cbb()
+        with pytest.raises(ValueError, match="prefix should not contain any pivots.*"):
+            cbb._ensure_minimal_non_violation(RuleSet([list(cbb.pivot_rule_idxs)[0]]))
 
 
 class TestConstrainedBranchAndBoundMethods(UtilityMixin):
@@ -90,6 +133,10 @@ class TestConstrainedBranchAndBoundMethods(UtilityMixin):
         )
 
         cbb.setup_constraint_system(bin_array(A), bin_array(b))
+        assert hasattr(cbb, "A_gf")
+        assert hasattr(cbb, "b_gf")
+        assert isinstance(cbb.A_gf, GF)
+        assert isinstance(cbb.b_gf, GF)
 
         assert cbb.num_vars == cbb.num_rules == len(A[0])
         assert cbb.num_constraints == len(A)
@@ -251,33 +298,6 @@ class TestConstrainedBranchAndBoundMethods(UtilityMixin):
         # check the solution set and reserve set in solver_status
         assert cbb.status.solution_set == {sol}
         assert cbb.status.reserve_set == {sol}
-
-    def test__ensure_minimal_non_violation_returned_types(self):
-        """check the types of the returned data"""
-        num_constraints = 2
-        rand_rules, rand_y, A, b = self._create_input_data(10, num_constraints, 1234)
-        cbb = ConstrainedBranchAndBound(
-            rand_rules, float("inf"), rand_y, lmbd=0.1, reorder_columns=False
-        )
-        cbb.reset(A=A, b=b)
-        pvts, v, z, s = cbb._ensure_minimal_non_violation(RuleSet({0, 1} - cbb.pivot_rule_idxs))
-        assert isinstance(pvts, RuleSet)
-        assert isinstance(v, mpz)
-        assert isinstance(z, np.ndarray)
-        assert z.shape == (num_constraints,)
-        assert isinstance(s, np.ndarray)
-        assert s.shape == (num_constraints,)
-
-    def test__ensure_minimal_non_violation_invalid_input(self):
-        """pivot rules are wrongly included in the input"""
-        num_constraints = 2
-        rand_rules, rand_y, A, b = self._create_input_data(10, num_constraints, 1234)
-        cbb = ConstrainedBranchAndBound(
-            rand_rules, float("inf"), rand_y, lmbd=0.1, reorder_columns=False
-        )
-        cbb.reset(A=A, b=b)
-        with pytest.raises(ValueError, match="prefix should not contain any pivots.*"):
-            cbb._ensure_minimal_non_violation(RuleSet([list(cbb.pivot_rule_idxs)[0]]))
 
 
 class TestBBNonIncremental:

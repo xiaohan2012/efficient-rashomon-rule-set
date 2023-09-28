@@ -185,8 +185,8 @@ def ensure_minimal_non_violation(
 
 def ensure_satisfaction(
     prefix: RuleSet,
-    A: GF,
-    b: GF,
+    A_gf: GF,
+    b_gf: GF,
     row2pivot_column: np.ndarray,
 ) -> np.ndarray:
     """ensure satisfaction for a prefix w.r.t. parity constraint system Ax=b
@@ -198,7 +198,7 @@ def ensure_satisfaction(
 
     returns the array of pivot rules being added
     """
-    x = GF.Zeros(A.shape[1])
+    x = GF.Zeros(A_gf.shape[1])
     x[list(prefix)] = True
-    Ax = A @ x
-    return row2pivot_column[np.asarray(b - Ax).nonzero()[0]]
+    Ax = A_gf @ x
+    return row2pivot_column[np.asarray(b_gf - Ax).nonzero()[0]]
