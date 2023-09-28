@@ -1,72 +1,99 @@
-from typing import List, Optional
-
 import numpy as np
+from typing import List, Optional, Iterable
+from logzero import logger
+from copy import copy
+from .solver_status import SolverStatus
 
 from .cbb import (
     ConstrainedBranchAndBound,
-    ensure_satisfiability,
+    inc_ensure_satisfiability,
     ensure_minimal_non_violation,
 )
-from .queue import Queue
+from .queue import NonRedundantQueue
 from .types import SolutionSet
+
 
 def ensure_minimal_non_violation_plus(d):
     pass
 
 
-class IncrementalConstrainedBranchAndBound:
-    def __post_init__(self):
-        # TODO: add R, S, and dlast
-        pass
-
+class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
     def reset(
         self,
         A: np.ndarray,
-        t: np.ndarray,
-        previous_cbb: Optional["IncrementalConstrainedBranchAndBound"] = None,
+        b: np.ndarray,
+        solver_status: Optional[SolverStatus] = None,
     ):
-        if previous_cbb is None:
-            previous_cbb = IncrementalConstrainedBranchAndBound(
-                self.rules, self.XX
-            )  # TODO: fill this
-        self.previous_cbb = previous_cbb
+        self.setup_constraint_system(A, b)
 
-        # setup the queue, R, and S
-        self.S = set()
-        self.R = set()
-        self.queue = Queue()
+        if solver_status is not None:
+            # continuation search
+            self.status = solver_status.copy()
+            self._push_last_checked_prefix_to_queue()
+        else:
+            self.reset_status()
+            self.reset_queue()
 
     def _examine_R_and_S(self, return_objective=False):
-        for d in self.previous_cbb.S | self.previous_cbb.R:
-            dp = ensure_satisfiability(d)
-            if dp not in self.R and self._lower_bound(dp) <= self.ub:
-                self.R.add(dp)
-            if dp not in self.S and self._objective(dp) <= self.ub:
-                self.S.add(dp)
-                yield dp
+        print("self.status.solution_set: {}".format(self.status.solution_set))
+        print("self.status.reserve_set: {}".format(self.status.reserve_set))        
+        candidate_prefixes = copy(self.status.solution_set | self.status.reserve_set)
+        print("candidate_prefixes: {}".format(candidate_prefixes))
+
+        # clear the solution and reserve set
+        self.status.reset_reserve_set()
+        self.status.reset_solution_set()
+        print("self.status.solution_set: {}".format(self.status.solution_set))
+        print("self.status.reserve_set: {}".format(self.status.reserve_set))
+
+        print("self.pivot_rule_idxs: {}".format(self.pivot_rule_idxs))
+        for prefix in candidate_prefixes:
+            extention = self._ensure_satisfiability(prefix - self.pivot_rule_idxs)
+            prefix_new = prefix + extention
+            print("prefix_new: {}".format(prefix_new))
+            # add to reserve set if needed
+            if (
+                prefix_new not in self.status.reserve_set
+                and self._calculate_lb(prefix_new) <= self.ub
+                and len(prefix_new) >= 1
+            ):
+                self.status.add_to_reserve_set(prefix_new)
+
+            print("obj: {}".format(self._calculate_obj(prefix_new)))
+            # yield and add to solution set if needed
+            if (
+                prefix_new not in self.status.solution_set
+                and self._calculate_obj(prefix_new) <= self.ub
+                and len(prefix_new) >= 1
+            ):
+                self.status.add_to_solution_set(prefix_new)
+                print(f"adding {prefix_new}")
+                yield prefix_new
 
     def _update_queue(self):
-        for d in self.previous_cbb.queue | {self.previous_cbb.dlast}:
-            dp, u, z, s = ensure_minimal_non_violation_plus(d)
-            lb = self._lower_bound(dp)
-            if lb <= self.ub and dp not in self.queue:
-                self.queue.push(lb, (dp, u, z, s))
-
-    def _search_from_queue(
-        self,
-        return_objective: bool = False,
-    ):
         """
-        continue branch-and-bound search from an existing queue,
-
-        in the meanwhile, update the set of feasible solutions and "reserve" soltuions.
+        check each item in the queue and
         """
-        cbb = ConstrainedBranchAndBound(self.rules, self.ub, self.y, self.lmbd)
-        cbb.set_status(self.queue, self.S, self.R)
-        cbb.setup_constraint_system(self.A, self.b)
-        yield from cbb.bounded_sols(return_objective=return_objective)
+        new_queue = NonRedundantQueue()
+        for prefix in self.status.queue:
+            prefix_new, u, z, s = self._ensure_minimal_non_violation(prefix)
+            lb = self._calculate_lb(prefix_new)
+            if (lb + self.lmbd) <= self.ub:
+                new_queue.push((prefix_new, lb, u, z, s), key=(lb, prefix_new))
+        # use the new queue in status
+        self.status.set_queue(new_queue)
 
     def generate(self, return_objective=False) -> Iterable:
-        yield from self._examine_R_and_S()
-        self._update_queue()
-        yield from self._search_from_queue(return_objective)
+        if not self.is_linear_system_solvable:
+            logger.debug("abort the search since the linear system is not solvable")
+            yield from ()
+        else:
+            yield from self._examine_R_and_S()
+
+            self._update_queue()
+
+            yield from self._generate_solution_at_root(return_objective)
+
+            while not self.status.is_queue_empty():
+                queue_item = self.status.pop_from_queue()
+                yield from self._loop(*queue_item, return_objective=return_objective)
