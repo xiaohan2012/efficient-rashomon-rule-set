@@ -8,6 +8,7 @@ from bds.parity_constraints import (
     inc_ensure_satisfiability,
     ensure_minimal_non_violation,
     count_added_pivots,
+    ensure_satisfaction,
 )
 from bds.types import RuleSet
 
@@ -558,3 +559,25 @@ class TestIncEnsureSatisfiability:
             j, rank, z, s, A, b, row2pivot_column  # A_indices, A_indptr,
         )
         np.testing.assert_allclose(actual_rules, np.array(expected_rules, dtype=int))
+
+
+class TestEnsureSatisfiability:
+    @pytest.mark.parametrize(
+        "name, A, b, prefix, expected_rules",
+        [
+            ("root-case-1", [[1, 0, 1, 1], [0, 1, 0, 0]], [1, 1], RuleSet([]), [0, 1]),
+            ("root-case-2", [[1, 0, 0, 1], [0, 0, 1, 0]], [1, 1], RuleSet([]), [0, 2]),
+            ("t1.1", [[1, 0, 1, 1], [0, 1, 0, 0]], [1, 1], RuleSet([2, 3]), [0, 1]),
+            ("t2.1", [[1, 0, 0, 1], [0, 0, 1, 0]], [0, 1], RuleSet([3]), [0, 2]),
+        ],
+    )
+    def test_basic(self, name, A, b, prefix, expected_rules):
+        A = bin_array(A)
+        b = bin_array(b)
+
+        A, b, rank, row2pivot_column = extended_rref(
+            GF(A.astype(int)), GF(b.astype(int))
+        )
+
+        actual_rules = ensure_satisfaction(prefix, A, b, row2pivot_column)
+        assert set(actual_rules) == set(expected_rules)

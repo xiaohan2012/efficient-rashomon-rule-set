@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Optional, List, Dict, Tuple, Union
+from .gf2 import GF
 from numba import jit
 from .types import RuleSet
 from .utils import bin_zeros
@@ -20,42 +21,6 @@ def build_boundary_table(
         else:
             result.append((Ap[i, :] > 0).nonzero()[0].max())
     return np.array(result, dtype=int)
-
-
-def ensure_minimal_non_violation(
-    prefix: RuleSet,
-    A: np.ndarray,
-    b: np.ndarray,
-    B: np.ndarray,
-    row2pivot_column: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """ensure minimal non violation for a prefix w.r.t. parity constraint system Ax=b
-
-    the following information is provided for incremental computation:
-    A and b define the parity constraint system
-    B: the boundary table
-    row2pivot_column: mapping from row index to the index of pivot column
-
-    returns:
-
-    1. the set of pivot rules being added
-    2. parity status vector
-    3. satisfiability status vector
-    """
-    m = A.shape[0]
-    z = bin_zeros(m)
-    s = bin_zeros(m)
-
-    # at root
-    all_rules_added, z, s = inc_ensure_minimal_no_violation(
-        -1, z, s, A, b, B, row2pivot_column
-    )
-    for j in prefix:
-        rules_added, z, s = inc_ensure_minimal_no_violation(
-            j, z, s, A, b, B, row2pivot_column
-        )
-        all_rules_added = np.concatenate((all_rules_added, rules_added))
-    return all_rules_added, z, s
 
 
 @jit(nopython=True, cache=True)
@@ -179,3 +144,61 @@ def inc_ensure_satisfiability(
                 selected_rules[num_rules_selected] = row2pivot_column[i]
                 num_rules_selected += 1
     return selected_rules[:num_rules_selected]
+
+
+# @jit(nopython=True, cache=True)
+def ensure_minimal_non_violation(
+    prefix: RuleSet,
+    A: np.ndarray,
+    b: np.ndarray,
+    B: np.ndarray,
+    row2pivot_column: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """ensure minimal non violation for a prefix w.r.t. parity constraint system Ax=b
+
+    the following information is provided for incremental computation:
+    A and b define the parity constraint system
+    B: the boundary table
+    row2pivot_column: mapping from row index to the index of pivot column
+
+    returns:
+
+    1. the set of pivot rules being added
+    2. parity status vector
+    3. satisfiability status vector
+    """
+    m = A.shape[0]
+    z = bin_zeros(m)
+    s = bin_zeros(m)
+
+    # at root
+    all_rules_added, z, s = inc_ensure_minimal_no_violation(
+        -1, z, s, A, b, B, row2pivot_column
+    )
+    for j in prefix:
+        rules_added, z, s = inc_ensure_minimal_no_violation(
+            j, z, s, A, b, B, row2pivot_column
+        )
+        all_rules_added = np.concatenate((all_rules_added, rules_added))
+    return all_rules_added, z, s
+
+
+def ensure_satisfaction(
+    prefix: RuleSet,
+    A: GF,
+    b: GF,
+    row2pivot_column: np.ndarray,
+) -> np.ndarray:
+    """ensure satisfaction for a prefix w.r.t. parity constraint system Ax=b
+
+    the following information is provided for incremental computation:
+    A and b define the parity constraint system
+    B: the boundary table
+    row2pivot_column: mapping from row index to the index of pivot column
+
+    returns the array of pivot rules being added
+    """
+    x = GF.Zeros(A.shape[1])
+    x[list(prefix)] = True
+    Ax = A @ x
+    return row2pivot_column[np.asarray(b - Ax).nonzero()[0]]
