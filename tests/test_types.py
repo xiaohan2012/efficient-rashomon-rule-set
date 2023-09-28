@@ -23,3 +23,17 @@ class TestRule:
     )
     def test___sub__(self, left, right, expected):
         assert (RuleSet(left) - RuleSet(right)) == RuleSet(expected)
+
+
+    @pytest.mark.parametrize(
+        "left, right, expected",
+        [
+            ((2, 1, 0), (0, 1, 2), (0, 1, 2)),
+            ((2, 1, 0), (1, 2, 3, 4, 5), (0, 1, 2, 3, 4, 5)),
+            ((2, 1, 0), tuple(), (0, 1, 2)),
+            ((2, 1, 0), (1, ), (0, 1, 2)),
+        ],
+    )
+    def test___add__(self, left, right, expected):
+        assert (RuleSet(left) + RuleSet(right)) == RuleSet(expected)
+        
