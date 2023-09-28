@@ -32,7 +32,7 @@ from .parity_constraints import (
     count_added_pivots,
     build_boundary_table,
     ensure_minimal_non_violation,
-    ensure_satisfiability
+    ensure_satisfiability,
 )
 from .types import RuleSet
 from .solver_status import SolverStatus
@@ -315,7 +315,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         prefix_restored = self._restore_rule_ids(prefix)
 
         # record R
-        if self._calculate_lb(prefix) <= self.ub:
+        if len(prefix_restored) >= 1 and self._calculate_lb(prefix) <= self.ub:
             self.status.add_to_reserve_set(prefix_restored)
 
         if len(prefix_restored) >= 1 and obj <= self.ub:
