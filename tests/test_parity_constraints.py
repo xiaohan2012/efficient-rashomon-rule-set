@@ -8,7 +8,7 @@ from bds.parity_constraints import (
     inc_ensure_satisfiability,
     ensure_minimal_non_violation,
     count_added_pivots,
-    ensure_satisfaction,
+    ensure_satisfiability,
 )
 from bds.types import RuleSet
 
@@ -579,5 +579,5 @@ class TestEnsureSatisfiability:
             GF(A.astype(int)), GF(b.astype(int))
         )
 
-        actual_rules = ensure_satisfaction(prefix, A, b, row2pivot_column)
+        actual_rules = ensure_satisfiability(prefix, A, b, row2pivot_column)
         assert set(actual_rules) == set(expected_rules)

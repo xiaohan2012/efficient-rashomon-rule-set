@@ -32,7 +32,7 @@ from .parity_constraints import (
     count_added_pivots,
     build_boundary_table,
     ensure_minimal_non_violation,
-    ensure_satisfaction
+    ensure_satisfiability
 )
 from .types import RuleSet
 from .solver_status import SolverStatus
@@ -212,11 +212,11 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         v = self._lor(pivot_rules_array)
         return RuleSet(pivot_rules_array), v, z, s
 
-    def _ensure_satisfaction(self, prefix: RuleSet):
+    def _ensure_satisfiability(self, prefix: RuleSet):
         if len(set(prefix) & self.pivot_rule_idxs) != 0:
             raise ValueError(f"prefix should not contain any pivots: {prefix}")
 
-        pivot_rules_array = ensure_satisfaction(
+        pivot_rules_array = ensure_satisfiability(
             prefix, self.A_gf, self.b_gf, self.row2pivot_column
         )
         return RuleSet(pivot_rules_array)

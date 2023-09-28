@@ -60,14 +60,14 @@ class TestParityConstraintRelatedMethods(UtilityMixin):
     def test__ensure_satisfaction_returned_types(self):
         """check the types of the returned data"""
         cbb = self._create_cbb()
-        pvts = cbb._ensure_satisfaction(RuleSet({0, 1} - cbb.pivot_rule_idxs))
+        pvts = cbb._ensure_satisfiability(RuleSet({0, 1} - cbb.pivot_rule_idxs))
         assert isinstance(pvts, RuleSet)
 
     def test__ensure_satisfaction_invalid_input(self):
         """pivot rules are wrongly included in the input"""
         cbb = self._create_cbb()
         with pytest.raises(ValueError, match="prefix should not contain any pivots.*"):
-            cbb._ensure_satisfaction(RuleSet([list(cbb.pivot_rule_idxs)[0]]))
+            cbb._ensure_satisfiability(RuleSet([list(cbb.pivot_rule_idxs)[0]]))
 
     def test__ensure_minimal_non_violation_returned_types(self):
         """check the types of the returned data"""

@@ -183,7 +183,7 @@ def ensure_minimal_non_violation(
     return all_rules_added, z, s
 
 
-def ensure_satisfaction(
+def ensure_satisfiability(
     prefix: RuleSet,
     A_gf: GF,
     b_gf: GF,
