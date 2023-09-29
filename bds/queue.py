@@ -43,8 +43,9 @@ class Queue:
     def copy(self) -> "Queue":
         return deepcopy(self)
 
-    def __items_eq__(self, items: list) -> bool:
+    def __items_eq__(self, other_queue: "Queue") -> bool:
         """check if the items are equal"""
+        items = other_queue._items
         if len(self._items) != len(items):
             print("len(self._items) != len(items): {}!= {}".format(len(self._items), len(items)))
             return False
@@ -74,15 +75,15 @@ class Queue:
 
     def __eq__(self, other: "Queue") -> bool:
         assert isinstance(other, Queue)
-        print("self.__items_eq__(other._items): {}".format(self.__items_eq__(other._items)))
+        # print("self.__items_eq__(other._items): {}".format(self.__items_eq__(other)))
         return (
-            (self.__items_eq__(other._items))
+            (self.__items_eq__(other))
             and (self.popped_count == other.popped_count)
             and (self.pushed_count == other.pushed_count)
         )
 
     def __iter__(self):
-        """when iterating through the object, the items (with the keys) are actually iterated through"""
+        """return an iterator of the items (without the keys)"""
         return map(itemgetter(1), self._items)
 
 class NonRedundantQueue(Queue):

@@ -71,10 +71,10 @@ class TestQueue:
         q2 = Queue()
         q2.push(item0, key=0)
 
-        assert q1.__items_eq__(q2._items)
+        assert q1.__items_eq__(q2)
 
         q1.push(item1, key=1)
-        assert not q1.__items_eq__(q2._items)
+        assert not q1.__items_eq__(q2)
 
     def test__items_eq__case_2(self):
         """different content"""
@@ -87,7 +87,7 @@ class TestQueue:
         q2 = Queue()
         q2.push(item1, key=0)
 
-        assert not q1.__items_eq__(q2._items)
+        assert not q1.__items_eq__(q2)
 
     def test__items_eq__case_3(self):
         """different types"""
@@ -100,7 +100,7 @@ class TestQueue:
         q2 = Queue()
         q2.push(item1, key=0)
 
-        assert not q1.__items_eq__(q2._items)
+        assert not q1.__items_eq__(q2)
 
     def test_iterators(self):
         q = Queue()
