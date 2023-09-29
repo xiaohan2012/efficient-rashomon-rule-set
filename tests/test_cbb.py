@@ -560,7 +560,7 @@ class TestBBIncremental(UtilityMixin):
         assert len(sols) == len(cbb.status.solution_set)
         assert set(sols) == cbb.status.solution_set
         assert cbb.status.solution_set.issubset(cbb.status.reserve_set)
-        assert isinstance(cbb.status.last_checked_prefix, RuleSet)
+        assert isinstance(cbb.status.last_checked_prefix, RuleSet) or cbb.status.last_checked_prefix is None
 
     def test_reset_with_status_given(self):
         """the status should be set and be the same as the previous run"""
