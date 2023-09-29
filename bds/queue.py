@@ -46,8 +46,13 @@ class Queue:
     def __items_eq__(self, other_queue: "Queue") -> bool:
         """check if the items are equal"""
         items = other_queue._items
+        # print("self._items: {}".format(self._items))
         if len(self._items) != len(items):
-            print("len(self._items) != len(items): {}!= {}".format(len(self._items), len(items)))
+            print(
+                "len(self._items) != len(items): {} != {}".format(
+                    len(self._items), len(items)
+                )
+            )
             return False
 
         for i1, i2 in zip(self._items, items):
@@ -61,15 +66,21 @@ class Queue:
                 return False
             for e1, e2 in zip(i1[1], i2[1]):
                 # check the item content
+                print("e1: {}".format(e1))
+                print("e2: {}".format(e2))
                 if type(e1) != type(e2):
                     print("type(e1) != type(e2): {}".format(type(e1) != type(e2)))
                     return False
                 if isinstance(e1, np.ndarray):
                     if not np.allclose(e1, e2):
-                        print("not np.allclose(e1, e2): {}".format(not np.allclose(e1, e2)))
+                        print(
+                            "not np.allclose(e1, e2): {}".format(
+                                not np.allclose(e1, e2)
+                            )
+                        )
                         return False
                 elif e1 != e2:
-                    print("e1 != e2: {}".format(e1 != e2))
+                    print("{} != {}".format(e1, e2))
                     return False
         return True
 
@@ -85,6 +96,7 @@ class Queue:
     def __iter__(self):
         """return an iterator of the items (without the keys)"""
         return map(itemgetter(1), self._items)
+
 
 class NonRedundantQueue(Queue):
     """a subclass of Queue which avoids pushing keys that already exist in the queue"""
