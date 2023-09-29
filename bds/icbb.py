@@ -13,10 +13,6 @@ from .queue import NonRedundantQueue
 from .types import SolutionSet
 
 
-def ensure_minimal_non_violation_plus(d):
-    pass
-
-
 class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
     def reset(
         self,
@@ -35,22 +31,14 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
             self.reset_queue()
 
     def _examine_R_and_S(self, return_objective=False):
-        print("self.status.solution_set: {}".format(self.status.solution_set))
-        print("self.status.reserve_set: {}".format(self.status.reserve_set))        
         candidate_prefixes = copy(self.status.solution_set | self.status.reserve_set)
-        print("candidate_prefixes: {}".format(candidate_prefixes))
 
         # clear the solution and reserve set
         self.status.reset_reserve_set()
         self.status.reset_solution_set()
-        print("self.status.solution_set: {}".format(self.status.solution_set))
-        print("self.status.reserve_set: {}".format(self.status.reserve_set))
-
-        print("self.pivot_rule_idxs: {}".format(self.pivot_rule_idxs))
         for prefix in candidate_prefixes:
             extention = self._ensure_satisfiability(prefix - self.pivot_rule_idxs)
             prefix_new = prefix + extention
-            print("prefix_new: {}".format(prefix_new))
             # add to reserve set if needed
             if (
                 prefix_new not in self.status.reserve_set
@@ -59,7 +47,6 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
             ):
                 self.status.add_to_reserve_set(prefix_new)
 
-            print("obj: {}".format(self._calculate_obj(prefix_new)))
             # yield and add to solution set if needed
             if (
                 prefix_new not in self.status.solution_set
@@ -67,7 +54,6 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
                 and len(prefix_new) >= 1
             ):
                 self.status.add_to_solution_set(prefix_new)
-                print(f"adding {prefix_new}")
                 yield prefix_new
 
     def _update_queue(self):
@@ -75,11 +61,21 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
         check each item in the queue and
         """
         new_queue = NonRedundantQueue()
-        for prefix in self.status.queue:
-            prefix_new, u, z, s = self._ensure_minimal_non_violation(prefix)
+        print("inherited queue: {}".format(list(self.status.queue)))
+        for queue_item in self.status.queue:
+            prefix = queue_item[0]
+            extension, u, z, s = self._ensure_minimal_non_violation(
+                prefix - self.pivot_rule_idxs  # remove the pivots
+            )
+
+            prefix_new = prefix + extension
             lb = self._calculate_lb(prefix_new)
+            
+            print("prefix_new: {}".format(prefix_new))            
+            print("lb: {}".format(lb))
             if (lb + self.lmbd) <= self.ub:
-                new_queue.push((prefix_new, lb, u, z, s), key=(lb, prefix_new))
+                print(f"pushing {prefix_new} to queue")
+                new_queue.push((prefix_new, lb, ~u, z, s), key=(lb, prefix_new))
         # use the new queue in status
         self.status.set_queue(new_queue)
 

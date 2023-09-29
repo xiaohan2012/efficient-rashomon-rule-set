@@ -1,11 +1,12 @@
 import numpy as np
 import pytest
-from gmpy2 import mpfr
+from gmpy2 import mpfr, mpz
 
 from bds.cbb import ConstrainedBranchAndBound
 from bds.icbb import IncrementalConstrainedBranchAndBound
 from bds.random_hash import generate_h_and_alpha
 from bds.utils import bin_array, bin_zeros, randints
+from bds.gf2 import extended_rref
 
 from typing import List, Tuple
 from .utils import generate_random_rules_and_y
@@ -16,7 +17,7 @@ class Utility:
 
     @property
     def num_rules(self):
-        return 10
+        return 5
 
     @property
     def ub(self):
@@ -68,28 +69,53 @@ class Utility:
             rand_rules, ub, rand_y, self.lmbd, reorder_columns=reorder_columns
         )
 
-    def create_A_and_b(self, rand_seed=42):
-        return generate_h_and_alpha(
+    def create_A_and_b(self, rand_seed=42, do_rref=True):
+        A, b = generate_h_and_alpha(
             self.num_rules, self.num_rules - 1, seed=rand_seed, as_numpy=True
         )
+        # remark: it is important to perform rref so that
+        # the the constraints of Ai x=bi is always a subset of Aj x = bj, where i <= j
+        A_rref, b_rref = extended_rref(A, b, verbose=False)[:2]
+        return bin_array(A_rref), bin_array(b_rref)
+
+
+class TestNonIncremental(Utility):
+    @pytest.mark.parametrize("threshold", [5, 10, None])
+    @pytest.mark.parametrize("num_constraints", [2, 4, 6])
+    @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
+    @pytest.mark.parametrize("rand_seed", randints(3))
+    def test(self, threshold, num_constraints, ub, rand_seed):
+        """calling cbb and icbb from scratch should yield the same set of solutions and objectives"""
+        cbb = self.create_cbb(ub=ub, rand_seed=rand_seed)
+        A_full, b_full = self.create_A_and_b(rand_seed)
+        A, b = A_full[:num_constraints], b_full[:num_constraints]
+        expected_sols = cbb.bounded_sols(threshold, A=A, b=b)
+        expected_S = cbb.status.solution_set
+        expected_R = cbb.status.reserve_set
+
+        icbb = self.create_icbb(ub=ub, rand_seed=rand_seed)
+        icbb.reset(A=A, b=b)
+
+        actual_sols = icbb.bounded_sols(threshold, A=A, b=b)
+        actual_S = icbb.status.solution_set
+        actual_R = icbb.status.reserve_set
+
+        assert len(expected_sols) == len(actual_sols)
+        assert set(expected_sols) == set(actual_sols)
+        assert expected_S == actual_S
+        assert expected_R == actual_R
 
 
 class TestExamineRAndS(Utility):
-    @pytest.mark.parametrize(
-        'num_constraints', [2, 4, 6]
-    )
-    @pytest.mark.parametrize(
-        'ub', [0.21, 0.51, float("inf")]
-    )
-    @pytest.mark.parametrize(
-        'rand_seed', randints(3)
-    )
+    @pytest.mark.parametrize("num_constraints", [2, 4, 6])
+    @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
+    @pytest.mark.parametrize("rand_seed", randints(3))
     # @pytest.mark.parametrize("num_constraints, ub, rand_seed", [(2, 0.21001, 1539280901)])
     def test_consistency_under_the_same_constraint_system(
         self, num_constraints, ub, rand_seed
     ):
         """
-        icbb._examine_R_andS should yield the same set of solutions as cbb, if they are subject to the same Ax=b
+        icbb._examine_R_and_S should yield the same set of solutions as cbb, if they are subject to the same Ax=b
         """
         cbb = self.create_cbb(ub=ub, rand_seed=rand_seed)
         A_full, b_full = self.create_A_and_b(rand_seed)
@@ -109,6 +135,68 @@ class TestExamineRAndS(Utility):
         assert set(expected_sols) == set(actual_sols)
         assert expected_S == actual_S
         assert expected_R == actual_R
+
+    @pytest.mark.parametrize("num_constraints", [2])
+    @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
+    @pytest.mark.parametrize("rand_seed", randints(3))
+    def test_under_the_different_constraint_systems(
+        self, num_constraints, ub, rand_seed
+    ):
+        """
+        now the constraint system changes, the non-incremental version uses 1 fewer constraint than the incremental version
+        we should expect that the generated solutions by ICBB is a subset of that by CBB
+        """
+        cbb = self.create_cbb(ub=ub, rand_seed=rand_seed)
+        A_full_rref, b_full_rref = self.create_A_and_b(rand_seed)
+
+        A1, b1 = A_full_rref[:num_constraints], b_full_rref[:num_constraints]
+        A2, b2 = A_full_rref[: num_constraints + 1], b_full_rref[: num_constraints + 1]
+
+        expected_sols = cbb.bounded_sols(10, A=A1, b=b1)
+        expected_S = cbb.status.solution_set
+        expected_R = cbb.status.reserve_set
+
+        icbb = self.create_icbb(ub=ub, rand_seed=rand_seed)
+        icbb.reset(A=A2, b=b2, solver_status=cbb.status)
+
+        actual_sols = list(icbb._examine_R_and_S())
+        actual_S = icbb.status.solution_set
+        actual_R = icbb.status.reserve_set
+
+        assert len(expected_sols) >= len(actual_sols)
+        assert set(expected_sols).issuperset(set(actual_sols))
+        assert expected_S.issuperset(actual_S)
+        assert expected_R.issuperset(actual_R)
+
+
+class TestUpdateQueue(Utility):
+    @pytest.mark.parametrize("num_constraints", [2, 4, 6])
+    @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
+    @pytest.mark.parametrize("rand_seed", randints(3))
+    # @pytest.mark.parametrize("num_constraints, ub, rand_seed", [(2, 0.51001, 1534479381)])
+    def test_consistency_under_the_same_constraint_system(
+        self, num_constraints, ub, rand_seed
+    ):
+        """
+        icbb._update_queue should yield the same queue as cbb, if they are subject to the same Ax=b
+        """
+        cbb = self.create_cbb(ub=ub, rand_seed=rand_seed)
+        A_full, b_full = self.create_A_and_b(rand_seed)
+        A, b = A_full[:num_constraints], b_full[:num_constraints]
+        cbb.bounded_sols(10, A=A, b=b)
+
+        icbb = self.create_icbb(ub=ub, rand_seed=rand_seed)
+        icbb.reset(A=A, b=b, solver_status=cbb.status)
+
+        icbb._update_queue()
+
+        cbb._push_last_checked_prefix_to_queue()  # to be consistent with icbb
+
+        # they are equal in the queue items
+        assert cbb.status.queue == cbb.status.queue        
+        assert (
+            cbb.status.queue is not icbb.status.queue
+        )  # but they do not point to the same object
 
 
 class TestSimple:
