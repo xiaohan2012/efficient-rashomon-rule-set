@@ -173,9 +173,11 @@ class TestUpdateQueue(Utility):
     @pytest.mark.parametrize("num_constraints", [2, 4, 6])
     @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
     @pytest.mark.parametrize("rand_seed", randints(3))
+    @pytest.mark.parametrize("threshold", [5, 10, 20])
+        
     # @pytest.mark.parametrize("num_constraints, ub, rand_seed", [(2, 0.51001, 1534479381)])
     def test_consistency_under_the_same_constraint_system(
-        self, num_constraints, ub, rand_seed
+            self, num_constraints, ub, rand_seed, threshold
     ):
         """
         icbb._update_queue should yield the same queue as cbb, if they are subject to the same Ax=b
@@ -183,7 +185,7 @@ class TestUpdateQueue(Utility):
         cbb = self.create_cbb(ub=ub, rand_seed=rand_seed)
         A_full, b_full = self.create_A_and_b(rand_seed)
         A, b = A_full[:num_constraints], b_full[:num_constraints]
-        cbb.bounded_sols(10, A=A, b=b)
+        cbb.bounded_sols(threshold, A=A, b=b)
 
         icbb = self.create_icbb(ub=ub, rand_seed=rand_seed)
         icbb.reset(A=A, b=b, solver_status=cbb.status)
@@ -193,10 +195,52 @@ class TestUpdateQueue(Utility):
         cbb._push_last_checked_prefix_to_queue()  # to be consistent with icbb
 
         # they are equal in the queue items
-        assert cbb.status.queue == cbb.status.queue        
+        assert cbb.status.queue == cbb.status.queue
         assert (
             cbb.status.queue is not icbb.status.queue
         )  # but they do not point to the same object
+
+    @pytest.mark.parametrize("num_constraints", [2, 4, 6])
+    @pytest.mark.parametrize("diff_in_num_constraints", randints(3, 1, 4))
+    @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
+    @pytest.mark.parametrize("rand_seed", randints(3))
+    @pytest.mark.parametrize("threshold", [5, 10, 20])
+    # @pytest.mark.parametrize("num_constraints, diff_in_num_constraints, ub, rand_seed", [(2, 3, float("inf"), 1761839643)])
+    def test_under_the_different_constraint_systems(
+            self, num_constraints, diff_in_num_constraints, ub, rand_seed, threshold
+    ):
+        """
+        now the constraint system changes, the non-incremental version uses 1 fewer constraint than the incremental version
+        we should expect that the number of queue items in ICBB  is smaller than CBB
+
+        note that the queue items in ICBB is not necessarily a subset of CBB, because the new constraint system may add new pivot rules
+        """
+        cbb = self.create_cbb(ub=ub, rand_seed=rand_seed)
+        A_full_rref, b_full_rref = self.create_A_and_b(rand_seed)
+
+        i = num_constraints
+        j = num_constraints + diff_in_num_constraints
+        A1, b1 = A_full_rref[:i], b_full_rref[:i]
+        A2, b2 = A_full_rref[:j], b_full_rref[:j]
+
+        cbb.bounded_sols(threshold, A=A1, b=b1)
+        cbb._push_last_checked_prefix_to_queue()  # to be consistent with icbb
+
+        icbb = self.create_icbb(ub=ub, rand_seed=rand_seed)
+        icbb.reset(A=A2, b=b2, solver_status=cbb.status)
+
+        print("A1: {}".format(A1))
+        print("b1: {}".format(b1))
+        print("A2: {}".format(A2))
+        print("b2: {}".format(b2))
+        icbb._update_queue()
+
+        prefixes_in_queue_cbb = {el[0] for el in cbb.status.queue}
+        prefixes_in_queue_icbb = {el[0] for el in icbb.status.queue}
+
+        assert len(prefixes_in_queue_icbb) <= len(prefixes_in_queue_cbb)
+        # the following assertion is wrong
+        # assert prefixes_in_queue_cbb.issuperset(prefixes_in_queue_icbb), prefixes_in_queue_cbb - prefixes_in_queue_icbb
 
 
 class TestSimple:
