@@ -1,4 +1,3 @@
-import gmpy2 as gmp
 import numpy as np
 import pytest
 from gmpy2 import mpz
