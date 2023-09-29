@@ -7,7 +7,7 @@ GF = galois.GF(2)
 
 
 def extended_rref(
-    A: GF, b: GF, verbose: bool = False
+    A: Union[GF, np.ndarray], b: Union[GF, np.ndarray], verbose: bool = False
 ) -> Tuple[GF, GF, int, np.ndarray]:
     """
     given a 2D matrix A and a vector b, both in GF2,
@@ -18,6 +18,11 @@ def extended_rref(
     - the rank of A
     - the indices of the pivot columns
     """
+    if not isinstance(A, GF):
+        A = GF(A.astype(int))
+    if not isinstance(b, GF):
+        b = GF(b.astype(int))
+
     if b.ndim == 1:
         b = b.reshape(-1, 1)  # transform it to column vector
 

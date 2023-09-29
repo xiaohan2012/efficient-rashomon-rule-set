@@ -2,9 +2,16 @@ import numpy as np
 import pytest
 
 from bds import gf2
-from bds.gf2 import GF, extended_rref, fix_variables_to_one, num_of_solutions, negate_all
+from bds.gf2 import (
+    GF,
+    extended_rref,
+    fix_variables_to_one,
+    num_of_solutions,
+    negate_all,
+)
+from bds.random_hash import generate_h_and_alpha
 from bds.gf2 import eye as gf2_eye
-from bds.utils import randints
+from bds.utils import randints, bin_array
 
 np.random.seed(12345)
 
@@ -77,7 +84,14 @@ class TestExtendedRref:
             #    there is no pivot
             # done
             # we return with p = 1 and A is eye matrix
-            (GF([[0, 0], [1, 1]]), GF([1, 0]), GF([[1, 1], [0, 0]]), GF([0, 1]), 1, np.asarray([0])),
+            (
+                GF([[0, 0], [1, 1]]),
+                GF([1, 0]),
+                GF([[1, 1], [0, 0]]),
+                GF([0, 1]),
+                1,
+                np.asarray([0]),
+            ),
             # ---------------------------
             # 1. at column 0
             #    swap row 0 and row 1
@@ -139,7 +153,7 @@ class TestExtendedRref:
                 GF([[1, 0], [0, 1], [0, 0]]),
                 GF([0, 0, 1]),
                 2,
-                np.asarray([0, 1])
+                np.asarray([0, 1]),
             ),
         ],
     )
@@ -150,6 +164,20 @@ class TestExtendedRref:
         assert p == exp_p
         assert p == len(actual_pivots)
         np.testing.assert_allclose(actual_pivots, pivots)
+
+    def test_np_input(self):
+        A, b = generate_h_and_alpha(10, 9, 42, as_numpy=False)
+        expected_A, expected_b, expected_p, expected_pivots = extended_rref(
+            A, b, verbose=False
+        )
+        actual_A, actual_b, actual_p, actual_pivots = extended_rref(
+            np.asarray(A, dtype=bool), np.asarray(b, dtype=bool), verbose=False
+        )
+
+        np.testing.assert_allclose(bin_array(expected_A), bin_array(actual_A))
+        np.testing.assert_allclose(bin_array(expected_b), bin_array(actual_b))
+        np.testing.assert_allclose(expected_p, actual_p)
+        np.testing.assert_allclose(expected_pivots, actual_pivots)
 
 
 @pytest.mark.parametrize(
@@ -181,8 +209,9 @@ def test_fix_variables_to_one(which, expected_t):
 def test_num_of_solutions(A, b, expected):
     assert num_of_solutions(A, b) == expected
 
+
 @pytest.mark.parametrize(
-    'A, expected',
+    "A, expected",
     [
         (np.array([0, 0, 1], dtype=int), GF([1, 1, 0])),
         (np.array([1, 1, 1], dtype=int), GF([0, 0, 0])),
@@ -190,12 +219,11 @@ def test_num_of_solutions(A, b, expected):
         (GF([0, 0, 1]), GF([1, 1, 0])),
         (GF([1, 1, 1]), GF([0, 0, 0])),
         (GF([0, 0, 0]), GF([1, 1, 1])),
-        (np.array([[1, 1, 1], [1, 1, 1]], dtype=int), GF([[0, 0, 0], [0, 0, 0]]))
-    ]
-)  
+        (np.array([[1, 1, 1], [1, 1, 1]], dtype=int), GF([[0, 0, 0], [0, 0, 0]])),
+    ],
+)
 def test_negate_all(A, expected):
     assert isinstance(expected, GF)
     np.testing.assert_allclose(
-        np.array(negate_all(A), dtype=int),
-        np.array(expected, dtype=int)
+        np.array(negate_all(A), dtype=int), np.array(expected, dtype=int)
     )
