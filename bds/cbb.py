@@ -179,7 +179,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
 
     def _lor(self, idxs: np.ndarray) -> mpz:
         """given a set of rule idxs, return the logical OR over the truthtables of the corresponding rules"""
-        r = mpz()
+        r = (~self._not_captured_by_default_rule())
         for i in idxs:
             r |= self.truthtable_list[i]
         return r
@@ -292,13 +292,14 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         lb = self._calculate_lb(prefix_idxs)
         prefix = RuleSet(prefix_idxs)
         item = (prefix, lb, up, zp, sp)
-        self.status.push_to_queue(
-            key=(
-                lb,
-                prefix,
-            ),  # we use a combination of lb and prefix to avoid two entries with the same key
-            item=item,
-        )
+        if (lb + self.lmbd) <= self.ub:
+            self.status.push_to_queue(
+                key=(
+                    lb,
+                    prefix,
+                ),  # we use a combination of lb and prefix to avoid two entries with the same key
+                item=item,
+            )
 
     def _generate_solution_at_root(self, return_objective=False) -> Iterable:
         """check the solution at the root, e.g., all free variables assigned to zero"""
@@ -432,7 +433,11 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
                             )
                             w = v1 | ~parent_u  # captured by the new prefix
                             up = ~w  # not captured by the new prefix
-
+                            print(
+                                "pushing prefix: {} with lb={} (ub={})".format(
+                                    new_prefix, lb, self.ub
+                                )
+                            )
                             self.status.push_to_queue(
                                 (lb, new_prefix), (new_prefix, lb, up, zp, sp)
                             )
