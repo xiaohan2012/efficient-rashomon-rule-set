@@ -424,8 +424,8 @@ class TestEnsusreMinimalNonViolation:
 
     def test_unsatisfiable_case(self):
         A, b, rank, pivot_columns = extended_rref(
-            GF(np.array([[0, 0, 0]], dtype=int)),
-            GF(np.array([1], dtype=int)),
+            GF(np.array([[0, 0, 0], [0, 0, 0]], dtype=int)),
+            GF(np.array([0, 1], dtype=int)),
             verbose=False,
         )
         A, b = map(bin_array, (A, b))

@@ -170,7 +170,7 @@ def ensure_minimal_non_violation(
     3. satisfiability status vector
     """
     # if Ax=b is not solvable, raise an error
-    if (A[rank - 1 :] != b[rank - 1 :]).any():
+    if b[rank - 1 :].any():
         raise ValueError(
             "'minimal non-violation cannot be ensured because Ax=b is unsolvable'"
         )
