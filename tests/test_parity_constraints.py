@@ -1,16 +1,17 @@
-import pytest
 import numpy as np
+import pytest
+
 from bds.gf2 import GF, extended_rref
-from bds.utils import bin_array, bin_zeros
 from bds.parity_constraints import (
     build_boundary_table,
+    count_added_pivots,
+    ensure_minimal_non_violation,
+    ensure_satisfiability,
     inc_ensure_minimal_no_violation,
     inc_ensure_satisfiability,
-    ensure_minimal_non_violation,
-    count_added_pivots,
-    ensure_satisfiability,
 )
 from bds.types import RuleSet
+from bds.utils import bin_array, bin_zeros
 
 
 @pytest.mark.parametrize(
@@ -391,6 +392,16 @@ class TestEnsusreMinimalNonViolation:
                 [0, 0, 1],
                 [1, 1, 1],
             ),
+            (
+                "t5",
+                RuleSet([]),
+                [[1, 0, 0, 0, 0], [0, 1, 0, 1, 0], [0, 0, 1, 1, 0], [0, 0, 0, 0, 1]],
+                [0, 0, 1, 1],
+                # 1st and last constraint are determined
+                [4],
+                [0, 0, 0, 1],
+                [1, 0, 0, 1],
+            ),
         ],
     )
     def test_basic(
@@ -563,7 +574,7 @@ class TestIncEnsureSatisfiability:
 
 class TestEnsureSatisfiability:
     @pytest.mark.parametrize(
-        "name, A, b, prefix, expected_rules",
+        "name, A, b, prefix, expected_extension",
         [
             ("root-case-1", [[1, 0, 1, 1], [0, 1, 0, 0]], [1, 1], RuleSet([]), [0, 1]),
             ("root-case-2", [[1, 0, 0, 1], [0, 0, 1, 0]], [1, 1], RuleSet([]), [0, 2]),
@@ -571,7 +582,7 @@ class TestEnsureSatisfiability:
             ("t2.1", [[1, 0, 0, 1], [0, 0, 1, 0]], [0, 1], RuleSet([3]), [0, 2]),
         ],
     )
-    def test_basic(self, name, A, b, prefix, expected_rules):
+    def test_basic(self, name, A, b, prefix, expected_extension):
         A = bin_array(A)
         b = bin_array(b)
 
@@ -579,5 +590,5 @@ class TestEnsureSatisfiability:
             GF(A.astype(int)), GF(b.astype(int))
         )
 
-        actual_rules = ensure_satisfiability(prefix, A, b, row2pivot_column)
-        assert set(actual_rules) == set(expected_rules)
+        actual_extention = ensure_satisfiability(prefix, A, b, row2pivot_column)
+        assert set(actual_extention) == set(expected_extension)
