@@ -26,6 +26,7 @@ def build_boundary_table(
 @jit(nopython=True, cache=True)
 def inc_ensure_minimal_no_violation(
     j: int,
+    rank: int,
     z: np.ndarray,
     s: np.ndarray,
     A: np.ndarray,
@@ -60,7 +61,7 @@ def inc_ensure_minimal_no_violation(
 
     selected_rules = np.empty(A.shape[1], np.int_)
     num_rules_selected = 0
-    for i in range(A.shape[0]):
+    for i in range(rank):
         if j == -1:
             # the initial case, where no rules are added
             if j == B[i]:
@@ -151,6 +152,7 @@ def ensure_minimal_non_violation(
     prefix: RuleSet,
     A: np.ndarray,
     b: np.ndarray,
+    rank: int,
     B: np.ndarray,
     row2pivot_column: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -173,11 +175,11 @@ def ensure_minimal_non_violation(
 
     # at root
     all_rules_added, z, s = inc_ensure_minimal_no_violation(
-        -1, z, s, A, b, B, row2pivot_column
+        -1, rank, z, s, A, b, B, row2pivot_column
     )
     for j in prefix:
         rules_added, z, s = inc_ensure_minimal_no_violation(
-            j, z, s, A, b, B, row2pivot_column
+            j, rank, z, s, A, b, B, row2pivot_column
         )
         all_rules_added = np.concatenate((all_rules_added, rules_added))
     return all_rules_added, z, s

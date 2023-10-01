@@ -42,7 +42,7 @@ def test_build_boundary_table(A, expected):
     np.testing.assert_allclose(expected, actual)
 
 
-class TestIncEnsureMinimalNoViolation:
+class TestIncEnsureMinimalNonViolation:
     @pytest.mark.parametrize(
         "test_name, A, b, j, z, s, exp_rules, exp_zp, exp_sp",
         [
@@ -176,7 +176,7 @@ class TestIncEnsureMinimalNoViolation:
         z = bin_array(z)
         s = bin_array(s)
         actual_rules, actual_zp, actual_sp = inc_ensure_minimal_no_violation(
-            j, z, s, A, b, B, pivot_columns
+            j, rank, z, s, A, b, B, pivot_columns
         )
         np.testing.assert_allclose(actual_rules, np.array(exp_rules, dtype=int))
         np.testing.assert_allclose(actual_zp, bin_array(exp_zp))
@@ -283,7 +283,7 @@ class TestIncEnsureMinimalNoViolation:
         z = bin_zeros(m)
         s = bin_zeros(m)
         actual_rules1, actual_zp1, actual_sp1 = inc_ensure_minimal_no_violation(
-            j1, z, s, A, b, B, pivot_columns
+            j1, rank, z, s, A, b, B, pivot_columns
         )
 
         np.testing.assert_allclose(actual_rules1, rules1)
@@ -291,7 +291,7 @@ class TestIncEnsureMinimalNoViolation:
         np.testing.assert_allclose(actual_sp1, sp1)
 
         actual_rules2, actual_zp2, actual_sp2 = inc_ensure_minimal_no_violation(
-            j2, actual_zp1, actual_sp1, A, b, B, pivot_columns
+            j2, rank, actual_zp1, actual_sp1, A, b, B, pivot_columns
         )
 
         np.testing.assert_allclose(actual_rules2, rules2)
@@ -401,7 +401,7 @@ class TestEnsusreMinimalNonViolation:
                 [4],
                 [0, 0, 0, 1],
                 [1, 0, 0, 1],
-            ),
+            ),                     
         ],
     )
     def test_basic(
@@ -416,12 +416,26 @@ class TestEnsusreMinimalNonViolation:
         m, n = A.shape
 
         actual_added_rules, actual_z, actual_s = ensure_minimal_non_violation(
-            prefix, A, b, B, pivot_columns
+            prefix, A, b, rank, B, pivot_columns
         )
         assert set(actual_added_rules) == set(expected_added_rules)
         np.testing.assert_allclose(expected_z, actual_z)
         np.testing.assert_allclose(expected_s, actual_s)
 
+    def test_unsatisfiable_case(self):
+        A, b, rank, pivot_columns = extended_rref(
+            GF(np.array([[0, 0, 0]], dtype=int)), GF(np.array([1], dtype=int)), verbose=False
+        )
+        A, b = map(bin_array, (A, b))
+
+        B = build_boundary_table(A, rank, pivot_columns)
+        m, n = A.shape
+
+        with pytest.raises(ValueError, match='.*minimal non-violation cannot be ensured.*'):
+            ensure_minimal_non_violation(
+                RuleSet([]), A, b, rank, B, pivot_columns
+            )        
+     
 
 class TestCountAddedPivots:
     @pytest.mark.parametrize(

@@ -25,6 +25,7 @@ from .utils import (
     get_indices_and_indptr,
     calculate_lower_bound,
     calculate_obj,
+    CBBUtilityMixin,
 )
 from .parity_constraints import (
     inc_ensure_minimal_no_violation,
@@ -38,7 +39,7 @@ from .types import RuleSet
 from .solver_status import SolverStatus
 
 
-class ConstrainedBranchAndBound(BranchAndBoundNaive):
+class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
     def __init__(
         self,
         rules: List[Rule],
@@ -179,7 +180,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
 
     def _lor(self, idxs: np.ndarray) -> mpz:
         """given a set of rule idxs, return the logical OR over the truthtables of the corresponding rules"""
-        r = (~self._not_captured_by_default_rule())
+        r = ~self._not_captured_by_default_rule()
         for i in idxs:
             r |= self.truthtable_list[i]
         return r
@@ -205,9 +206,12 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         """wrapper of ensure_minimal_non_violation, but also returns the captured vector"""
         if len(set(prefix) & self.pivot_rule_idxs) != 0:
             raise ValueError(f"prefix should not contain any pivots: {prefix}")
-
+        # print("_ensure_minimal_non_violation:")
+        # print("A: {}".format(self.A.astype(int)))
+        # print("b: {}".format(self.b.astype(int)))
+        # print("B: {}".format(self.B))
         pivot_rules_array, z, s = ensure_minimal_non_violation(
-            prefix, self.A, self.b, self.B, self.row2pivot_column
+            prefix, self.A, self.b, self.rank, self.B, self.row2pivot_column
         )
         v = self._lor(pivot_rules_array)
         return RuleSet(pivot_rules_array), v, z, s
@@ -232,6 +236,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
         assert rule_id >= -1
         e1_idxs, zp, sp = inc_ensure_minimal_no_violation(
             rule_id,
+            self.rank,
             z,
             s,
             self.A,
@@ -479,6 +484,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive):
 
                 self.status.add_to_reserve_set(prefix_restored)
 
+                print(f"checking prefix: {prefix_restored}, obj={obj}")
                 if obj <= self.ub:
                     if prefix_restored not in self.status.solution_set:
                         self.status.add_to_solution_set(prefix_restored)
