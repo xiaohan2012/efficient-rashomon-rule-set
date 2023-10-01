@@ -135,7 +135,9 @@ class TestCBBUtilityMixin:
 
         obj.A_gf = GF(A)
         obj.b_gf = GF(b)
+        obj.rank = rank
         obj.B = B
+        print("B: {}".format(B))
         obj.pivot_rule_idxs = set(pivot_columns)
 
         obj.num_rules = A.shape[1]
@@ -143,11 +145,23 @@ class TestCBBUtilityMixin:
         obj.ub = float("inf")
         return obj
 
-    def test_is_Ax_eq_b_non_violated(self):
-        A = np.array(
-            [[1, 0, 0, 0, 0], [0, 1, 0, 1, 0], [0, 0, 1, 1, 0], [0, 0, 0, 0, 1]],
-            dtype=int,
-        )
-        b = np.array([0, 0, 1, 1], dtype=int)
+    @pytest.mark.parametrize(
+        "A, b, prefix",
+        [
+            (
+                [[1, 0, 0, 0, 0], [0, 1, 0, 1, 0], [0, 0, 1, 1, 0], [0, 0, 0, 0, 1]],
+                [0, 0, 1, 1],
+                [4],
+            ),
+            (
+                [[1, 0, 0, 0, 0], [0, 1, 1, 1, 0], [0, 0, 0, 0, 1], [0, 0, 0, 0, 0]],
+                [0, 0, 0, 0],
+                [],
+            ),
+        ],
+    )
+    def test_is_Ax_eq_b_non_violated(self, A, b, prefix):
+        A = np.array(A, dtype=int)
+        b = np.array(b, dtype=int)
         obj = self.create_mockup_instance(A, b)
-        assert obj.is_Ax_eq_b_non_violated(RuleSet([4]))
+        assert obj.is_Ax_eq_b_non_violated(RuleSet(prefix))
