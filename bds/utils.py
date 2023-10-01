@@ -1,4 +1,5 @@
 import itertools
+from .gf2 import GF
 import json
 import math
 import os
@@ -271,3 +272,47 @@ def calculate_lower_bound(
     # print("num_mistakes: {}".format(num_mistakes))
     lb = len(sol) * lmbd + num_fp / y_np.shape[0]
     return float(lb)
+
+
+class CBBUtilityMixin:
+    """utility class for the constrained branch-and-bound algorithm"""
+
+    def print_Axb(self):
+        print("A.shape: {}".format(self.A.shape))
+        print("A:\n{}".format(self.A.astype(int)))
+        print("b:\n{}".format(self.b.astype(int)))
+
+    def is_prefix_feasible(self, prefix: RuleSet) -> bool:
+        """return True if the prefix is feasible, i.e., Ax=b is satisfied and obj(prefix) <= ub"""
+        x = np.zeros(self.num_rules, dtype=int)
+        x[np.asarray(prefix)] = 1
+        Ax = self.A_gf @ GF(x)
+        if not (Ax == self.b_gf).all():
+            return False
+
+        if self._calculate_obj(prefix) > self.ub:
+            return False
+        return True
+
+    def is_Ax_eq_b_non_violated(self, prefix: RuleSet) -> bool:
+        """return True is Ax=b is not violated, and False otherwise"""
+        x = np.zeros(self.num_rules, dtype=int)
+        if len(prefix) > 0:
+            x[np.asarray(prefix)] = 1
+        Ax = self.A_gf @ GF(x)
+        prefix_with_free_rules_only = prefix - RuleSet(self.pivot_rule_idxs)
+        # if there is one constraint i that is determined and Ax[i] != b[i]
+        # then Ax=b is violated
+        if np.logical_and(
+            Ax != self.b_gf, max(prefix_with_free_rules_only or [-1]) >= self.B
+        ).any():
+            return False
+        return True
+
+    def is_preflix_qualified_for_queue(self, prefix: RuleSet) -> bool:
+        """return True if the prefix should be pushed to queue, i.e., Ax=b is not violated and lb(prefix) + lambda <= ub"""
+        if not self.is_Ax_eq_b_non_violated(prefix):
+            return False
+        if (self._calculate_lb(prefix) + self.lmbd) > self.ub:
+            return False
+        return True

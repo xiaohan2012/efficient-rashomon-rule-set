@@ -1,9 +1,19 @@
 import numpy as np
+
+
 import pytest
 from gmpy2 import mpz
 
 from bds.rule import Rule
-from bds.utils import calculate_obj, calculate_lower_bound, mpz_set_bits
+from bds.gf2 import GF, extended_rref
+from bds.utils import (
+    calculate_obj,
+    calculate_lower_bound,
+    mpz_set_bits,
+    CBBUtilityMixin,
+)
+from bds.types import RuleSet
+from bds.parity_constraints import build_boundary_table
 
 
 @pytest.fixture
@@ -115,3 +125,29 @@ class TestCalculateLowerBound:
         rules, y_np, y_mpz = inputs
         lb = calculate_lower_bound(rules, y_np, y_mpz, sol, lmbd)
         np.testing.assert_allclose(lb, num_fp / y_np.shape[0] + len(sol) * lmbd)
+
+
+class TestCBBUtilityMixin:
+    def create_mockup_instance(self, A: np.ndarray, b: np.ndarray) -> CBBUtilityMixin:
+        obj = CBBUtilityMixin()
+        A, b, rank, pivot_columns = extended_rref(A, b)
+        B = build_boundary_table(A, rank, pivot_columns)
+
+        obj.A_gf = GF(A)
+        obj.b_gf = GF(b)
+        obj.B = B
+        obj.pivot_rule_idxs = set(pivot_columns)
+
+        obj.num_rules = A.shape[1]
+        obj._calculate_obj = lambda prefix: 0
+        obj.ub = float("inf")
+        return obj
+
+    def test_is_Ax_eq_b_non_violated(self):
+        A = np.array(
+            [[1, 0, 0, 0, 0], [0, 1, 0, 1, 0], [0, 0, 1, 1, 0], [0, 0, 0, 0, 1]],
+            dtype=int,
+        )
+        b = np.array([0, 0, 1, 1], dtype=int)
+        obj = self.create_mockup_instance(A, b)
+        assert obj.is_Ax_eq_b_non_violated(RuleSet([4]))
