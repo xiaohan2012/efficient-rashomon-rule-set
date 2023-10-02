@@ -23,4 +23,4 @@ picbb: profile_icbb.py
 	$(LP) profile_icbb.py.lprof
 
 test:
-	pytest tests/test_bounds.py tests/test_bb.py tests/test_cbb.py tests/test_meel.py
+	pytest tests/test_bounds.py tests/test_bb.py tests/test_cbb.py tests/test_icbb.py  tests/test_meel.py
