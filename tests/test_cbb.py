@@ -26,7 +26,6 @@ from bds.utils import (
     solutions_to_dict,
 )
 
-from .fixtures import rules, y
 from .utils import (
     assert_dict_allclose,
     brute_force_enumeration,

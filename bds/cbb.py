@@ -221,7 +221,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
             raise ValueError(f"prefix should not contain any pivots: {prefix}")
 
         pivot_rules_array = ensure_satisfiability(
-            prefix, self.A_gf, self.b_gf, self.row2pivot_column
+            prefix, self.A_gf, self.b_gf, self.rank, self.row2pivot_column
         )
         return RuleSet(pivot_rules_array)
 

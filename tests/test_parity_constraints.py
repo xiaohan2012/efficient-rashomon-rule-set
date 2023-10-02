@@ -613,5 +613,28 @@ class TestEnsureSatisfiability:
             GF(A.astype(int)), GF(b.astype(int))
         )
 
-        actual_extention = ensure_satisfiability(prefix, A, b, row2pivot_column)
+        actual_extention = ensure_satisfiability(prefix, A, b, rank, row2pivot_column)
         assert set(actual_extention) == set(expected_extension)
+
+    @pytest.mark.parametrize(
+        "A, b",
+        [
+            (
+                [[1, 0, 0, 0, 0], [0, 1, 0, 0, 0], [0, 0, 1, 1, 1], [0, 0, 0, 0, 0]],
+                [0, 0, 0, 1],
+            ),
+        ],
+    )
+    def test_unsatisfiable_case(self, A, b):
+        A = bin_array(A)
+        b = bin_array(b)
+
+        A, b, rank, row2pivot_column = extended_rref(
+            GF(A.astype(int)), GF(b.astype(int))
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=".*Satisfaction cannot be ensured because Ax=b is unsolvable.*",
+        ):
+            ensure_satisfiability(RuleSet([]), A, b, rank, row2pivot_column)

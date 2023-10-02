@@ -197,6 +197,7 @@ def ensure_satisfiability(
     prefix: RuleSet,
     A_gf: GF,
     b_gf: GF,
+    rank: int,
     row2pivot_column: np.ndarray,
 ) -> np.ndarray:
     """ensure satisfaction for a prefix w.r.t. parity constraint system Ax=b
@@ -208,6 +209,13 @@ def ensure_satisfiability(
 
     returns the array of pivot rules being added
     """
+    if b_gf[rank:].any():
+        raise ValueError(
+            "Satisfaction cannot be ensured because Ax=b is unsolvable"
+            f"b[rank:]={b_gf[rank:]}, where rank={rank}\n"
+            f"A = :\n{np.array(A_gf, dtype=int)}"
+        )
+
     x = GF.Zeros(A_gf.shape[1])
     x[list(prefix)] = True
     Ax = A_gf @ x
