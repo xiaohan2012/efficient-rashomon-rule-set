@@ -136,11 +136,23 @@ class TestExamineRAndS(Utility):
         assert expected_S == actual_S
         assert expected_R == actual_R
 
-    @pytest.mark.parametrize("num_constraints", [2])
+        # check that the prefix is indeed feasible
+        for prefix in actual_sols:
+            assert icbb.is_prefix_feasible(prefix)
+
+    @pytest.mark.parametrize("num_constraints", [2, 4, 6])
+    @pytest.mark.parametrize("diff_in_num_constraints", randints(1, 1, 4))
+    @pytest.mark.parametrize("threshold", [5, 10, 15])
     @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
     @pytest.mark.parametrize("rand_seed", randints(3))
     def test_under_the_different_constraint_systems(
-        self, num_constraints, ub, rand_seed
+        self,
+        num_constraints,
+        diff_in_num_constraints,
+        threshold,
+        ub,
+        rand_seed
+        # num_constraints = 2, diff_in_num_constraints = 3, threshold = 5, ub = 0.21, rand_seed = 360269222
     ):
         """
         now the constraint system changes, the non-incremental version uses 1 fewer constraint than the incremental version
@@ -149,24 +161,35 @@ class TestExamineRAndS(Utility):
         cbb = self.create_cbb(ub=ub, rand_seed=rand_seed)
         A_full_rref, b_full_rref = self.create_A_and_b(rand_seed)
 
-        A1, b1 = A_full_rref[:num_constraints], b_full_rref[:num_constraints]
-        A2, b2 = A_full_rref[: num_constraints + 1], b_full_rref[: num_constraints + 1]
+        i = num_constraints
+        j = num_constraints + diff_in_num_constraints
+        Ai, bi = A_full_rref[:i], b_full_rref[:i]
+        Aj, bj = A_full_rref[:j], b_full_rref[:j]
 
-        expected_sols = cbb.bounded_sols(10, A=A1, b=b1)
+        expected_sols = cbb.bounded_sols(threshold, A=Ai, b=bi)
         expected_S = cbb.status.solution_set
         expected_R = cbb.status.reserve_set
 
+        cbb.print_Axb()
+
         icbb = self.create_icbb(ub=ub, rand_seed=rand_seed)
-        icbb.reset(A=A2, b=b2, solver_status=cbb.status)
+        icbb.reset(A=Aj, b=bj, solver_status=cbb.status)
+
+        icbb.print_Axb()
 
         actual_sols = list(icbb._examine_R_and_S())
         actual_S = icbb.status.solution_set
         actual_R = icbb.status.reserve_set
 
         assert len(expected_sols) >= len(actual_sols)
-        assert set(expected_sols).issuperset(set(actual_sols))
-        assert expected_S.issuperset(actual_S)
-        assert expected_R.issuperset(actual_R)
+        assert len(set(expected_sols)) >= len(set(actual_sols))
+        # assert set(expected_sols).issuperset(set(actual_sols))  # this line may not hold because the new constraint system may add new pivots
+        assert len(expected_S) >= len(actual_S)
+        assert len(expected_R) >= len(actual_R)
+
+        # check that the prefix is indeed feasible
+        for prefix in actual_sols:
+            assert icbb.is_prefix_feasible(prefix)
 
 
 class TestUpdateQueue(Utility):
@@ -174,10 +197,9 @@ class TestUpdateQueue(Utility):
     @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
     @pytest.mark.parametrize("rand_seed", randints(3))
     @pytest.mark.parametrize("threshold", [5, 10, 20])
-        
     # @pytest.mark.parametrize("num_constraints, ub, rand_seed", [(2, 0.51001, 1534479381)])
     def test_consistency_under_the_same_constraint_system(
-            self, num_constraints, ub, rand_seed, threshold
+        self, num_constraints, ub, rand_seed, threshold
     ):
         """
         icbb._update_queue should yield the same queue as cbb, if they are subject to the same Ax=b
@@ -205,9 +227,14 @@ class TestUpdateQueue(Utility):
     @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
     @pytest.mark.parametrize("rand_seed", randints(3))
     @pytest.mark.parametrize("threshold", [5, 10, 20])
-    # @pytest.mark.parametrize("num_constraints, diff_in_num_constraints, ub, rand_seed", [(2, 3, float("inf"), 1761839643)])
     def test_under_the_different_constraint_systems(
-            self, num_constraints, diff_in_num_constraints, ub, rand_seed, threshold
+        self,
+        # num_constraints = 2, diff_in_num_constraints = 2, ub = 0.21, rand_seed = 39462156, threshold = 5
+        num_constraints,
+        diff_in_num_constraints,
+        ub,
+        rand_seed,
+        threshold,
     ):
         """
         now the constraint system changes, the non-incremental version uses 1 fewer constraint than the incremental version
@@ -220,20 +247,19 @@ class TestUpdateQueue(Utility):
 
         i = num_constraints
         j = num_constraints + diff_in_num_constraints
-        A1, b1 = A_full_rref[:i], b_full_rref[:i]
-        A2, b2 = A_full_rref[:j], b_full_rref[:j]
+        Ai, bi = A_full_rref[:i], b_full_rref[:i]
+        Aj, bj = A_full_rref[:j], b_full_rref[:j]
 
-        cbb.bounded_sols(threshold, A=A1, b=b1)
+        cbb.bounded_sols(threshold, A=Ai, b=bi)
         cbb._push_last_checked_prefix_to_queue()  # to be consistent with icbb
 
         icbb = self.create_icbb(ub=ub, rand_seed=rand_seed)
-        icbb.reset(A=A2, b=b2, solver_status=cbb.status)
+        icbb.reset(A=Aj, b=bj, solver_status=cbb.status)
 
-        print("A1: {}".format(A1))
-        print("b1: {}".format(b1))
-        print("A2: {}".format(A2))
-        print("b2: {}".format(b2))
         icbb._update_queue()
+
+        cbb.print_Axb()
+        icbb.print_Axb()
 
         prefixes_in_queue_cbb = {el[0] for el in cbb.status.queue}
         prefixes_in_queue_icbb = {el[0] for el in icbb.status.queue}
@@ -241,43 +267,44 @@ class TestUpdateQueue(Utility):
         assert len(prefixes_in_queue_icbb) <= len(prefixes_in_queue_cbb)
         # the following assertion is wrong
         # assert prefixes_in_queue_cbb.issuperset(prefixes_in_queue_icbb), prefixes_in_queue_cbb - prefixes_in_queue_icbb
+        for prefix in prefixes_in_queue_icbb:
+            assert icbb.is_preflix_qualified_for_queue(prefix), prefix
 
 
-class TestSimple:
-    def test(self):
-        num_pts, num_rules = 20, 10
-        rand_rules, rand_y = generate_random_rules_and_y(
-            num_pts, num_rules, rand_seed=42
-        )
-        A, b = generate_h_and_alpha(num_rules, num_rules - 1, seed=32, as_numpy=True)
-
-        i = 2
-        j = 5
+class TestEquivalenceToNonIncremental(Utility):
+    # @pytest.mark.parametrize("i", [2, 4, 6])
+    # @pytest.mark.parametrize("delta_i_j", randints(1, 1, 4))
+    # @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
+    # @pytest.mark.parametrize("rand_seed", randints(1))
+    # @pytest.mark.parametrize("threshold", [5, 10, 20])
+    @pytest.mark.parametrize(
+        "i, delta_i_j, ub, rand_seed, threshold", [(2, 1, float("inf"), 858813698, 5)]
+    )
+    def test(self, i, delta_i_j, ub, rand_seed, threshold):
+        A, b = self.create_A_and_b(rand_seed)
+        j = i + delta_i_j
 
         Ai, bi = A[:i], b[:i]
         Aj, bj = A[:j], b[:j]
 
-        # solving
-        cbb_i = ConstrainedBranchAndBound(
-            rand_rules, float("inf"), rand_y, lmbd=0.1, reorder_columns=False
-        )
-        cbb_i.setup(A=Ai, b=bi, solver_status=None)
-        cbb_i.bounded_sols(threshold=10)
+        # solving from scratch with i constraints
+        cbb_i = self.create_icbb(ub, rand_seed=rand_seed)
+        cbb_i.bounded_sols(threshold=threshold, A=Ai, b=bi, solver_status=None)
 
-        cbb_j = ConstrainedBranchAndBound(
-            rand_rules, float("inf"), rand_y, lmbd=0.1, reorder_columns=False
+        # solve the problem with j constraints incrementally based on cbb_i
+        cbb_j = self.create_icbb(ub, rand_seed=rand_seed)
+        actual_sols = cbb_j.bounded_sols(
+            threshold, A=Aj, b=bj, solver_status=cbb_i.status
         )
-        cbb_j.setup(A=Aj, b=bj, solver_status=cbb_i.solver_status)
-        actual_sols = cbb_j.bounded_sols(threshold=10)
+        cbb_i.print_Axb()
+        cbb_j.print_Axb()
 
         # expected results are calculated from the non-incremental CBB
-        cbb_ref = ConstrainedBranchAndBound(
-            rand_rules, float("inf"), rand_y, lmbd=0.1, reorder_columns=False
-        )
-        cbb_ref.setup(A=Aj, b=bj, solver_status=None)
-        expected_sols = cbb_ref.bounded_sols(threshold=10)
+        cbb_ref = self.create_cbb(ub, rand_seed=rand_seed)
+        expected_sols = cbb_ref.bounded_sols(threshold, A=Aj, b=bj, solver_status=None)
 
-        assert actual_sols == expected_sols
+        assert set(actual_sols) == set(expected_sols)
+        assert len(actual_sols) == len(expected_sols)
 
 
 class TestEnd2End(Utility):

@@ -31,51 +31,68 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
             self.reset_queue()
 
     def _examine_R_and_S(self, return_objective=False):
+        """check the solution set and reserve set from previous runsand yield them if feasible"""
         candidate_prefixes = copy(self.status.solution_set | self.status.reserve_set)
 
         # clear the solution and reserve set
         self.status.reset_reserve_set()
         self.status.reset_solution_set()
-        for prefix in candidate_prefixes:
-            extention = self._ensure_satisfiability(prefix - self.pivot_rule_idxs)
-            prefix_new = prefix + extention
-            # add to reserve set if needed
-            if (
-                prefix_new not in self.status.reserve_set
-                and self._calculate_lb(prefix_new) <= self.ub
-                and len(prefix_new) >= 1
-            ):
-                self.status.add_to_reserve_set(prefix_new)
 
-            # yield and add to solution set if needed
-            if (
-                prefix_new not in self.status.solution_set
-                and self._calculate_obj(prefix_new) <= self.ub
-                and len(prefix_new) >= 1
-            ):
-                self.status.add_to_solution_set(prefix_new)
-                yield prefix_new
+        # only check the solutions if the new Ax=b is solvable
+        if self.is_linear_system_solvable:
+            for prefix in candidate_prefixes:
+                preifx_with_free_rules = prefix - self.pivot_rule_idxs
+                extension = self._ensure_satisfiability(preifx_with_free_rules)
+                prefix_new = preifx_with_free_rules + extension
+                print("prefix: {} -> {}".format(prefix, prefix - self.pivot_rule_idxs))
+                print("extension: {}".format(extension))
+                # add to reserve set if needed
+                if (
+                    prefix_new not in self.status.reserve_set
+                    and self._calculate_lb(prefix_new) <= self.ub
+                    and len(prefix_new) >= 1
+                ):
+                    self.status.add_to_reserve_set(prefix_new)
+
+                # yield and add to solution set if needed
+                if (
+                    prefix_new not in self.status.solution_set
+                    and self._calculate_obj(prefix_new) <= self.ub
+                    and len(prefix_new) >= 1
+                ):
+                    print(f"-> inheritting {prefix_new}")
+                    self.status.add_to_solution_set(prefix_new)
+                    yield prefix_new
 
     def _update_queue(self):
         """
-        check each item in the queue and
+        check each item in the queue from previous run and push them to the current queue if bound checking is passed
         """
         new_queue = NonRedundantQueue()
         print("inherited queue: {}".format(list(self.status.queue)))
-        for queue_item in self.status.queue:
-            prefix = queue_item[0]
-            extension, u, z, s = self._ensure_minimal_non_violation(
-                prefix - self.pivot_rule_idxs  # remove the pivots
-            )
+        if self.is_linear_system_solvable:
+            # only check the queue items if the new linear system is solvable
+            for queue_item in self.status.queue:
+                prefix = queue_item[0]
+                prefix_with_free_rules_only = (
+                    prefix - self.pivot_rule_idxs
+                )  # remove the pivots
+                extension, u, z, s = self._ensure_minimal_non_violation(
+                    prefix_with_free_rules_only
+                )
 
-            prefix_new = prefix + extension
-            lb = self._calculate_lb(prefix_new)
-            
-            print("prefix_new: {}".format(prefix_new))            
-            print("lb: {}".format(lb))
-            if (lb + self.lmbd) <= self.ub:
-                print(f"pushing {prefix_new} to queue")
-                new_queue.push((prefix_new, lb, ~u, z, s), key=(lb, prefix_new))
+                prefix_new = prefix_with_free_rules_only + extension
+                print(
+                    f"prefix: {prefix} -> {prefix_with_free_rules_only} -> {prefix_new}"
+                )
+                lb = self._calculate_lb(prefix_new)
+
+                # print("prefix_new: {}".format(prefix_new))
+                # print("lb: {}".format(lb))
+                if (lb + self.lmbd) <= self.ub:
+                    print(f"-> queue")
+                    # print(f"pushing {prefix_new} to queue")
+                    new_queue.push((prefix_new, lb, ~u, z, s), key=(lb, prefix_new))
         # use the new queue in status
         self.status.set_queue(new_queue)
 
