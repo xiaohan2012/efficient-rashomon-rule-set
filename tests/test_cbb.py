@@ -5,23 +5,13 @@ import pytest
 from gmpy2 import mpz
 from operator import itemgetter
 
-from bds.cbb import (
-    ConstrainedBranchAndBound,
-    build_boundary_table,
-    count_added_pivots,
-    inc_ensure_minimal_no_violation,
-    inc_ensure_satisfiability,
-)
+from bds.cbb import ConstrainedBranchAndBound
 from bds.gf2 import GF
 from bds.random_hash import generate_h_and_alpha
 from bds.rule import Rule
 from bds.types import RuleSet
 from bds.utils import (
     bin_array,
-    bin_ones,
-    bin_zeros,
-    get_indices_and_indptr,
-    mpz_set_bits,
     randints,
     solutions_to_dict,
     powerset,
@@ -30,11 +20,11 @@ from bds.utils import (
 from .utils import (
     assert_dict_allclose,
     brute_force_enumeration,
-    calculate_obj,
     generate_random_rules_and_y,
     is_disjoint,
     normalize_solutions,
 )
+from .fixtures import rules, y
 
 
 class UtilityMixin:
