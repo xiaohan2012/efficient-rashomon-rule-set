@@ -422,10 +422,17 @@ class TestEnsusreMinimalNonViolation:
         np.testing.assert_allclose(expected_z, actual_z)
         np.testing.assert_allclose(expected_s, actual_s)
 
-    def test_unsatisfiable_case(self):
+    @pytest.mark.parametrize(
+        "A, b",
+        [
+            ([[0, 0, 0], [0, 0, 0]], [0, 1]),
+            ([[1, 0, 0], [0, 0, 0]], [0, 1]),
+        ],
+    )
+    def test_unsatisfiable_case(self, A, b):
         A, b, rank, pivot_columns = extended_rref(
-            GF(np.array([[0, 0, 0], [0, 0, 0]], dtype=int)),
-            GF(np.array([0, 1], dtype=int)),
+            GF(np.array(A, dtype=int)),
+            GF(np.array(b, dtype=int)),
             verbose=False,
         )
         A, b = map(bin_array, (A, b))
@@ -434,7 +441,7 @@ class TestEnsusreMinimalNonViolation:
         m, n = A.shape
 
         with pytest.raises(
-            ValueError, match=".*minimal non-violation cannot be ensured.*"
+            ValueError, match=".*Minimal non-violation cannot be ensured.*"
         ):
             ensure_minimal_non_violation(RuleSet([]), A, b, rank, B, pivot_columns)
 
