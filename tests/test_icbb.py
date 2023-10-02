@@ -272,15 +272,15 @@ class TestUpdateQueue(Utility):
 
 
 class TestEquivalenceToNonIncremental(Utility):
-    # @pytest.mark.parametrize("i", [2, 4, 6])
-    # @pytest.mark.parametrize("delta_i_j", randints(1, 1, 4))
-    # @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
-    # @pytest.mark.parametrize("rand_seed", randints(1))
-    # @pytest.mark.parametrize("threshold", [5, 10, 20])
-    @pytest.mark.parametrize(
-        "i, delta_i_j, ub, rand_seed, threshold", [(2, 1, float("inf"), 858813698, 5)]
-    )
-    def test(self, i, delta_i_j, ub, rand_seed, threshold):
+    @pytest.mark.parametrize("i", [2, 4, 6])
+    @pytest.mark.parametrize("delta_i_j", randints(3, 1, 4))
+    @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
+    @pytest.mark.parametrize("rand_seed", randints(3))
+    @pytest.mark.parametrize("threshold", [5, 10, 20])
+    def test(self,
+             i, delta_i_j, ub, rand_seed, threshold
+             # i = 2, delta_i_j = 3, ub = 0.51, rand_seed = 1734416845, threshold = 5
+             ):
         A, b = self.create_A_and_b(rand_seed)
         j = i + delta_i_j
 
@@ -305,6 +305,8 @@ class TestEquivalenceToNonIncremental(Utility):
 
         assert set(actual_sols) == set(expected_sols)
         assert len(actual_sols) == len(expected_sols)
+        assert set(actual_sols) == cbb_j.status.solution_set
+        assert cbb_ref.status.reserve_set == cbb_j.status.reserve_set
 
 
 class TestEnd2End(Utility):

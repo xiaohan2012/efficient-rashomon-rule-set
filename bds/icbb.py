@@ -39,6 +39,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
         self.status.reset_solution_set()
 
         # only check the solutions if the new Ax=b is solvable
+        # print("self.is_linear_system_solvable: {}".format(self.is_linear_system_solvable))
         if self.is_linear_system_solvable:
             for prefix in candidate_prefixes:
                 preifx_with_free_rules = prefix - self.pivot_rule_idxs
@@ -63,6 +64,8 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
                     print(f"-> inheritting {prefix_new}")
                     self.status.add_to_solution_set(prefix_new)
                     yield prefix_new
+        else:
+            print("Ax=b is unsolvable, skip solution checking")
 
     def _update_queue(self):
         """
@@ -82,31 +85,29 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
                 )
 
                 prefix_new = prefix_with_free_rules_only + extension
-                print(
-                    f"prefix: {prefix} -> {prefix_with_free_rules_only} -> {prefix_new}"
-                )
+                # print(
+                #     f"prefix: {prefix} -> {prefix_with_free_rules_only} -> {prefix_new}"
+                # )
                 lb = self._calculate_lb(prefix_new)
 
                 # print("prefix_new: {}".format(prefix_new))
                 # print("lb: {}".format(lb))
                 if (lb + self.lmbd) <= self.ub:
-                    print(f"-> queue")
+                    # print(f"-> queue")
                     # print(f"pushing {prefix_new} to queue")
                     new_queue.push((prefix_new, lb, ~u, z, s), key=(lb, prefix_new))
+        else:
+            print("Ax=b is unsolvable, skip queue items checking")
         # use the new queue in status
         self.status.set_queue(new_queue)
 
     def generate(self, return_objective=False) -> Iterable:
-        if not self.is_linear_system_solvable:
-            logger.debug("abort the search since the linear system is not solvable")
-            yield from ()
-        else:
-            yield from self._examine_R_and_S()
+        yield from self._examine_R_and_S()
 
-            self._update_queue()
+        self._update_queue()
 
-            yield from self._generate_solution_at_root(return_objective)
+        yield from self._generate_solution_at_root(return_objective)
 
-            while not self.status.is_queue_empty():
-                queue_item = self.status.pop_from_queue()
-                yield from self._loop(*queue_item, return_objective=return_objective)
+        while not self.status.is_queue_empty():
+            queue_item = self.status.pop_from_queue()
+            yield from self._loop(*queue_item, return_objective=return_objective)

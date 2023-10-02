@@ -116,8 +116,11 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
         if self.reorder_columns:
             self._do_reorder_columns()
 
+        # print("self.A: {}".format(self.A.astype(int)))
+        # print("self.b: {}".format(self.b.astype(int)))
+        # print("self.b[self.rank:]: {}".format(self.b[self.rank:]))
         self.is_linear_system_solvable = (self.b[self.rank :] == 0).all()
-
+        # print("self.is_linear_system_solvable: {}".format(self.is_linear_system_solvable))
         self.num_constraints = int(self.A.shape[0])
         self.num_vars = self.num_rules = int(self.A.shape[1])
 
@@ -308,6 +311,8 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
 
     def _generate_solution_at_root(self, return_objective=False) -> Iterable:
         """check the solution at the root, e.g., all free variables assigned to zero"""
+        if not self.is_linear_system_solvable:
+            return
         # add pivot rules if necessary to satistify Ax=b
         prefix = RuleSet(
             self._inc_ensure_satisfiability(
@@ -438,11 +443,11 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
                             )
                             w = v1 | ~parent_u  # captured by the new prefix
                             up = ~w  # not captured by the new prefix
-                            print(
-                                "pushing prefix: {} with lb={} (ub={})".format(
-                                    new_prefix, lb, self.ub
-                                )
-                            )
+                            # print(
+                            #     "pushing prefix: {} with lb={} (ub={})".format(
+                            #         new_prefix, lb, self.ub
+                            #     )
+                            # )
                             self.status.push_to_queue(
                                 (lb, new_prefix), (new_prefix, lb, up, zp, sp)
                             )
@@ -484,7 +489,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
 
                 self.status.add_to_reserve_set(prefix_restored)
 
-                print(f"checking prefix: {prefix_restored}, obj={obj}")
+                # print(f"checking prefix: {prefix_restored}, obj={obj}")
                 if obj <= self.ub:
                     if prefix_restored not in self.status.solution_set:
                         self.status.add_to_solution_set(prefix_restored)
