@@ -63,7 +63,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
                     and obj <= self.ub
                     and len(prefix_new) >= 1
                 ):
-                    print(f"-> inheritting {prefix_new} as solution")
+                    print(f"-> inheriting {prefix_new} (obj={obj:.2}) as solution from {prefix}")
                     self.status.add_to_solution_set(prefix_new)
                     yield self._pack_solution(
                         prefix_new, (obj if return_objective else None)
