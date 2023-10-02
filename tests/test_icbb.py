@@ -73,10 +73,17 @@ class Utility:
         A, b = generate_h_and_alpha(
             self.num_rules, self.num_rules - 1, seed=rand_seed, as_numpy=True
         )
-        # remark: it is important to perform rref so that
-        # the the constraints of Ai x=bi is always a subset of Aj x = bj, where i <= j
+        # remark: it is important to perform rref before calling ICBB so that
+        # the the constraints of Aix=bi is always a subset of Ajx=bj, where i <= j
         A_rref, b_rref = extended_rref(A, b, verbose=False)[:2]
         return bin_array(A_rref), bin_array(b_rref)
+
+    def unpack_sols_and_objs(self, sols_with_obj):
+        if len(sols_with_obj) == 0:
+            return [], np.array([], dtype=float)
+        else:
+            sols, objs = zip(*sols_with_obj)
+            return list(sols), np.array(objs, dtype=float)
 
 
 class TestNonIncremental(Utility):
@@ -89,19 +96,27 @@ class TestNonIncremental(Utility):
         cbb = self.create_cbb(ub=ub, rand_seed=rand_seed)
         A_full, b_full = self.create_A_and_b(rand_seed)
         A, b = A_full[:num_constraints], b_full[:num_constraints]
-        expected_sols = cbb.bounded_sols(threshold, A=A, b=b)
+        expected_sols_with_obj = cbb.bounded_sols(
+            threshold, A=A, b=b, return_objective=True
+        )
+        expected_sols, expected_objs = self.unpack_sols_and_objs(expected_sols_with_obj)
         expected_S = cbb.status.solution_set
         expected_R = cbb.status.reserve_set
 
         icbb = self.create_icbb(ub=ub, rand_seed=rand_seed)
         icbb.reset(A=A, b=b)
 
-        actual_sols = icbb.bounded_sols(threshold, A=A, b=b)
+        actual_sols_with_obj = icbb.bounded_sols(
+            threshold, A=A, b=b, return_objective=True
+        )
+        actual_sols, actual_objs = self.unpack_sols_and_objs(actual_sols_with_obj)
+
         actual_S = icbb.status.solution_set
         actual_R = icbb.status.reserve_set
 
         assert len(expected_sols) == len(actual_sols)
         assert set(expected_sols) == set(actual_sols)
+        np.testing.assert_allclose(np.sort(expected_objs), np.sort(actual_objs))
         assert expected_S == actual_S
         assert expected_R == actual_R
 
@@ -120,19 +135,23 @@ class TestExamineRAndS(Utility):
         cbb = self.create_cbb(ub=ub, rand_seed=rand_seed)
         A_full, b_full = self.create_A_and_b(rand_seed)
         A, b = A_full[:num_constraints], b_full[:num_constraints]
-        expected_sols = cbb.bounded_sols(10, A=A, b=b)
+        expected_sols_with_obj = cbb.bounded_sols(10, A=A, b=b, return_objective=True)
+        expected_sols, expected_objs = self.unpack_sols_and_objs(expected_sols_with_obj)
         expected_S = cbb.status.solution_set
         expected_R = cbb.status.reserve_set
 
         icbb = self.create_icbb(ub=ub, rand_seed=rand_seed)
         icbb.reset(A=A, b=b, solver_status=cbb.status)
 
-        actual_sols = list(icbb._examine_R_and_S())
+        actual_sols_with_obj = list(icbb._examine_R_and_S(return_objective=True))
+        actual_sols, actual_objs = self.unpack_sols_and_objs(actual_sols_with_obj)
+
         actual_S = icbb.status.solution_set
         actual_R = icbb.status.reserve_set
 
         assert len(expected_sols) == len(actual_sols)
         assert set(expected_sols) == set(actual_sols)
+        np.testing.assert_allclose(np.sort(expected_objs), np.sort(actual_objs))
         assert expected_S == actual_S
         assert expected_R == actual_R
 
@@ -157,6 +176,8 @@ class TestExamineRAndS(Utility):
         """
         now the constraint system changes, the non-incremental version uses 1 fewer constraint than the incremental version
         we should expect that the generated solutions by ICBB is a subset of that by CBB
+
+        we do not check the objective calculation here because it is tested previously and it is not very easy to test in this case
         """
         cbb = self.create_cbb(ub=ub, rand_seed=rand_seed)
         A_full_rref, b_full_rref = self.create_A_and_b(rand_seed)
@@ -166,7 +187,10 @@ class TestExamineRAndS(Utility):
         Ai, bi = A_full_rref[:i], b_full_rref[:i]
         Aj, bj = A_full_rref[:j], b_full_rref[:j]
 
-        expected_sols = cbb.bounded_sols(threshold, A=Ai, b=bi)
+        expected_sols_with_obj = cbb.bounded_sols(
+            threshold, A=Ai, b=bi, return_objective=True
+        )
+        expected_sols, _ = self.unpack_sols_and_objs(expected_sols_with_obj)
         expected_S = cbb.status.solution_set
         expected_R = cbb.status.reserve_set
 
@@ -177,7 +201,9 @@ class TestExamineRAndS(Utility):
 
         icbb.print_Axb()
 
-        actual_sols = list(icbb._examine_R_and_S())
+        actual_sols_with_obj = list(icbb._examine_R_and_S(return_objective=True))
+        actual_sols, _ = self.unpack_sols_and_objs(actual_sols_with_obj)
+
         actual_S = icbb.status.solution_set
         actual_R = icbb.status.reserve_set
 
@@ -284,7 +310,11 @@ class TestEquivalenceToNonIncremental(Utility):
         ub,
         rand_seed,
         threshold
-        # i = 2, delta_i_j = 3, ub = 0.51, rand_seed = 1734416845, threshold = 5
+        # i=2,
+        # delta_i_j=1,
+        # ub=float("inf"),
+        # rand_seed=1761324163,
+        # threshold=5,
     ):
         A, b = self.create_A_and_b(rand_seed)
         j = i + delta_i_j
@@ -298,19 +328,23 @@ class TestEquivalenceToNonIncremental(Utility):
 
         # solve the problem with j constraints incrementally based on cbb_i
         cbb_j = self.create_icbb(ub, rand_seed=rand_seed)
-        actual_sols = cbb_j.bounded_sols(
-            threshold, A=Aj, b=bj, solver_status=cbb_i.status
+        actual_sols_with_obj = cbb_j.bounded_sols(
+            threshold, A=Aj, b=bj, solver_status=cbb_i.status, return_objective=True
         )
+        actual_sols, actual_objs = self.unpack_sols_and_objs(actual_sols_with_obj)
         cbb_i.print_Axb()
         cbb_j.print_Axb()
 
         # expected results are calculated from the non-incremental CBB
         cbb_ref = self.create_cbb(ub, rand_seed=rand_seed)
-        expected_sols = cbb_ref.bounded_sols(threshold, A=Aj, b=bj, solver_status=None)
-
+        expected_sols_with_obj = cbb_ref.bounded_sols(
+            threshold, A=Aj, b=bj, solver_status=None, return_objective=True
+        )
+        expected_sols, expected_objs = self.unpack_sols_and_objs(expected_sols_with_obj)
         assert set(actual_sols) == set(expected_sols)
         assert len(actual_sols) == len(expected_sols)
         assert set(actual_sols) == cbb_j.status.solution_set
+        np.testing.assert_allclose(np.sort(expected_objs), np.sort(actual_objs))
         assert cbb_ref.status.reserve_set == cbb_j.status.reserve_set
 
     @pytest.mark.parametrize("init_i", randints(3, 1, 5))
@@ -342,9 +376,14 @@ class TestEquivalenceToNonIncremental(Utility):
         for i in range(init_i, j + 1):
             Ai, bi = A[:i], b[:i]
             icbb = self.create_icbb(ub, rand_seed=rand_seed)
-            actual_sols = icbb.bounded_sols(
-                threshold=threshold, A=Ai, b=bi, solver_status=solver_status
+            actual_sols_with_obj = icbb.bounded_sols(
+                threshold=threshold,
+                A=Ai,
+                b=bi,
+                solver_status=solver_status,
+                return_objective=True,
             )
+            actual_sols, actual_objs = self.unpack_sols_and_objs(actual_sols_with_obj)
             solver_status = icbb.status
 
         # cbb_i.print_Axb()
@@ -353,12 +392,16 @@ class TestEquivalenceToNonIncremental(Utility):
         # expected results are calculated from the non-incremental CBB
         Aj, bj = A[:j], b[:j]
         cbb = self.create_cbb(ub, rand_seed=rand_seed)
-        expected_sols = cbb.bounded_sols(threshold, A=Aj, b=bj, solver_status=None)
+        expected_sols_with_obj = cbb.bounded_sols(
+            threshold, A=Aj, b=bj, solver_status=None, return_objective=True
+        )
+        expected_sols, expected_objs = self.unpack_sols_and_objs(expected_sols_with_obj)
 
         assert set(actual_sols) == set(expected_sols)
         assert len(actual_sols) == len(expected_sols)
         assert set(expected_sols) == icbb.status.solution_set
         assert cbb.status.reserve_set == icbb.status.reserve_set
+        np.testing.assert_allclose(np.sort(expected_objs), np.sort(actual_objs))
 
 
 # class TestEnd2End(Utility):

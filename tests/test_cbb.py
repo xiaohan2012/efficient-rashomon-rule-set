@@ -1,5 +1,5 @@
 import math
-
+import random
 import numpy as np
 import pytest
 from gmpy2 import mpz
@@ -24,6 +24,7 @@ from bds.utils import (
     mpz_set_bits,
     randints,
     solutions_to_dict,
+    powerset,
 )
 
 from .utils import (
@@ -67,6 +68,13 @@ class TestParityConstraintRelatedMethods(UtilityMixin):
         cbb = self._create_cbb()
         with pytest.raises(ValueError, match="prefix should not contain any pivots.*"):
             cbb._ensure_satisfiability(RuleSet([list(cbb.pivot_rule_idxs)[0]]))
+
+    @pytest.mark.parametrize("prefix", random.sample(list(powerset(range(10))), 16))
+    def test__ensure_minimal_non_violation_captured_vector_calculation(self, prefix):
+        cbb = self._create_cbb()
+        input_ruleset = RuleSet(prefix) - RuleSet(cbb.pivot_rule_idxs)
+        extension, v, z, s = cbb._ensure_minimal_non_violation(input_ruleset)
+        assert v == cbb._lor(RuleSet(extension) + input_ruleset)
 
     def test__ensure_minimal_non_violation_returned_types(self):
         """check the types of the returned data"""
@@ -559,7 +567,10 @@ class TestBBIncremental(UtilityMixin):
         assert len(sols) == len(cbb.status.solution_set)
         assert set(sols) == cbb.status.solution_set
         assert cbb.status.solution_set.issubset(cbb.status.reserve_set)
-        assert isinstance(cbb.status.last_checked_prefix, RuleSet) or cbb.status.last_checked_prefix is None
+        assert (
+            isinstance(cbb.status.last_checked_prefix, RuleSet)
+            or cbb.status.last_checked_prefix is None
+        )
 
     def test_reset_with_status_given(self):
         """the status should be set and be the same as the previous run"""

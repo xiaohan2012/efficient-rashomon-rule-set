@@ -206,7 +206,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
     def _ensure_minimal_non_violation(
         self, prefix: RuleSet
     ) -> Tuple[RuleSet, mpz, np.ndarray, np.ndarray]:
-        """wrapper of ensure_minimal_non_violation, but also returns the captured vector"""
+        """wrapper of ensure_minimal_non_violation, but also returns the captured vector of the extension prefix + the input prefix"""
         if len(set(prefix) & self.pivot_rule_idxs) != 0:
             raise ValueError(f"prefix should not contain any pivots: {prefix}")
         # print("_ensure_minimal_non_violation:")
@@ -216,7 +216,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
         pivot_rules_array, z, s = ensure_minimal_non_violation(
             prefix, self.A, self.b, self.rank, self.B, self.row2pivot_column
         )
-        v = self._lor(pivot_rules_array)
+        v = self._lor(pivot_rules_array) | self._lor(prefix)
         return RuleSet(pivot_rules_array), v, z, s
 
     def _ensure_satisfiability(self, prefix: RuleSet):
@@ -389,6 +389,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
 
         max_rule_idx = max(free_rules_in_prefix or [-1])
 
+        print(
+            f"checking and extending prefix {parent_prefix} with lb={parent_lb:.2f}, u={bin(parent_u)}, z={parent_z.astype(int)}, s={parent_s.astype(int)}"
+        )
         for rule in self.rules[(max_rule_idx + 1) :]:
             # consider adding only free rules
             # since the addition of pivot rules are determined "automatically" by Ax=b
@@ -489,8 +492,8 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
 
                 self.status.add_to_reserve_set(prefix_restored)
 
-                # print(f"checking prefix: {prefix_restored}, obj={obj}")
                 if obj <= self.ub:
+                    print(f"-> yielding {prefix_restored}, obj={obj:.2f}")
                     if prefix_restored not in self.status.solution_set:
                         self.status.add_to_solution_set(prefix_restored)
                         yield self._pack_solution(

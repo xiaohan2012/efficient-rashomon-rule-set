@@ -32,6 +32,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
 
     def _examine_R_and_S(self, return_objective=False):
         """check the solution set and reserve set from previous runsand yield them if feasible"""
+        print("examing R and S")
         candidate_prefixes = copy(self.status.solution_set | self.status.reserve_set)
 
         # clear the solution and reserve set
@@ -45,8 +46,8 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
                 preifx_with_free_rules = prefix - self.pivot_rule_idxs
                 extension = self._ensure_satisfiability(preifx_with_free_rules)
                 prefix_new = preifx_with_free_rules + extension
-                print("prefix: {} -> {}".format(prefix, prefix - self.pivot_rule_idxs))
-                print("extension: {}".format(extension))
+                # print("prefix: {} -> {}".format(prefix, prefix - self.pivot_rule_idxs))
+                # print("extension: {}".format(extension))
                 # add to reserve set if needed
                 if (
                     prefix_new not in self.status.reserve_set
@@ -56,14 +57,17 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
                     self.status.add_to_reserve_set(prefix_new)
 
                 # yield and add to solution set if needed
+                obj = self._calculate_obj(prefix_new)
                 if (
                     prefix_new not in self.status.solution_set
-                    and self._calculate_obj(prefix_new) <= self.ub
+                    and obj <= self.ub
                     and len(prefix_new) >= 1
                 ):
-                    print(f"-> inheritting {prefix_new}")
+                    print(f"-> inheritting {prefix_new} as solution")
                     self.status.add_to_solution_set(prefix_new)
-                    yield prefix_new
+                    yield self._pack_solution(
+                        prefix_new, (obj if return_objective else None)
+                    )
         else:
             print("Ax=b is unsolvable, skip solution checking")
 
@@ -72,7 +76,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
         check each item in the queue from previous run and push them to the current queue if bound checking is passed
         """
         new_queue = NonRedundantQueue()
-        print("inherited queue: {}".format(list(self.status.queue)))
+        print("updating queue")
         if self.is_linear_system_solvable:
             # only check the queue items if the new linear system is solvable
             for queue_item in self.status.queue:
@@ -102,7 +106,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
         self.status.set_queue(new_queue)
 
     def generate(self, return_objective=False) -> Iterable:
-        yield from self._examine_R_and_S()
+        yield from self._examine_R_and_S(return_objective)
 
         self._update_queue()
 

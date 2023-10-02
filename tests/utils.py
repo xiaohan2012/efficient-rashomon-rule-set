@@ -5,7 +5,7 @@ from gmpy2 import mpz
 
 from typing import Dict, Any, List, Iterable, Tuple, Set
 from numbers import Number
-from itertools import combinations
+from itertools import combinations, chain
 
 from bds.rule import Rule, lor_of_truthtable
 from bds.utils import bin_random, randints, mpz_set_bits, calculate_obj
@@ -83,3 +83,9 @@ def normalize_solutions(sols: List[Set[int]]) -> Set[Tuple[int]]:
 def is_disjoint(left: Iterable, right: Iterable) -> bool:
     """determines if two iteratables  after converting to sets are disjoint"""
     return len(set(left) & set(right)) == 0
+
+
+def powerset(iterable):
+    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+    s = list(iterable)
+    return chain.from_iterable(combinations(s, r) for r in range(len(s) + 1))
