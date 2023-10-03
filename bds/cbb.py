@@ -66,7 +66,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
 
     def _do_reorder_columns(self):
         """re-order the columns of A and reflect the new ordering in the rules and truthtables"""
-        print("do reordering")
+        # print("do reordering")
         # get the column indices correponding to free rules
         free_cols = np.array(
             list(set(np.arange(self.A.shape[1])) - set(self.pivot_columns)), dtype=int
@@ -107,8 +107,8 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
 
     def setup_constraint_system(self, A: np.ndarray, b: np.ndarray):
         """set the constraint system, e.g., simplify the system"""
-        print("calling setup_constraint_system")
-        logger.debug("setting up the parity constraint system")
+        # print("calling setup_constraint_system")
+        # logger.debug("setting up the parity constraint system")
         assert_binary_array(b)
 
         assert (
@@ -174,7 +174,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
         if queue and d_last is given, the search continues from that queue | {d_last}
         solutions and reserve solutions are added to S and S, respectively
         """
-        print("calling reset in CBB")
+        # print("calling reset in CBB")
         # important: restore the original ordering first
         # otherwise, previous calls may mess up the ordering
         self.rules = deepcopy(self.rules_before_ordering)
@@ -420,9 +420,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
 
         max_rule_idx = max(free_rules_in_prefix or [-1])
 
-        print(
-            f"checking and extending prefix {parent_prefix} with lb={parent_lb:.2f}, u={bin(parent_u)}, z={parent_z.astype(int)}, s={parent_s.astype(int)}"
-        )
+        # print(
+        #     f"checking and extending prefix {parent_prefix} with lb={parent_lb:.2f}, u={bin(parent_u)}, z={parent_z.astype(int)}, s={parent_s.astype(int)}"
+        # )
         for rule in self.rules[(max_rule_idx + 1) :]:
             # consider adding only free rules
             # since the addition of pivot rules are determined "automatically" by Ax=b
@@ -523,9 +523,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
                 self.status.add_to_reserve_set(prefix_restored)
 
                 if obj <= self.ub:
-                    print(
-                        f"-> yielding {prefix_restored} (restored from {prefix}), obj={obj:.2f}"
-                    )
+                    # print(
+                    #     f"-> yielding {prefix_restored} (restored from {prefix}), obj={obj:.2f}"
+                    # )
                     if prefix_restored not in self.status.solution_set:
                         self.status.add_to_solution_set(prefix_restored)
                         yield self._pack_solution(

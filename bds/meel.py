@@ -17,6 +17,7 @@ from .cbb import ConstrainedBranchAndBound
 from .icbb import IncrementalConstrainedBranchAndBound
 from .solver_status import SolverStatus
 from .gf2 import extended_rref
+
 # from .icbb import IncrementalConstrainedBranchAndBound
 from .random_hash import generate_h_and_alpha
 from .ray_pbar import RayProgressBar
@@ -108,14 +109,18 @@ def log_search(
     if m_prev >= num_vars:
         raise ValueError(f"m_prev ({m_prev}) should be smaller than {num_vars}")
 
-    m = m_prev
+    cur_m = m_prev
 
     # meaining of entry value in big_cell
     # | value | meaning                         |
     # |-------+---------------------------------|
     # |    -1 | not decided yet                 |
-    # |     1 | cell is small, i.e., m is large |
-    # |     0 | cell is large, i.e., m is small |
+    # |     0 | cell is small, i.e., m is large |
+    # |     1 | cell is large, i.e., m is small |
+    # the final big_cell should look like
+    #        m: low   ->   high
+    # big_cell: 1 1 1 1 0 0 0 0
+    #                 ^ m corresponding to this entry is used
     big_cell = np.empty(num_vars - 1, dtype=int)
 
     # storing |Y| corr. to different m values
@@ -135,30 +140,31 @@ def log_search(
     time_cost_info = []
 
     # cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd, reorder_columns=True)
-    icbb = IncrementalConstrainedBranchAndBound(
-        rules, ub, y, lmbd, reorder_columns=True
-    )
     while True:
         logger.debug(
-            "---- solve m = {}----".format(
-                m,
+            "---- solve m = {} {}----".format(
+                cur_m,
                 f"(based on {latest_usable_m})" if latest_usable_m else "from scratch",
             )
         )
 
         # obtain only the first `thresh` solutions in the random cell
         with Timer() as timer:
-            # print("m: {}".format(m))
-            Y_size = icbb.bounded_count(
-                thresh, A=A[:m], b=b[:m], solver_status=latest_solver_status
+            # create a new instance of ICBB
+            # to avoid performing column re-ordering multi times on the same ICBB instance
+            icbb = IncrementalConstrainedBranchAndBound(
+                rules, ub, y, lmbd, reorder_columns=True
             )
-            logger.debug(f"number of popped items: {icbb.status.queue.popped_count}")
-            logger.debug(f"number of pushed items: {icbb.status.queue.pushed_count}")
+            Y_size = icbb.bounded_count(
+                thresh, A=A[:cur_m], b=b[:cur_m], solver_status=latest_solver_status
+            )
+            # logger.debug(f"number of popped items: {icbb.status.queue.popped_count}")
+            # logger.debug(f"number of pushed items: {icbb.status.queue.pushed_count}")
 
             logger.debug(f"solving takes {timer.elapsed:.2f} secs")
             time_cost_info.append(
                 {
-                    "m": m,
+                    "m": cur_m,
                     "elapsed": timer.elapsed,
                     "popped_count": icbb.status.queue.popped_count,
                     "pushed_count": icbb.status.queue.pushed_count,
@@ -166,69 +172,71 @@ def log_search(
                 }
             )
 
-        Y_size_arr[m] = Y_size
+        Y_size_arr[cur_m] = Y_size
 
-        search_trajectory.append((m, Y_size, thresh))
+        search_trajectory.append((cur_m, Y_size, thresh))
 
         if Y_size >= thresh:
             # cell is large
             # in other words, not enough constraints, we increase m
             logger.debug(f"|Y| >= thresh ({Y_size} >= {thresh})")
 
-            if m == num_vars - 2:
+            if cur_m == num_vars - 2:
                 # Q: this is a "failure" case by def of the algorithm, why?
-                big_cell[m] = 1
+                big_cell[cur_m] = 1
                 # m = m + 1  # assuming m (which is -1) is big enough (producing small enough partitionings)
-                fill_array_until(big_cell, m, 1)
-                logger.debug(f"m is as large as it can be, return {m} (m)")
+                fill_array_until(big_cell, cur_m, 1)
+                logger.debug(f"m is as large as it can be, return {cur_m} (m)")
                 break
-            elif big_cell[m + 1] == 0:
-                big_cell[m] = 1
-                fill_array_until(big_cell, m - 1, 1)
-                logger.debug(f"big_cell[{m+1}]={big_cell[m+1]}, return {m+1}")
-                m = m + 1
+            elif big_cell[cur_m + 1] == 0:
+                big_cell[cur_m] = 1
+                fill_array_until(big_cell, cur_m - 1, 1)
+                logger.debug(
+                    f"big_cell[{cur_m+1}]={big_cell[cur_m+1]}, return {cur_m+1}"
+                )
+                cur_m = cur_m + 1
                 # print("m (to return): {}".format(m))
                 break
 
-            fill_array_until(big_cell, m, 1)
+            fill_array_until(big_cell, cur_m, 1)
 
-            lo = m
+            lo = cur_m
 
             # we only update the checkpoint when search lower bound is updated
-            logger.debug(f"using the solver status for m = {m} as the latest")
+            logger.debug(f"using the solver status for m = {cur_m} as the latest")
             latest_solver_status = icbb.status
-            latest_usable_m = m
+            latest_usable_m = cur_m
 
-            if np.abs(m - m_prev) < 3:
-                m += 1
-            elif (2 * m < num_vars) and big_cell[
-                2 * m
+            if np.abs(cur_m - m_prev) < 3:
+                cur_m += 1
+            elif (2 * cur_m < num_vars) and big_cell[
+                2 * cur_m
             ] == -1:  # 2 * m must be unexplored
-                m *= 2
+                cur_m *= 2
             else:
-                m = int((hi + m) / 2)
+                cur_m = int((hi + cur_m) / 2)
         else:
             # too many constraints, we decrease m
             logger.debug(f"|Y| < thresh ({Y_size} < {thresh})")
-            if m == 0:
-                big_cell[m] = 0
-                logger.debug(f"m is as small as it can be, thus {m}")
+            if cur_m == 0:
+                big_cell[cur_m] = 0
+                logger.debug(f"m is as small as it can be, thus {cur_m}")
                 break
-            elif big_cell[m - 1] == 1:  # assuming m > 0
-                logger.debug(f"big_cell[{m-1}]={big_cell[m-1]}, return {m}")
-                big_cell[m] = 0
-                fill_array_from(big_cell, m + 1, 0)
+            elif big_cell[cur_m - 1] == 1:  # assuming m > 0
+                logger.debug(f"big_cell[{cur_m-1}]={big_cell[cur_m-1]}, return {cur_m}")
+                big_cell[cur_m] = 0
+                fill_array_from(big_cell, cur_m + 1, 0)
                 break
 
-            fill_array_from(big_cell, m, 0)
+            fill_array_from(big_cell, cur_m, 0)
 
-            hi = m
-            if np.abs(m - m_prev) < 3:
-                m -= 1
+            hi = cur_m
+            if np.abs(cur_m - m_prev) < 3:
+                cur_m -= 1
             else:
-                m = int((m + lo) / 2)
+                cur_m = int((cur_m + lo) / 2)
 
-        # logger.debug("big_cell: {}".format(big_cell))
+        logger.debug("big_cell: {}".format(big_cell))
         # logger.debug("Y_size_arr: {}".format(Y_size_arr))
         # logger.debug(f"lo: {lo}")
         # logger.debug(f"hi: {hi}")
@@ -244,15 +252,15 @@ def log_search(
     #     print("|{}|{}|".format(cur_m, etime))
     if return_full:
         return (
-            m,
-            Y_size_arr[m],
+            cur_m,
+            Y_size_arr[cur_m],
             big_cell,
             Y_size_arr,
             search_trajectory,
             time_cost_info,
         )
     else:
-        return m, Y_size_arr[m]
+        return cur_m, Y_size_arr[cur_m]
 
 
 # @profile
@@ -299,7 +307,7 @@ def approx_mc2_core(
     # do rref on Ax=b
     # this is important if incremental CBB is used
     A, b = map(bin_array, extended_rref(A, b)[:2])
-    
+
     # try to find at most thresh solutions using all constraints
     cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
     logger.debug(f"initial solving under {A.shape[0]} constraints")
@@ -550,12 +558,14 @@ class UniGen:
 
         self.num_vars = len(self.rules)
 
-        self._create_solvers()
-
-    def _create_solvers(self):
+    def _create_bb(self):
         """create the branch-and-bound solvers for both complete and constrained enumeration"""
-        self.bb = BranchAndBoundNaive(self.rules, self.ub, self.y, self.lmbd)
-        self.cbb = ConstrainedBranchAndBound(self.rules, self.ub, self.y, self.lmbd)
+        return BranchAndBoundNaive(self.rules, self.ub, self.y, self.lmbd)
+
+    def _create_icbb(self):
+        return IncrementalConstrainedBranchAndBound(
+            self.rules, self.ub, self.y, self.lmbd, reorder_columns=True
+        )
 
     def _find_kappa(self, eps: float) -> float:
         """given eps, find kappa using binary search"""
@@ -591,7 +601,8 @@ class UniGen:
         thresh_floor = int_floor(thresh)  # round down to integer
 
         # take at most thresh_floor solutions
-        Y = self.bb.bounded_sols(thresh_floor)
+        bb = self._create_bb()
+        Y = bb.bounded_sols(thresh_floor)
         Y_size = len(Y)
         return Y_size, Y
 
@@ -645,23 +656,28 @@ class UniGen:
                 seed=None,  # TODO: set the seed to control randomness
                 as_numpy=True,
             )
+            # perform rref beforehand
+            A, b = map(bin_array, extended_rref(A, b)[:2])
 
             logger.debug(f"searching in the range [{max(0, self.q-4)}, {self.q}]")
 
+            solver_status = None
             success = False
-            for i in range(max(0, self.q - 4), self.q + 1):
-                logger.debug(f"current i = {i}")
-                A_sub, b_sub = A[:i], b[:i]
+            for m in range(max(0, self.q - 4), self.q + 1):
+                logger.debug(f"current i = {m}")
+                A_sub, b_sub = A[:m], b[:m]
 
                 # sol_iter = self.cbb.run(A_sub, t_sub)
 
                 # obtain only the first `thresh` solutions in the random cell
-                Y = self.cbb.bounded_sols(self.hi_thresh_rounded, A=A_sub, b=b_sub)
+                icbb = self._create_icbb()               
+                Y = icbb.bounded_sols(self.hi_thresh_rounded, A=A_sub, b=b_sub, solver_status=solver_status)
+                solver_status = icbb.status
                 Y_size = len(Y)
 
                 if self.lo_thresh <= Y_size <= self.hi_thresh:
                     logger.debug(
-                        f"i={i} gives lt <= |Y| <= ht: {self.lo_thresh} <= {Y_size} <= {self.hi_thresh}"
+                        f"m={m} gives lt <= |Y| <= ht: {self.lo_thresh} <= {Y_size} <= {self.hi_thresh}"
                     )
                     success = True
                     break

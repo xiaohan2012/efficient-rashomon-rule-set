@@ -20,7 +20,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
         b: np.ndarray,
         solver_status: Optional[SolverStatus] = None,
     ):
-        print("calling reset in ICBB")
+        # print("calling reset in ICBB")
         self.setup_constraint_system(A, b)
 
         if solver_status is not None:
@@ -36,7 +36,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
 
     def _examine_R_and_S(self, return_objective=False):
         """check the solution set and reserve set from previous runsand yield them if feasible"""
-        print("examing R and S")
+        # print("examing R and S")
         candidate_prefixes = copy(self.status.solution_set | self.status.reserve_set)
 
         # clear the solution and reserve set
@@ -74,23 +74,23 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
                     and obj <= self.ub
                     and len(extended_prefix) >= 1
                 ):
-                    print(
-                        f"-> inheriting {extended_prefix_restored} (obj={obj:.2}) as solution from {prefix}"
-                    )
+                    # print(
+                    #     f"-> inheriting {extended_prefix_restored} (obj={obj:.2}) as solution from {prefix}"
+                    # )
                     self.status.add_to_solution_set(extended_prefix_restored)
                     yield self._pack_solution(
                         extended_prefix_restored, (obj if return_objective else None)
                     )
         else:
-            print("Ax=b is unsolvable, skip solution checking")
-        print("examine_R_and_S: done ")
+            logger.debug("Ax=b is unsolvable, skip solution checking")
+        # print("examine_R_and_S: done ")
 
     def _update_queue(self):
         """
         check each item in the queue from previous run and push them to the current queue if bound checking is passed
         """
         new_queue = NonRedundantQueue()
-        print("updating queue")
+        # print("updating queue")
         if self.is_linear_system_solvable:
             # only check the queue items if the new linear system is solvable
             for queue_item in self.status.queue:
@@ -120,12 +120,16 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
                         (extended_prefix, lb, ~u, z, s), key=(lb, extended_prefix)
                     )
         else:
-            print("Ax=b is unsolvable, skip queue items checking")
+            logger.debug("Ax=b is unsolvable, skip queue items checking")
         # use the new queue in status
         self.status.set_queue(new_queue)
-        print("update_queue: done ")
+        # print("update_queue: done ")
 
     def generate(self, return_objective=False) -> Iterable:
+        # print(f"m={self.A.shape[0]}")
+        # self.print_Axb()
+        # print("self.rules: {}".format(self.rules))
+        # print("self.truthtable_list: {}".format(self.truthtable_list))
         yield from self._examine_R_and_S(return_objective)
 
         self._update_queue()
