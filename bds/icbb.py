@@ -47,32 +47,39 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
         # print("self.is_linear_system_solvable: {}".format(self.is_linear_system_solvable))
         if self.is_linear_system_solvable:
             for prefix in candidate_prefixes:
-                preifx_with_free_rules = prefix - self.pivot_rule_idxs
-                extension = self._ensure_satisfiability(preifx_with_free_rules)
-                prefix_new = preifx_with_free_rules + extension
+                # transform the prefix according to the new ordering
+                prefix_permutated = self._permutate_prefix(prefix)
+                prefix_with_free_rules = prefix_permutated - self.pivot_rule_idxs
+                extension = self._ensure_satisfiability(prefix_with_free_rules)
+
+                extended_prefix = (
+                    prefix_with_free_rules + extension
+                )  # using the new ordering if present
+                # using the original ordering
+                extended_prefix_restored = self._restore_prefix(extended_prefix)
                 # print("prefix: {} -> {}".format(prefix, prefix - self.pivot_rule_idxs))
                 # print("extension: {}".format(extension))
                 # add to reserve set if needed
                 if (
-                    prefix_new not in self.status.reserve_set
-                    and self._calculate_lb(prefix_new) <= self.ub
-                    and len(prefix_new) >= 1
+                    extended_prefix_restored not in self.status.reserve_set
+                    and self._calculate_lb(extended_prefix) <= self.ub
+                    and len(extended_prefix) >= 1
                 ):
-                    self.status.add_to_reserve_set(prefix_new)
+                    self.status.add_to_reserve_set(extended_prefix_restored)
 
                 # yield and add to solution set if needed
-                obj = self._calculate_obj(prefix_new)
+                obj = self._calculate_obj(extended_prefix)
                 if (
-                    prefix_new not in self.status.solution_set
+                    extended_prefix_restored not in self.status.solution_set
                     and obj <= self.ub
-                    and len(prefix_new) >= 1
+                    and len(extended_prefix) >= 1
                 ):
                     print(
-                        f"-> inheriting {prefix_new} (obj={obj:.2}) as solution from {prefix}"
+                        f"-> inheriting {extended_prefix_restored} (obj={obj:.2}) as solution from {prefix}"
                     )
-                    self.status.add_to_solution_set(prefix_new)
+                    self.status.add_to_solution_set(extended_prefix_restored)
                     yield self._pack_solution(
-                        prefix_new, (obj if return_objective else None)
+                        extended_prefix_restored, (obj if return_objective else None)
                     )
         else:
             print("Ax=b is unsolvable, skip solution checking")

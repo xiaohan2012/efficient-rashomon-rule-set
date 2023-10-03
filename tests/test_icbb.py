@@ -128,14 +128,21 @@ class TestExamineRAndS(Utility):
     @pytest.mark.parametrize("num_constraints", [2, 4, 6])
     @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
     @pytest.mark.parametrize("rand_seed", randints(3))
-    # @pytest.mark.parametrize("num_constraints, ub, rand_seed", [(2, 0.21001, 1539280901)])
+    @pytest.mark.parametrize("reorder_columns", [True, False])
     def test_consistency_under_the_same_constraint_system(
-        self, num_constraints, ub, rand_seed
+        self,
+        num_constraints,
+        ub,
+        rand_seed,
+        reorder_columns
+        # num_constraints = 2, ub = 0.51, rand_seed = 1855835718, reorder_columns = True
     ):
         """
         icbb._examine_R_and_S should yield the same set of solutions as cbb, if they are subject to the same Ax=b
         """
-        cbb = self.create_cbb(ub=ub, rand_seed=rand_seed)
+        cbb = self.create_cbb(
+            ub=ub, rand_seed=rand_seed, reorder_columns=reorder_columns
+        )
         A_full, b_full = self.create_A_and_b(rand_seed)
         A, b = A_full[:num_constraints], b_full[:num_constraints]
         expected_sols_with_obj = cbb.bounded_sols(10, A=A, b=b, return_objective=True)
@@ -143,7 +150,9 @@ class TestExamineRAndS(Utility):
         expected_S = cbb.status.solution_set
         expected_R = cbb.status.reserve_set
 
-        icbb = self.create_icbb(ub=ub, rand_seed=rand_seed)
+        icbb = self.create_icbb(
+            ub=ub, rand_seed=rand_seed, reorder_columns=reorder_columns
+        )
         icbb.reset(A=A, b=b, solver_status=cbb.status)
 
         actual_sols_with_obj = list(icbb._examine_R_and_S(return_objective=True))
@@ -160,20 +169,22 @@ class TestExamineRAndS(Utility):
 
         # check that the prefix is indeed feasible
         for prefix in actual_sols:
-            assert icbb.is_prefix_feasible(prefix)
+            assert icbb.is_prefix_feasible(icbb._permutate_prefix(prefix))
 
     @pytest.mark.parametrize("num_constraints", [2, 4, 6])
     @pytest.mark.parametrize("diff_in_num_constraints", randints(1, 1, 4))
     @pytest.mark.parametrize("threshold", [5, 10, 15])
     @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
     @pytest.mark.parametrize("rand_seed", randints(3))
+    @pytest.mark.parametrize("reorder_columns", [True, False])
     def test_under_the_different_constraint_systems(
         self,
         num_constraints,
         diff_in_num_constraints,
         threshold,
         ub,
-        rand_seed
+        rand_seed,
+        reorder_columns
         # num_constraints = 2, diff_in_num_constraints = 3, threshold = 5, ub = 0.21, rand_seed = 360269222
     ):
         """
@@ -182,7 +193,9 @@ class TestExamineRAndS(Utility):
 
         we do not check the objective calculation here because it is tested previously and it is not very easy to test in this case
         """
-        cbb = self.create_cbb(ub=ub, rand_seed=rand_seed)
+        cbb = self.create_cbb(
+            ub=ub, rand_seed=rand_seed, reorder_columns=reorder_columns
+        )
         A_full_rref, b_full_rref = self.create_A_and_b(rand_seed)
 
         i = num_constraints
@@ -199,7 +212,9 @@ class TestExamineRAndS(Utility):
 
         cbb.print_Axb()
 
-        icbb = self.create_icbb(ub=ub, rand_seed=rand_seed)
+        icbb = self.create_icbb(
+            ub=ub, rand_seed=rand_seed, reorder_columns=reorder_columns
+        )
         icbb.reset(A=Aj, b=bj, solver_status=cbb.status)
 
         icbb.print_Axb()
@@ -218,7 +233,7 @@ class TestExamineRAndS(Utility):
 
         # check that the prefix is indeed feasible
         for prefix in actual_sols:
-            assert icbb.is_prefix_feasible(prefix)
+            assert icbb.is_prefix_feasible(icbb._permutate_prefix(prefix))
 
 
 class TestUpdateQueue(Utility):
