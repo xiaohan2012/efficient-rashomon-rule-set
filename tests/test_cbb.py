@@ -10,12 +10,7 @@ from bds.gf2 import GF
 from bds.random_hash import generate_h_and_alpha
 from bds.rule import Rule
 from bds.types import RuleSet
-from bds.utils import (
-    bin_array,
-    randints,
-    solutions_to_dict,
-    powerset,
-)
+from bds.utils import bin_array, randints, solutions_to_dict, powerset, bin_zeros
 
 from .utils import (
     assert_dict_allclose,
@@ -296,6 +291,26 @@ class TestConstrainedBranchAndBoundMethods(UtilityMixin):
         assert cbb.status.solution_set == {sol}
         assert cbb.status.reserve_set == {sol}
 
+    def test__do_reorder_columns(self):
+        A = bin_array([[1, 0, 0, 0], [0, 0, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]])
+        b = bin_zeros(4)
+
+        cbb = ConstrainedBranchAndBound(
+            self.input_rules, float("inf"), self.input_y, lmbd=0.1, reorder_columns=True
+        )
+        cbb.setup_constraint_system(A, b)
+
+        np.testing.assert_allclose(cbb.idx_map_new2old, [0, 2, 3, 1])
+        assert cbb.idx_map_old2new == {0: 0, 1: 3, 2: 1, 3: 2}
+        np.testing.assert_allclose(cbb.pivot_columns, np.arange(2))
+
+        assert list(range(len(self.input_rules))) == [r.id for r in cbb.rules]
+
+        np.testing.assert_allclose(
+            cbb.A, [[1, 0, 0, 0], [0, 1, 1, 0], [0, 0, 0, 0], [0, 0, 0, 0]]
+        )
+        np.testing.assert_allclose(cbb.A, np.array(cbb.A_gf, dtype=int))
+
 
 class TestBBNonIncremental:
     """test the branch-and-bound in non-incremental setup"""
@@ -506,11 +521,12 @@ class TestBBNonIncremental:
     @pytest.mark.parametrize("num_rules", [10])
     @pytest.mark.parametrize("num_constraints", [2, 4, 8])
     @pytest.mark.parametrize("lmbd", [0.1])
-    @pytest.mark.parametrize("ub", [0.501, 0.801, float("inf")])  # float("inf"),  # , 0.01
+    @pytest.mark.parametrize(
+        "ub", [0.501, 0.801, float("inf")]
+    )  # float("inf"),  # , 0.01
     @pytest.mark.parametrize("rand_seed", randints(5))
     def test_column_reordering(self, num_rules, num_constraints, lmbd, ub, rand_seed):
-        """+the output with column reordering should be the same as without column reordering+
-        """
+        """+the output with column reordering should be the same as without column reordering+"""
         rand_rules, rand_y = generate_random_rules_and_y(10, num_rules, rand_seed)
         cbb_ref = ConstrainedBranchAndBound(
             rand_rules, ub, rand_y, lmbd, reorder_columns=False

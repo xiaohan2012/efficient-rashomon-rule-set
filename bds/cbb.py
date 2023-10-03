@@ -89,6 +89,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
         )
         # make a copy of the ordering
         self.idx_map_new2old = ordered_idxs.copy()
+        self.idx_map_old2new = {
+            old_id: new_id for new_id, old_id in enumerate(ordered_idxs)
+        }
 
         # in the new ordering, pivot columns occupies the most left positions
         self.pivot_columns = np.arange(self.rank)
