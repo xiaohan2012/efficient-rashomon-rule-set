@@ -311,6 +311,52 @@ class TestConstrainedBranchAndBoundMethods(UtilityMixin):
         )
         np.testing.assert_allclose(cbb.A, np.array(cbb.A_gf, dtype=int))
 
+    @pytest.mark.parametrize(
+        "new_prefix, old_prefix",
+        [
+            ((0, 1), (0, 2)),
+            ((0, 2), (0, 3)),
+            ((0, 1, 2), (0, 2, 3)),
+            (tuple(), tuple()),
+        ],
+    )
+    def test__restore_and_permutate_prefix(self, new_prefix, old_prefix):
+        A = bin_array([[1, 0, 0, 0], [0, 0, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]])
+        b = bin_zeros(4)
+
+        cbb = ConstrainedBranchAndBound(
+            self.input_rules, float("inf"), self.input_y, lmbd=0.1, reorder_columns=True
+        )
+        # new ordering: [0, 2, 3, 1]
+        cbb.setup_constraint_system(A, b)
+
+        assert cbb._restore_prefix(RuleSet(new_prefix)) == RuleSet(old_prefix)
+        assert cbb._permutate_prefix(RuleSet(old_prefix)) == RuleSet(new_prefix)
+
+    @pytest.mark.parametrize(
+        "new_prefix, old_prefix",
+        [
+            ((0, 1), (0, 1)),
+            ((0, 2), (0, 2)),
+            ((0, 1, 2), (0, 1, 2)),
+            (tuple(), tuple()),
+        ],
+    )
+    def test__restore_and_permutate_prefix_without_reordering(
+        self, new_prefix, old_prefix
+    ):
+        A = bin_array([[1, 0, 0, 0], [0, 0, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]])
+        b = bin_zeros(4)
+
+        cbb = ConstrainedBranchAndBound(
+            self.input_rules, float("inf"), self.input_y, lmbd=0.1, reorder_columns=False
+        )
+        # new ordering: [0, 2, 3, 1]
+        cbb.setup_constraint_system(A, b)
+
+        assert cbb._restore_prefix(RuleSet(new_prefix)) == RuleSet(old_prefix)
+        assert cbb._permutate_prefix(RuleSet(old_prefix)) == RuleSet(new_prefix)
+
 
 class TestBBNonIncremental:
     """test the branch-and-bound in non-incremental setup"""

@@ -202,13 +202,28 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
             r |= self.truthtable_list[i]
         return r
 
-    def _restore_rule_ids(self, prefix: RuleSet) -> RuleSet:
-        """return the rule ids if reorder_column is enabled"""
+    def _permutate_prefix(self, prefix: RuleSet) -> RuleSet:
+        """
+        return the permutated version of a prefix, according to the reordered columns
+
+        the prefix is assumed to contain rule ids without the reordering
+
+        this function is identity if self.reorder_columns is False
+        """
+        if self.reorder_columns:
+            return RuleSet([self.idx_map_old2new[i] for i in prefix])
+        return prefix
+
+    def _restore_prefix(self, prefix: RuleSet) -> RuleSet:
+        """return the original rule ids of prefix, which is possibly premutated by the reordered columns
+
+        this function is identity if self.reorder_columns is False
+        """
         # print("self.reorder_columns: {}".format(self.reorder_columns))
         if self.reorder_columns:
             # print("prefix: {}".format(prefix))
             return RuleSet([self.idx_map_new2old[i] for i in prefix])
-        return RuleSet(prefix)
+        return prefix
 
     def _pack_solution(
         self, prefix: RuleSet, obj=None
@@ -339,7 +354,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
         obj = self._calculate_obj(prefix)
 
         # restore the rule ids in the prefix
-        prefix_restored = self._restore_rule_ids(prefix)
+        prefix_restored = self._restore_prefix(prefix)
 
         # record R
         if len(prefix_restored) >= 1 and self._calculate_lb(prefix) <= self.ub:
@@ -395,7 +410,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
         self.status.update_last_checked_prefix(
             parent_prefix,  # prefix with the reordering
             other_data=dict(
-                prefix_restored=self._restore_rule_ids(parent_prefix),
+                prefix_restored=self._restore_prefix(parent_prefix),
                 lb=parent_lb,
                 u=parent_u,
                 z=parent_z,
@@ -503,7 +518,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
                 obj = obj_with_fp + fn_fraction
 
                 prefix = RuleSet(parent_prefix + tuple(ext_idxs) + (rule.id,))
-                prefix_restored = self._restore_rule_ids(prefix)
+                prefix_restored = self._restore_prefix(prefix)
 
                 self.status.add_to_reserve_set(prefix_restored)
 
