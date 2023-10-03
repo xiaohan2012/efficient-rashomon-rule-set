@@ -95,25 +95,30 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
             # only check the queue items if the new linear system is solvable
             for queue_item in self.status.queue:
                 prefix = queue_item[0]
+                # we need to transform the rule ids in prefix if column reordering is applied
+                prefix_permutated = self._permutate_prefix(prefix)
+
                 prefix_with_free_rules_only = (
-                    prefix - self.pivot_rule_idxs
+                    prefix_permutated - self.pivot_rule_idxs
                 )  # remove the pivots
                 extension, u, z, s = self._ensure_minimal_non_violation(
                     prefix_with_free_rules_only
                 )
 
-                prefix_new = prefix_with_free_rules_only + extension
+                extended_prefix = prefix_with_free_rules_only + extension
                 # print(
-                #     f"prefix: {prefix} -> {prefix_with_free_rules_only} -> {prefix_new}"
+                #     f"prefix: {prefix} -> {prefix_with_free_rules_only} -> {extended_prefix}"
                 # )
-                lb = self._calculate_lb(prefix_new)
+                lb = self._calculate_lb(extended_prefix)
 
-                # print("prefix_new: {}".format(prefix_new))
+                # print("extended_prefix: {}".format(extended_prefix))
                 # print("lb: {}".format(lb))
                 if (lb + self.lmbd) <= self.ub:
                     # print(f"-> queue")
-                    # print(f"pushing {prefix_new} to queue")
-                    new_queue.push((prefix_new, lb, ~u, z, s), key=(lb, prefix_new))
+                    # print(f"pushing {extended_prefix} to queue")
+                    new_queue.push(
+                        (extended_prefix, lb, ~u, z, s), key=(lb, extended_prefix)
+                    )
         else:
             print("Ax=b is unsolvable, skip queue items checking")
         # use the new queue in status

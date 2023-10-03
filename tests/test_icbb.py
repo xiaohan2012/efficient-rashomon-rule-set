@@ -241,19 +241,24 @@ class TestUpdateQueue(Utility):
     @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
     @pytest.mark.parametrize("rand_seed", randints(3))
     @pytest.mark.parametrize("threshold", [5, 10, 20])
+    @pytest.mark.parametrize("reorder_columns", [True, False])
     # @pytest.mark.parametrize("num_constraints, ub, rand_seed", [(2, 0.51001, 1534479381)])
     def test_consistency_under_the_same_constraint_system(
-        self, num_constraints, ub, rand_seed, threshold
+        self, num_constraints, ub, rand_seed, threshold, reorder_columns
     ):
         """
         icbb._update_queue should yield the same queue as cbb, if they are subject to the same Ax=b
         """
-        cbb = self.create_cbb(ub=ub, rand_seed=rand_seed)
+        cbb = self.create_cbb(
+            ub=ub, rand_seed=rand_seed, reorder_columns=reorder_columns
+        )
         A_full, b_full = self.create_A_and_b(rand_seed)
         A, b = A_full[:num_constraints], b_full[:num_constraints]
         cbb.bounded_sols(threshold, A=A, b=b)
 
-        icbb = self.create_icbb(ub=ub, rand_seed=rand_seed)
+        icbb = self.create_icbb(
+            ub=ub, rand_seed=rand_seed, reorder_columns=reorder_columns
+        )
         icbb.reset(A=A, b=b, solver_status=cbb.status)
 
         icbb._update_queue()
@@ -271,6 +276,7 @@ class TestUpdateQueue(Utility):
     @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
     @pytest.mark.parametrize("rand_seed", randints(3))
     @pytest.mark.parametrize("threshold", [5, 10, 20])
+    @pytest.mark.parametrize("reorder_columns", [True, False])
     def test_under_the_different_constraint_systems(
         self,
         # num_constraints = 2, diff_in_num_constraints = 2, ub = 0.21, rand_seed = 39462156, threshold = 5
@@ -279,6 +285,7 @@ class TestUpdateQueue(Utility):
         ub,
         rand_seed,
         threshold,
+        reorder_columns,
     ):
         """
         now the constraint system changes, the non-incremental version uses 1 fewer constraint than the incremental version
@@ -286,7 +293,9 @@ class TestUpdateQueue(Utility):
 
         note that the queue items in ICBB is not necessarily a subset of CBB, because the new constraint system may add new pivot rules
         """
-        cbb = self.create_cbb(ub=ub, rand_seed=rand_seed)
+        cbb = self.create_cbb(
+            ub=ub, rand_seed=rand_seed, reorder_columns=reorder_columns
+        )
         A_full_rref, b_full_rref = self.create_A_and_b(rand_seed)
 
         i = num_constraints
@@ -297,7 +306,9 @@ class TestUpdateQueue(Utility):
         cbb.bounded_sols(threshold, A=Ai, b=bi)
         cbb._push_last_checked_prefix_to_queue()  # to be consistent with icbb
 
-        icbb = self.create_icbb(ub=ub, rand_seed=rand_seed)
+        icbb = self.create_icbb(
+            ub=ub, rand_seed=rand_seed, reorder_columns=reorder_columns
+        )
         icbb.reset(A=Aj, b=bj, solver_status=cbb.status)
 
         icbb._update_queue()
@@ -321,13 +332,15 @@ class TestEquivalenceToNonIncremental(Utility):
     @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
     @pytest.mark.parametrize("rand_seed", randints(3))
     @pytest.mark.parametrize("threshold", [10, 100, None])
+    @pytest.mark.parametrize("reorder_columns", [True, False])
     def test_two_step_solving(
         self,
         i,
         delta_i_j,
         ub,
         rand_seed,
-        threshold
+        threshold,
+        reorder_columns
         # i=2,
         # delta_i_j=3,
         # ub=float("inf"),
@@ -341,11 +354,15 @@ class TestEquivalenceToNonIncremental(Utility):
         Aj, bj = A[:j], b[:j]
 
         # solving from scratch with i constraints
-        icbb_i = self.create_icbb(ub, rand_seed=rand_seed)
+        icbb_i = self.create_icbb(
+            ub, rand_seed=rand_seed, reorder_columns=reorder_columns
+        )
         icbb_i.bounded_sols(threshold=threshold, A=Ai, b=bi, solver_status=None)
 
         # solve the problem with j constraints incrementally based on cbb_i
-        icbb_j = self.create_icbb(ub, rand_seed=rand_seed)
+        icbb_j = self.create_icbb(
+            ub, rand_seed=rand_seed, reorder_columns=reorder_columns
+        )
         actual_sols_with_obj = icbb_j.bounded_sols(
             threshold, A=Aj, b=bj, solver_status=icbb_i.status, return_objective=True
         )
@@ -354,7 +371,9 @@ class TestEquivalenceToNonIncremental(Utility):
         icbb_j.print_Axb()
 
         # expected results are calculated from the non-incremental CBB
-        cbb_ref = self.create_cbb(ub, rand_seed=rand_seed)
+        cbb_ref = self.create_cbb(
+            ub, rand_seed=rand_seed, reorder_columns=reorder_columns
+        )
         expected_sols_with_obj = cbb_ref.bounded_sols(
             threshold, A=Aj, b=bj, solver_status=None, return_objective=True
         )
@@ -365,7 +384,7 @@ class TestEquivalenceToNonIncremental(Utility):
         assert len(actual_sols) == len(expected_sols)
         # and the solutions should be feasible
         for prefix in actual_sols:
-            assert icbb_j.is_prefix_feasible(prefix)
+            assert icbb_j.is_prefix_feasible(icbb_j._permutate_prefix(prefix))
         assert set(actual_sols) == icbb_j.status.solution_set
 
         if threshold is None:
@@ -379,13 +398,15 @@ class TestEquivalenceToNonIncremental(Utility):
     @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
     @pytest.mark.parametrize("rand_seed", randints(3))
     @pytest.mark.parametrize("threshold", [10, 100, None])
+    @pytest.mark.parametrize("reorder_columns", [True, False])
     def test_k_step_solving(
         self,
         init_i,
         delta_i_j,
         ub,
         rand_seed,
-        threshold
+            threshold,
+            reorder_columns
         # i = 2, delta_i_j = 3, ub = 0.51, rand_seed = 1734416845, threshold = 5
     ):
         """the general case where icbb is invoked k times
@@ -402,7 +423,7 @@ class TestEquivalenceToNonIncremental(Utility):
         solver_status = None
         for i in range(init_i, j + 1):
             Ai, bi = A[:i], b[:i]
-            icbb = self.create_icbb(ub, rand_seed=rand_seed)
+            icbb = self.create_icbb(ub, rand_seed=rand_seed, reorder_columns=reorder_columns)
             actual_sols_with_obj = icbb.bounded_sols(
                 threshold=threshold,
                 A=Ai,
@@ -418,7 +439,7 @@ class TestEquivalenceToNonIncremental(Utility):
 
         # expected results are calculated from the non-incremental CBB
         Aj, bj = A[:j], b[:j]
-        cbb = self.create_cbb(ub, rand_seed=rand_seed)
+        cbb = self.create_cbb(ub, rand_seed=rand_seed, reorder_columns=reorder_columns)
         expected_sols_with_obj = cbb.bounded_sols(
             threshold, A=Aj, b=bj, solver_status=None, return_objective=True
         )
@@ -430,7 +451,7 @@ class TestEquivalenceToNonIncremental(Utility):
 
         # the generated solutions should also be feasible
         for prefix in actual_sols:
-            assert icbb.is_prefix_feasible(prefix)
+            assert icbb.is_prefix_feasible(icbb._permutate_prefix(prefix))
         assert set(actual_sols) == icbb.status.solution_set
 
         if threshold is None:
