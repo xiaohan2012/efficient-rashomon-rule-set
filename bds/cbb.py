@@ -65,13 +65,17 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
         return bin_array(A_rref), bin_array(b_rref), rank, pivot_columns
 
     def _do_reorder_columns(self):
-        """re-order the columns of A and reflect the new ordering in the rules"""
+        """re-order the columns of A and reflect the new ordering in the rules and truthtables"""
+        print("do reordering")
+        # get the column indices correponding to free rules
         free_cols = np.array(
             list(set(np.arange(self.A.shape[1])) - set(self.pivot_columns)), dtype=int
         )
 
         if self.A.shape[0] >= 1:
+            # get the index of row with the fewest number of 1s
             row_idx = self.A.sum(axis=1).argmin()
+            # order the columns by the values in that row in descending order
             ordered_free_idxs = np.argsort(
                 np.array(self.A[row_idx, free_cols], dtype=int)
             )[::-1]
@@ -79,25 +83,28 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
             # when A is empty, do not re-order
             ordered_free_idxs = np.arange(len(free_cols))
 
+        # mapping from the current column index to the ordered colum index
         ordered_idxs = np.concatenate(
             [self.pivot_columns, free_cols[ordered_free_idxs]]
         )
-        # mapping from new column idx to old idx
+        # make a copy of the ordering
         self.idx_map_new2old = ordered_idxs.copy()
 
+        # in the new ordering, pivot columns occupies the most left positions
         self.pivot_columns = np.arange(self.rank)
 
-        # re-order the columns, rule, and truthtable_list
+        # reflect the new ordering in A, rules, and truthtable_list
         self.A = self.A[:, ordered_idxs]
         self.rules = [self.rules[i] for i in ordered_idxs]
         self.truthtable_list = [r.truthtable for r in self.rules]
 
-        # re-assign the rule ids
+        # the rule ids should be reassigned
         for i, rule in enumerate(self.rules):
             rule.id = i
 
     def setup_constraint_system(self, A: np.ndarray, b: np.ndarray):
         """set the constraint system, e.g., simplify the system"""
+        print("calling setup_constraint_system")
         logger.debug("setting up the parity constraint system")
         assert_binary_array(b)
 
@@ -164,6 +171,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
         if queue and d_last is given, the search continues from that queue | {d_last}
         solutions and reserve solutions are added to S and S, respectively
         """
+        print("calling reset in CBB")
         # important: restore the original ordering first
         # otherwise, previous calls may mess up the ordering
         self.rules = deepcopy(self.rules_before_ordering)
@@ -178,6 +186,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
             self.reset_status()
             self.reset_queue()
 
+        print("self.rules: {}".format(self.rules))
+        print("self.truthtable_list: {}".format(self.truthtable_list))
+
     def __post_init__(self):
         self.truthtable_list = [r.truthtable for r in self.rules]
 
@@ -190,7 +201,9 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
 
     def _restore_rule_ids(self, prefix: RuleSet) -> RuleSet:
         """return the rule ids if reorder_column is enabled"""
+        # print("self.reorder_columns: {}".format(self.reorder_columns))
         if self.reorder_columns:
+            # print("prefix: {}".format(prefix))
             return RuleSet([self.idx_map_new2old[i] for i in prefix])
         return RuleSet(prefix)
 
@@ -399,7 +412,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
                 continue
 
             self.num_prefix_evaluations += 1
-
+            # print(f"  checking {rule.id}")
             if (prefix_length + 1) > length_ub:
                 continue
 
@@ -486,14 +499,15 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
                 fn_fraction, _ = self._incremental_update_obj(parent_u, v_ext)
                 obj = obj_with_fp + fn_fraction
 
-                prefix_restored = self._restore_rule_ids(
-                    RuleSet(parent_prefix + tuple(ext_idxs) + (rule.id,))
-                )
+                prefix = RuleSet(parent_prefix + tuple(ext_idxs) + (rule.id,))
+                prefix_restored = self._restore_rule_ids(prefix)
 
                 self.status.add_to_reserve_set(prefix_restored)
 
                 if obj <= self.ub:
-                    print(f"-> yielding {prefix_restored}, obj={obj:.2f}")
+                    print(
+                        f"-> yielding {prefix_restored} (restored from {prefix}), obj={obj:.2f}"
+                    )
                     if prefix_restored not in self.status.solution_set:
                         self.status.add_to_solution_set(prefix_restored)
                         yield self._pack_solution(

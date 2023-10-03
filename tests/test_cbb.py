@@ -506,10 +506,11 @@ class TestBBNonIncremental:
     @pytest.mark.parametrize("num_rules", [10])
     @pytest.mark.parametrize("num_constraints", [2, 4, 8])
     @pytest.mark.parametrize("lmbd", [0.1])
-    @pytest.mark.parametrize("ub", [0.801, 0.501, 0.001])  # float("inf"),  # , 0.01
+    @pytest.mark.parametrize("ub", [0.501, 0.801, float("inf")])  # float("inf"),  # , 0.01
     @pytest.mark.parametrize("rand_seed", randints(5))
-    def test_column_reodering(self, num_rules, num_constraints, lmbd, ub, rand_seed):
-        """the output with column reordering should be the same as without column reordering"""
+    def test_column_reordering(self, num_rules, num_constraints, lmbd, ub, rand_seed):
+        """+the output with column reordering should be the same as without column reordering+
+        """
         rand_rules, rand_y = generate_random_rules_and_y(10, num_rules, rand_seed)
         cbb_ref = ConstrainedBranchAndBound(
             rand_rules, ub, rand_y, lmbd, reorder_columns=False
@@ -525,6 +526,9 @@ class TestBBNonIncremental:
         actual = solutions_to_dict(list(cbb_test.run(return_objective=True, A=A, b=b)))
 
         assert_dict_allclose(actual, expected)
+
+        # remark: we do not put a threshold here because after reordering the columns
+        # rule visiting order is changed, thus the return set of prefixes may differ
 
 
 class TestBBIncremental(UtilityMixin):
