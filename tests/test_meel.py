@@ -4,7 +4,7 @@ import pytest
 from collections import Counter
 
 from bds.common import EPSILON
-from bds.gf2 import is_piecewise_linear
+from bds.gf2 import is_piecewise_linear, extended_rref
 from bds.meel import (
     approx_mc2_core,
     log_search,
@@ -35,7 +35,7 @@ class TestLogSearch:
         m = num_rules - 1
 
         A, b = generate_h_and_alpha(num_rules, m, seed=rand_seed, as_numpy=True)
-
+        A, b = map(bin_array, extended_rref(A, b)[:2])
         return random_rules, random_y, A, b
 
     def check_output(self, m, Y_size, big_cell, Y_size_arr, thresh):

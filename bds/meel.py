@@ -14,12 +14,15 @@ from .bb import BranchAndBoundNaive
 
 # from .cbb import ConstrainedBranchAndBoundNaive
 from .cbb import ConstrainedBranchAndBound
-
+from .icbb import IncrementalConstrainedBranchAndBound
+from .solver_status import SolverStatus
+from .gf2 import extended_rref
 # from .icbb import IncrementalConstrainedBranchAndBound
 from .random_hash import generate_h_and_alpha
 from .ray_pbar import RayProgressBar
 from .rule import Rule
 from .utils import (
+    bin_array,
     assert_binary_array,
     fill_array_from,
     fill_array_until,
@@ -123,41 +126,43 @@ def log_search(
 
     # cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
 
-    # latest_solver_status = None
-    # latest_usable_m: int = None
+    latest_solver_status: SolverStatus = None
+    latest_usable_m: int = None
     # we store the list of m values that are tried
     # as well as the solution size and threshold
     search_trajectory = []
 
     time_cost_info = []
 
-    cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd, reorder_columns=True)
+    # cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd, reorder_columns=True)
+    icbb = IncrementalConstrainedBranchAndBound(
+        rules, ub, y, lmbd, reorder_columns=True
+    )
     while True:
         logger.debug(
             "---- solve m = {}----".format(
                 m,
-                # f"(based on {latest_usable_m})" if latest_usable_m else "from scratch",
+                f"(based on {latest_usable_m})" if latest_usable_m else "from scratch",
             )
         )
 
         # obtain only the first `thresh` solutions in the random cell
         with Timer() as timer:
             # print("m: {}".format(m))
-            Y_size = cbb.bounded_count(
-                thresh, A=A[:m], b=b[:m]  # , solver_status=latest_solver_status
+            Y_size = icbb.bounded_count(
+                thresh, A=A[:m], b=b[:m], solver_status=latest_solver_status
             )
-            logger.debug(f"number of popped items: {cbb.queue.popped_count}")
-            logger.debug(f"number of pushed items: {cbb.queue.pushed_count}")
-            # logger.debug(f"number of prefix evaluations: {cbb.num_prefix_evaluations}")
+            logger.debug(f"number of popped items: {icbb.status.queue.popped_count}")
+            logger.debug(f"number of pushed items: {icbb.status.queue.pushed_count}")
 
             logger.debug(f"solving takes {timer.elapsed:.2f} secs")
             time_cost_info.append(
                 {
                     "m": m,
                     "elapsed": timer.elapsed,
-                    "popped_count": cbb.queue.popped_count,
-                    "pushed_count": cbb.queue.pushed_count,
-                    "num_prefix_evaluations": cbb.num_prefix_evaluations
+                    "popped_count": icbb.status.queue.popped_count,
+                    "pushed_count": icbb.status.queue.pushed_count,
+                    # "num_prefix_evaluations": icbb.num_prefix_evaluations,
                 }
             )
 
@@ -190,9 +195,9 @@ def log_search(
             lo = m
 
             # we only update the checkpoint when search lower bound is updated
-            # logger.debug(f"using the solver status for m = {m} as the latest")
-            # latest_solver_status = cbb.solver_status
-            # latest_usable_m = m
+            logger.debug(f"using the solver status for m = {m} as the latest")
+            latest_solver_status = icbb.status
+            latest_usable_m = m
 
             if np.abs(m - m_prev) < 3:
                 m += 1
@@ -244,7 +249,7 @@ def log_search(
             big_cell,
             Y_size_arr,
             search_trajectory,
-            time_cost_info
+            time_cost_info,
         )
     else:
         return m, Y_size_arr[m]
@@ -291,6 +296,10 @@ def approx_mc2_core(
             num_vars, num_constraints, seed=rand_seed, as_numpy=True
         )
 
+    # do rref on Ax=b
+    # this is important if incremental CBB is used
+    A, b = map(bin_array, extended_rref(A, b)[:2])
+    
     # try to find at most thresh solutions using all constraints
     cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
     logger.debug(f"initial solving under {A.shape[0]} constraints")
