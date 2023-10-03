@@ -22,7 +22,9 @@ def generate_alpha(m: int, seed: Optional[int] = None) -> GF:
     return GF.Random((m,), seed=seed)
 
 
-def generate_h_and_alpha(n: int, m: int, seed: Optional[int] = None, as_numpy=False) -> Tuple[GF, GF]:
+def generate_h_and_alpha(
+    n: int, m: int, seed: Optional[int] = None, as_numpy=False
+) -> Tuple[GF, GF]:
     """
     generate a random XOR-based hash function, parametrized by a m x n matrix in GF2
 
