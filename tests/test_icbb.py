@@ -79,11 +79,23 @@ class TestNonIncremental(Utility):
     @pytest.mark.parametrize("num_constraints", [2, 4, 6])
     @pytest.mark.parametrize("ub", [0.21, 0.51, float("inf")])
     @pytest.mark.parametrize("rand_seed", randints(3))
-    def test(self, threshold, num_constraints, ub, rand_seed):
+    @pytest.mark.parametrize("reorder_columns", [True, False])
+    def test(
+        self,
+        threshold,
+        num_constraints,
+        ub,
+        rand_seed,
+        reorder_columns
+        # threshold = 5, num_constraints = 2, ub = float("inf"), rand_seed = 1994025682, reorder_columns = False
+    ):
         """calling cbb and icbb from scratch should yield the same set of solutions and objectives"""
-        cbb = self.create_cbb(ub=ub, rand_seed=rand_seed)
         A_full, b_full = self.create_A_and_b(rand_seed)
         A, b = A_full[:num_constraints], b_full[:num_constraints]
+
+        cbb = self.create_cbb(
+            ub=ub, rand_seed=rand_seed, reorder_columns=reorder_columns
+        )
         expected_sols_with_obj = cbb.bounded_sols(
             threshold, A=A, b=b, return_objective=True
         )
@@ -91,8 +103,10 @@ class TestNonIncremental(Utility):
         expected_S = cbb.status.solution_set
         expected_R = cbb.status.reserve_set
 
-        icbb = self.create_icbb(ub=ub, rand_seed=rand_seed)
-        icbb.reset(A=A, b=b)
+        print("-" * 20)
+        icbb = self.create_icbb(
+            ub=ub, rand_seed=rand_seed, reorder_columns=reorder_columns
+        )
 
         actual_sols_with_obj = icbb.bounded_sols(
             threshold, A=A, b=b, return_objective=True
@@ -103,6 +117,7 @@ class TestNonIncremental(Utility):
         actual_R = icbb.status.reserve_set
 
         assert len(expected_sols) == len(actual_sols)
+
         assert set(expected_sols) == set(actual_sols)
         np.testing.assert_allclose(np.sort(expected_objs), np.sort(actual_objs))
         assert expected_S == actual_S

@@ -20,6 +20,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
         b: np.ndarray,
         solver_status: Optional[SolverStatus] = None,
     ):
+        print("calling reset in ICBB")
         self.setup_constraint_system(A, b)
 
         if solver_status is not None:
@@ -29,6 +30,9 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
         else:
             self.reset_status()
             self.reset_queue()
+
+        # print("self.rules: {}".format(self.rules))
+        # print("self.truthtable_list: {}".format(self.truthtable_list))
 
     def _examine_R_and_S(self, return_objective=False):
         """check the solution set and reserve set from previous runsand yield them if feasible"""
@@ -63,13 +67,16 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
                     and obj <= self.ub
                     and len(prefix_new) >= 1
                 ):
-                    print(f"-> inheriting {prefix_new} (obj={obj:.2}) as solution from {prefix}")
+                    print(
+                        f"-> inheriting {prefix_new} (obj={obj:.2}) as solution from {prefix}"
+                    )
                     self.status.add_to_solution_set(prefix_new)
                     yield self._pack_solution(
                         prefix_new, (obj if return_objective else None)
                     )
         else:
             print("Ax=b is unsolvable, skip solution checking")
+        print("examine_R_and_S: done ")
 
     def _update_queue(self):
         """
@@ -104,6 +111,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
             print("Ax=b is unsolvable, skip queue items checking")
         # use the new queue in status
         self.status.set_queue(new_queue)
+        print("update_queue: done ")
 
     def generate(self, return_objective=False) -> Iterable:
         yield from self._examine_R_and_S(return_objective)

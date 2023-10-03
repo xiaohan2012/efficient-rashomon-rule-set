@@ -186,8 +186,8 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
             self.reset_status()
             self.reset_queue()
 
-        print("self.rules: {}".format(self.rules))
-        print("self.truthtable_list: {}".format(self.truthtable_list))
+        # print("self.rules: {}".format(self.rules))
+        # print("self.truthtable_list: {}".format(self.truthtable_list))
 
     def __post_init__(self):
         self.truthtable_list = [r.truthtable for r in self.rules]
