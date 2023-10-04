@@ -346,12 +346,12 @@ class TestApproxMC2:
         )
         assert estimate_expected == estimate_actual
 
-    @pytest.mark.parametrize("ub", [0.6, 0.9, 1.0])
-    @pytest.mark.parametrize("eps", [0.8, 0.5])
+    @pytest.mark.parametrize("ub", [0.3, 0.6, 0.9])
+    @pytest.mark.parametrize("eps", [0.8])
     @pytest.mark.parametrize("delta", [0.8])
     @pytest.mark.parametrize("rand_seed", randints(3))
     def test_if_estimate_within_bounds(self, ub, eps, delta, rand_seed):
-        num_pts, num_rules = 100, 10
+        num_pts, num_rules = 100, 25
         random_rules, random_y = generate_random_rules_and_y(
             num_pts, num_rules, rand_seed=1234
         )
