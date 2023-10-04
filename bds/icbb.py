@@ -1,4 +1,6 @@
 import numpy as np
+from contexttimer import Timer
+
 from typing import List, Optional, Iterable
 from logzero import logger
 from copy import copy
@@ -125,14 +127,17 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
         self.status.set_queue(new_queue)
         # print("update_queue: done ")
 
+    # @profile
     def generate(self, return_objective=False) -> Iterable:
         # print(f"m={self.A.shape[0]}")
         # self.print_Axb()
         # print("self.rules: {}".format(self.rules))
         # print("self.truthtable_list: {}".format(self.truthtable_list))
         yield from self._examine_R_and_S(return_objective)
-
-        self._update_queue()
+        logger.debug("inheritted {} solutions".format(len(self.status.solution_set)))
+        with Timer() as timer:
+            self._update_queue()
+            logger.debug(f'update_queue takes{timer.elapsed:.2f}s')
 
         yield from self._generate_solution_at_root(return_objective)
 

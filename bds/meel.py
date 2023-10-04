@@ -98,6 +98,7 @@ def log_search(
       is True if returning all information relevant to the call,
       otherwise return the m value and the corresponding solution set size
     """
+    # print("lmbd={}, ub={}, thresh={}, m_prev={}".format(lmbd, ub, thresh, m_prev))
     logger.debug(f"calling log_search with m_prev={m_prev} and thresh={thresh}")
     # TODO: cache the number of solutions and return the one corresponding to the m
     if thresh <= 1:
@@ -236,7 +237,7 @@ def log_search(
             else:
                 cur_m = int((cur_m + lo) / 2)
 
-        logger.debug("big_cell: {}".format(big_cell))
+        # logger.debug("big_cell: {}".format(big_cell))
         # logger.debug("Y_size_arr: {}".format(Y_size_arr))
         # logger.debug(f"lo: {lo}")
         # logger.debug(f"hi: {hi}")
@@ -306,7 +307,7 @@ def approx_mc2_core(
 
     # do rref on Ax=b
     # this is important if incremental CBB is used
-    A, b = map(bin_array, extended_rref(A, b)[:2])
+    # A, b = map(bin_array, extended_rref(A, b)[:2])
 
     # try to find at most thresh solutions using all constraints
     cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
@@ -670,8 +671,13 @@ class UniGen:
                 # sol_iter = self.cbb.run(A_sub, t_sub)
 
                 # obtain only the first `thresh` solutions in the random cell
-                icbb = self._create_icbb()               
-                Y = icbb.bounded_sols(self.hi_thresh_rounded, A=A_sub, b=b_sub, solver_status=solver_status)
+                icbb = self._create_icbb()
+                Y = icbb.bounded_sols(
+                    self.hi_thresh_rounded,
+                    A=A_sub,
+                    b=b_sub,
+                    solver_status=solver_status,
+                )
                 solver_status = icbb.status
                 Y_size = len(Y)
 
