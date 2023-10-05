@@ -12,14 +12,8 @@ from tqdm import tqdm
 
 from .bb import BranchAndBoundNaive
 
-# from .cbb import ConstrainedBranchAndBoundNaive
 from .cbb import ConstrainedBranchAndBound
 
-# from .cbb import IncrementalConstrainedBranchAndBound
-# from .solver_status import SolverStatus
-from .gf2 import extended_rref
-
-# from .cbb import IncrementalConstrainedBranchAndBound
 from .random_hash import generate_h_and_alpha
 from .ray_pbar import RayProgressBar
 from .rule import Rule
@@ -306,10 +300,6 @@ def approx_mc2_core(
         A, b = generate_h_and_alpha(
             num_vars, num_constraints, seed=rand_seed, as_numpy=True
         )
-
-    # do rref on Ax=b
-    # this is important if incremental CBB is used
-    # A, b = map(bin_array, extended_rref(A, b)[:2])
 
     # try to find at most thresh solutions using all constraints
     cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd)
@@ -659,8 +649,6 @@ class UniGen:
                 seed=None,  # TODO: set the seed to control randomness
                 as_numpy=True,
             )
-            # perform rref beforehand
-            A, b = map(bin_array, extended_rref(A, b)[:2])
 
             logger.debug(f"searching in the range [{max(0, self.q-4)}, {self.q}]")
 
