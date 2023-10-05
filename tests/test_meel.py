@@ -156,7 +156,10 @@ class TestLogSearch:
     @pytest.mark.parametrize("rand_seed", randints(3))
     def test_consistency_on_m(
         self,
-        ub, initial_m, thresh, rand_seed
+        ub,
+        initial_m,
+        thresh,
+        rand_seed
         # ub=0.6,
         # initial_m=2,
         # thresh=5,
@@ -312,18 +315,20 @@ class TestApproxMC2Core:
 
 
 class TestApproxMC2:
-    @pytest.mark.parametrize("rand_seed", randints(1))
+    num_pts = 100
+    num_rules = 25
+
+    @pytest.mark.parametrize("rand_seed", randints(3))
     def test_parallel_execution(self, rand_seed, ray_fix):
         ub = 0.9
         eps = 0.8
         delta = 0.8
         lmbd = 0.1
-        num_pts, num_rules = 100, 10
         random_rules, random_y = generate_random_rules_and_y(
-            num_pts, num_rules, rand_seed=1234
+            self.num_pts, self.num_rules, rand_seed=1234
         )
 
-        estimate_actual = approx_mc2(
+        estimate = approx_mc2(
             random_rules,
             random_y,
             lmbd=lmbd,
@@ -334,26 +339,17 @@ class TestApproxMC2:
             parallel=True,  # using paralle run
         )
 
-        estimate_expected = approx_mc2(
-            random_rules,
-            random_y,
-            lmbd=lmbd,
-            ub=ub,
-            delta=delta,
-            eps=eps,
-            rand_seed=rand_seed,
-            parallel=False,  # sequential run
-        )
-        assert estimate_expected == estimate_actual
+        true_count = get_ground_truth_count(random_rules, random_y, lmbd, ub)
+        est_lb, est_ub = _get_theoretical_bounds(true_count, eps)
+        assert est_lb <= estimate <= est_ub
 
     @pytest.mark.parametrize("ub", [0.3, 0.6, 0.9])
     @pytest.mark.parametrize("eps", [0.8])
     @pytest.mark.parametrize("delta", [0.8])
     @pytest.mark.parametrize("rand_seed", randints(3))
-    def test_if_estimate_within_bounds(self, ub, eps, delta, rand_seed):
-        num_pts, num_rules = 100, 25
+    def test_sequential_run_if_estimate_is_within_bounds(self, ub, eps, delta, rand_seed):
         random_rules, random_y = generate_random_rules_and_y(
-            num_pts, num_rules, rand_seed=1234
+            self.num_pts, self.num_rules, rand_seed=1234
         )
 
         lmbd = 0.1

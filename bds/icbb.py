@@ -16,6 +16,7 @@ from .types import SolutionSet
 
 
 class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
+    # @profile
     def reset(
         self,
         A: np.ndarray,
@@ -136,8 +137,9 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBound):
         yield from self._examine_R_and_S(return_objective)
         logger.debug("inheritted {} solutions".format(len(self.status.solution_set)))
         with Timer() as timer:
+            logger.debug(f'update_queue processes {self.status.queue_size()} items')
             self._update_queue()
-            logger.debug(f'update_queue takes{timer.elapsed:.2f}s')
+            logger.debug(f'  which takes {timer.elapsed:.2f}s')
 
         yield from self._generate_solution_at_root(return_objective)
 
