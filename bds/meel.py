@@ -14,11 +14,12 @@ from .bb import BranchAndBoundNaive
 
 # from .cbb import ConstrainedBranchAndBoundNaive
 from .cbb import ConstrainedBranchAndBound
-from .icbb import IncrementalConstrainedBranchAndBound
-from .solver_status import SolverStatus
+
+# from .cbb import IncrementalConstrainedBranchAndBound
+# from .solver_status import SolverStatus
 from .gf2 import extended_rref
 
-# from .icbb import IncrementalConstrainedBranchAndBound
+# from .cbb import IncrementalConstrainedBranchAndBound
 from .random_hash import generate_h_and_alpha
 from .ray_pbar import RayProgressBar
 from .rule import Rule
@@ -56,7 +57,7 @@ def _check_log_search_trajectory(search_trajectory: List[Tuple[int, int, int]]):
 
     def _extract_later_ms(i: int) -> np.ndarray:
         """extract m values that are searched after the ith iteration"""
-        return np.array(list(map(lambda tpl: tpl[0], search_trajectory[i + 1 :])))
+        return np.array(list(map(lambda tpl: tpl[0], search_trajectory[i + 1:])))
 
     for i, (m, ys, t) in enumerate(search_trajectory):
         if ys < t:  # not enough solutions, m is large, we try smaller m later
@@ -132,8 +133,8 @@ def log_search(
 
     # cbb = ConstrainedBranchAndBoundNaive(rules, ub, y, lmbd)
 
-    latest_solver_status: SolverStatus = None
-    latest_usable_m: int = None
+    # latest_solver_status: SolverStatus = None
+    # latest_usable_m: int = None
     # we store the list of m values that are tried
     # as well as the solution size and threshold
     search_trajectory = []
@@ -143,9 +144,9 @@ def log_search(
     # cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd, reorder_columns=True)
     while True:
         logger.debug(
-            "---- solve m = {} {}----".format(
+            "---- solve m = {}----".format(
                 cur_m,
-                f"(based on {latest_usable_m})" if latest_usable_m else "from scratch",
+                # f"(based on {latest_usable_m})" if latest_usable_m else "from scratch",
             )
         )
 
@@ -153,23 +154,24 @@ def log_search(
         with Timer() as timer:
             # create a new instance of ICBB
             # to avoid performing column re-ordering multi times on the same ICBB instance
-            icbb = IncrementalConstrainedBranchAndBound(
-                rules, ub, y, lmbd, reorder_columns=True
+            cbb = ConstrainedBranchAndBound(rules, ub, y, lmbd, reorder_columns=True)
+            Y_size = cbb.bounded_count(
+                thresh,
+                A=A[:cur_m],
+                b=b[:cur_m]
+                # , solver_status=latest_solver_status
             )
-            Y_size = icbb.bounded_count(
-                thresh, A=A[:cur_m], b=b[:cur_m], solver_status=latest_solver_status
-            )
-            # logger.debug(f"number of popped items: {icbb.status.queue.popped_count}")
-            # logger.debug(f"number of pushed items: {icbb.status.queue.pushed_count}")
+            # logger.debug(f"number of popped items: {cbb.status.queue.popped_count}")
+            # logger.debug(f"number of pushed items: {cbb.status.queue.pushed_count}")
 
             logger.debug(f"solving takes {timer.elapsed:.2f} secs")
             time_cost_info.append(
                 {
                     "m": cur_m,
                     "elapsed": timer.elapsed,
-                    "popped_count": icbb.status.queue.popped_count,
-                    "pushed_count": icbb.status.queue.pushed_count,
-                    # "num_prefix_evaluations": icbb.num_prefix_evaluations,
+                    "popped_count": cbb.status.queue.popped_count,
+                    "pushed_count": cbb.status.queue.pushed_count,
+                    # "num_prefix_evaluations": cbb.num_prefix_evaluations,
                 }
             )
 
@@ -203,10 +205,10 @@ def log_search(
 
             lo = cur_m
 
-            # we only update the checkpoint when search lower bound is updated
-            logger.debug(f"using the solver status for m = {cur_m} as the latest")
-            latest_solver_status = icbb.status
-            latest_usable_m = cur_m
+            # # we only update the checkpoint when search lower bound is updated
+            # logger.debug(f"using the solver status for m = {cur_m} as the latest")
+            # latest_solver_status = cbb.status
+            # latest_usable_m = cur_m
 
             if np.abs(cur_m - m_prev) < 3:
                 cur_m += 1
@@ -563,8 +565,8 @@ class UniGen:
         """create the branch-and-bound solvers for both complete and constrained enumeration"""
         return BranchAndBoundNaive(self.rules, self.ub, self.y, self.lmbd)
 
-    def _create_icbb(self):
-        return IncrementalConstrainedBranchAndBound(
+    def _create_cbb(self):
+        return ConstrainedBranchAndBound(
             self.rules, self.ub, self.y, self.lmbd, reorder_columns=True
         )
 
@@ -671,14 +673,14 @@ class UniGen:
                 # sol_iter = self.cbb.run(A_sub, t_sub)
 
                 # obtain only the first `thresh` solutions in the random cell
-                icbb = self._create_icbb()
-                Y = icbb.bounded_sols(
+                cbb = self._create_cbb()
+                Y = cbb.bounded_sols(
                     self.hi_thresh_rounded,
                     A=A_sub,
                     b=b_sub,
                     solver_status=solver_status,
                 )
-                solver_status = icbb.status
+                solver_status = cbb.status
                 Y_size = len(Y)
 
                 if self.lo_thresh <= Y_size <= self.hi_thresh:

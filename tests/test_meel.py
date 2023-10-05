@@ -13,7 +13,7 @@ from bds.meel import (
     UniGen,
 )
 from bds.random_hash import generate_h_and_alpha
-from bds.utils import bin_array, bin_random, bin_zeros, randints
+from bds.utils import bin_array, bin_zeros, randints
 from bds.bb import get_ground_truth_count
 
 from .fixtures import rules, y
