@@ -2,7 +2,7 @@ import numpy as np
 from typing import Optional, List, Dict, Tuple, Union
 from .gf2 import GF
 from numba import jit
-from .types import RuleSet
+from .types import RuleSet, ParityConstraintViolation
 from .utils import bin_zeros
 
 
@@ -171,7 +171,7 @@ def ensure_minimal_non_violation(
     """
     # if Ax=b is not solvable, raise an error
     if b[rank:].any():
-        raise ValueError(
+        raise ParityConstraintViolation(
             "Minimal non-violation cannot be ensured because Ax=b is unsolvable. "
             f"b[rank:]={b[rank:]}, where rank={rank}\n"
             f"A = :\n{A.astype(int)}"
@@ -210,7 +210,7 @@ def ensure_satisfiability(
     returns the array of pivot rules being added
     """
     if b_gf[rank:].any():
-        raise ValueError(
+        raise ParityConstraintViolation(
             "Satisfaction cannot be ensured because Ax=b is unsolvable"
             f"b[rank:]={b_gf[rank:]}, where rank={rank}\n"
             f"A = :\n{np.array(A_gf, dtype=int)}"

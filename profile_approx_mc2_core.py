@@ -17,15 +17,13 @@ y = np.array(labels[1], dtype=bool)
 print(f"number of rules: {len(rules)}")
 print(f"number of points: {y.shape[0]}")
 
-ub = 0.3
+ub = 0.25
 lmbd = 0.05
 
 thresh = 72
 prev_m = 1
 
-reps = 5
 with Timer() as timer:
-    # for _ in range(reps):
     num_cells, num_sols = approx_mc2_core(
         rules,
         y,
@@ -33,7 +31,7 @@ with Timer() as timer:
         ub=ub,
         thresh=thresh,
         prev_num_cells=int(2**prev_m),
-        rand_seed=None,
+        rand_seed=42,
     )
 print(f"elapsed time: {timer.elapsed:.2f}s")
 print(f"estimated count = {num_cells * num_sols}")

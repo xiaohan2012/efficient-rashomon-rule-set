@@ -10,7 +10,7 @@ from bds.parity_constraints import (
     inc_ensure_minimal_no_violation,
     inc_ensure_satisfiability,
 )
-from bds.types import RuleSet
+from bds.types import RuleSet, ParityConstraintViolation
 from bds.utils import bin_array, bin_zeros
 
 
@@ -441,7 +441,7 @@ class TestEnsusreMinimalNonViolation:
         m, n = A.shape
 
         with pytest.raises(
-            ValueError, match=".*Minimal non-violation cannot be ensured.*"
+                ParityConstraintViolation, match=".*Minimal non-violation cannot be ensured.*"
         ):
             ensure_minimal_non_violation(RuleSet([]), A, b, rank, B, pivot_columns)
 
@@ -634,7 +634,7 @@ class TestEnsureSatisfiability:
         )
 
         with pytest.raises(
-            ValueError,
+                ParityConstraintViolation,
             match=".*Satisfaction cannot be ensured because Ax=b is unsolvable.*",
         ):
             ensure_satisfiability(RuleSet([]), A, b, rank, row2pivot_column)
