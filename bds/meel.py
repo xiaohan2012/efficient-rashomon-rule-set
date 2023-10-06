@@ -363,6 +363,7 @@ def approx_mc2(
     log_level: Optional[int] = logging.INFO,
     rand_seed: Optional[int] = None,
     show_progress: Optional[bool] = True,
+    ncpus_per_job : Optional[int] = 2,
 ) -> int:
     """return an estimate of th number of feasible solutions to a decision set learning problem
 
@@ -445,7 +446,7 @@ def approx_mc2(
             num_available_cpus = int(ray.available_resources()["CPU"])
             logger.info(f"number of available CPUs: {num_available_cpus}")
 
-            num_cpus_per_job = 2
+            num_cpus_per_job = ncpus_per_job
             num_jobs_in_first_round = int(num_available_cpus / num_cpus_per_job)
 
             @ray.remote(num_cpus=num_cpus_per_job)
