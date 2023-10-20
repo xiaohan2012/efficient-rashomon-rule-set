@@ -51,7 +51,7 @@ def _check_log_search_trajectory(search_trajectory: List[Tuple[int, int, int]]):
 
     def _extract_later_ms(i: int) -> np.ndarray:
         """extract m values that are searched after the ith iteration"""
-        return np.array(list(map(lambda tpl: tpl[0], search_trajectory[i + 1:])))
+        return np.array(list(map(lambda tpl: tpl[0], search_trajectory[i + 1 :])))
 
     for i, (m, ys, t) in enumerate(search_trajectory):
         if ys < t:  # not enough solutions, m is large, we try smaller m later
@@ -363,7 +363,7 @@ def approx_mc2(
     log_level: Optional[int] = logging.INFO,
     rand_seed: Optional[int] = None,
     show_progress: Optional[bool] = True,
-    ncpus_per_job : Optional[int] = 2,
+    ncpus_per_job: Optional[int] = 2,
 ) -> int:
     """return an estimate of th number of feasible solutions to a decision set learning problem
 
@@ -600,7 +600,7 @@ class UniGen:
         Y_size = len(Y)
         return Y_size, Y
 
-    def prepare(self):
+    def prepare(self, parallel: bool = True):
         """
         presolve the problem with upperbound and estimate the number of feasible solutions if needed
         """
@@ -628,6 +628,7 @@ class UniGen:
                 delta=0.8,
                 eps=0.8,
                 rand_seed=self.rand_seed,
+                parallel=parallel,
                 show_progress=False,
             )
             self.q = int_ceil(np.log2(self.C) + np.log2(1.8) - np.log2(pivot))

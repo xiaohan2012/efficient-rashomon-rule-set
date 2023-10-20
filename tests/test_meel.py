@@ -327,7 +327,6 @@ class TestApproxMC2:
         random_rules, random_y = generate_random_rules_and_y(
             self.num_pts, self.num_rules, rand_seed=1234
         )
-
         estimate = approx_mc2(
             random_rules,
             random_y,
