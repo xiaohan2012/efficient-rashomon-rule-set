@@ -112,6 +112,17 @@ class TestQueue:
         assert len(list(q)) == 4
         assert set(q) == {"zero", "one", "two"}
 
+    def test_maxsize(self):
+        q = Queue()
+        max_size = 10
+        for _ in range(max_size):
+            q.push("zero", 0)
+        while not q.is_empty:
+            q.pop()
+        for _ in range(int(max_size / 2)):
+            q.push("zero", 0)
+        assert q.max_size == max_size
+
 
 class TestNonRedundantQueue:
     def test_basic(self):

@@ -18,10 +18,15 @@ class Queue:
         # a counter to record how many times items are pushed into
         self.pushed_count = 0
 
+        # store the maximum queue size
+        self._max_size = 0
+
     def push(self, item: Any, key: Union[float, int]):
         item_with_key = (key, item)
         heapq.heappush(self._items, item_with_key)
         self.pushed_count += 1
+
+        self._max_size = max(self._max_size, self.size)
 
     def front(self) -> Any:
         key, item = self._items[0]
@@ -32,6 +37,10 @@ class Queue:
         self.popped_count += 1
         return item
 
+    @property
+    def max_size(self):
+        return self._max_size
+    
     @property
     def size(self) -> int:
         return len(self._items)
