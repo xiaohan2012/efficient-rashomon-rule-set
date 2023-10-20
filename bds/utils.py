@@ -304,7 +304,8 @@ class CBBUtilityMixin:
         # if there is one constraint i that is determined and Ax[i] != b[i]
         # then Ax=b is violated
         if np.logical_and(
-            Ax[:self.rank] != self.b_gf[:self.rank], max(prefix_with_free_rules_only or [-1]) >= self.B
+            Ax[: self.rank] != self.b_gf[: self.rank],
+            max(prefix_with_free_rules_only or [-1]) >= self.B,
         ).any():
             return False
         return True
@@ -312,11 +313,20 @@ class CBBUtilityMixin:
     def is_preflix_qualified_for_queue(self, prefix: RuleSet) -> bool:
         """return True if the prefix should be pushed to queue, i.e., Ax=b is not violated and lb(prefix) + lambda <= ub"""
         if not self.is_Ax_eq_b_non_violated(prefix):
-            print(f"Ax=b is violated")
-            print(f"prefix={prefix}")            
+            print("Ax=b is violated")
+            print(f"prefix={prefix}")
             self.print_Axb()
             return False
         if (self._calculate_lb(prefix) + self.lmbd) > self.ub:
-            print(f"look-ahead bound is violated")
+            print("look-ahead bound is violated")
             return False
         return True
+
+
+def read_label_vector_from_file(path):
+    labels = []
+    with open(path, "r") as f:
+        for row in f.readlines():
+            labels.append(list(map(int, row.split(" ")[1:])))
+
+    return bin_array(labels[1])
