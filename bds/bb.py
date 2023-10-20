@@ -55,7 +55,7 @@ class BranchAndBoundGeneric:
         # false negative rate of the default rule = fraction of positives
         self.default_rule_fnr = mpz(gmp.popcount(self.y_mpz)) / self.num_train_pts
 
-        self.num_prefix_evaluations = 0
+        self.num_lb_evaluations = 0
         self._check_rule_ids()
 
         self.__post_init__()
@@ -180,7 +180,6 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
 
         for rule in self.rules[(max_rule_idx + 1) :]:
             # prune by ruleset length
-            self.num_prefix_evaluations += 1
             if (parent_prefix_length + 1) > length_ub:
                 continue
 
@@ -191,6 +190,7 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
                 + self._incremental_update_lb(captured, self.y_mpz)
                 + self.lmbd
             )
+            self.num_lb_evaluations += 1
             if prefix_lower_bound <= self.ub:
                 fn_fraction, not_captured = self._incremental_update_obj(
                     parent_not_captured, captured

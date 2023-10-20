@@ -429,7 +429,6 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
             if rule.id in self.pivot_rule_idxs:
                 continue
 
-            self.num_prefix_evaluations += 1
             # print(f"  checking {rule.id}")
             if (prefix_length + 1) > length_ub:
                 continue
@@ -439,7 +438,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
                 + self._incremental_update_lb(rule.truthtable & parent_u, self.y_mpz)
                 + self.lmbd
             )
-
+            self.num_lb_evaluations += 1
             # check hierarchical lower bound
             if lb <= self.ub:
                 # apply look-ahead bound

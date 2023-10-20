@@ -165,7 +165,6 @@ def log_search(
                     "elapsed": timer.elapsed,
                     "popped_count": cbb.status.queue.popped_count,
                     "pushed_count": cbb.status.queue.pushed_count,
-                    # "num_prefix_evaluations": cbb.num_prefix_evaluations,
                 }
             )
 
