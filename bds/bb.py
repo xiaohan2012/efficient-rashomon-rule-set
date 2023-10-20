@@ -15,7 +15,7 @@ from .utils import (
     mpz_all_ones,
     count_iter,
     calculate_lower_bound,
-    calculate_obj
+    calculate_obj,
 )
 from .types import RuleSet
 from .bounds import (
@@ -24,6 +24,7 @@ from .bounds import (
     prefix_specific_length_upperbound,
 )
 from .solver_status import SolverStatus
+
 # logger.setLevel(logging.INFO)
 
 Prefix = Tuple[int]
@@ -55,7 +56,10 @@ class BranchAndBoundGeneric:
         # false negative rate of the default rule = fraction of positives
         self.default_rule_fnr = mpz(gmp.popcount(self.y_mpz)) / self.num_train_pts
 
+        # counters for performance monitorning
         self.num_lb_evaluations = 0
+        self.num_obj_evaluations = 0
+
         self._check_rule_ids()
 
         self.__post_init__()
@@ -88,9 +92,7 @@ class BranchAndBoundGeneric:
         )
 
     def _calculate_obj(self, prefix: RuleSet) -> float:
-        return calculate_obj(
-            self.rules, self.y_np, self.y_mpz, prefix, self.lmbd
-        )
+        return calculate_obj(self.rules, self.y_np, self.y_mpz, prefix, self.lmbd)
 
     # @profile
     def generate(self, return_objective=False) -> Iterable:
@@ -195,6 +197,7 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
                 fn_fraction, not_captured = self._incremental_update_obj(
                     parent_not_captured, captured
                 )
+                self.num_obj_evaluations += 1
                 prefix_obj = prefix_lower_bound + fn_fraction
 
                 # apply look-ahead bound
@@ -203,7 +206,7 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
                 if lookahead_lb <= self.ub:
                     self.status.push_to_queue(
                         prefix_lower_bound,  # the choice of key shouldn't matter for complete enumeration
-                        (prefix, prefix_lower_bound, not_captured)                        
+                        (prefix, prefix_lower_bound, not_captured),
                     )
                 if prefix_obj <= self.ub:
                     self.status.add_to_solution_set(prefix)
