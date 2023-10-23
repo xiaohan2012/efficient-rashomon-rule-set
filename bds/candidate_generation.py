@@ -11,6 +11,16 @@ def extract_rules_with_min_support(
     """given a binarized feature matrix X, extract all association rules whoe support is at least min_support
 
     the list of returned rules are sorted by their support in ascending order
+
+    an example:
+
+    ```
+    dataset = "compas"
+    data = pd.read_csv('data/compas_train-binary.csv')  # the features are binary
+    X = data.to_numpy()[:,:-2]
+    attribute_names = list(data.columns[:-2])
+    sorted_rules = extract_rules_with_min_support(X, attribute_names, min_support=70)
+    ```
     """
     X_bag = [set([j for j, x in enumerate(row) if x]) for row in X]
 
