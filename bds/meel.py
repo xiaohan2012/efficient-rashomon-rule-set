@@ -636,7 +636,7 @@ class UniGen:
         else:
             logger.info(
                 f"|Y| {self.presolve_Y_size} < {self.hi_thresh}, thus sample directly"
-            )        
+            )
 
     def sample_once(self) -> Optional[Set[int]]:
         """sample one feasible solution from the solution space"""
