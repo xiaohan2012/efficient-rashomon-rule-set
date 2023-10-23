@@ -33,11 +33,15 @@ def extract_rules_with_min_support(
     for i, itemset in enumerate(frequent_itemsets):
         rule = Rule(
             id=i,
-            name="rule_" + str(i),
+            name=f"rule_{i}",
             cardinality=len(itemset),
             truthtable=compute_truthtable(X, itemset),
             predicates=[attribute_names[idx] for idx in itemset],
         )
         all_rules.append(rule)
 
-    return list(sorted(all_rules, key=lambda r: r.support, reverse=True))
+    sorted_rules = list(sorted(all_rules, key=lambda r: r.support, reverse=True))
+    for i, rule in enumerate(sorted_rules):
+        rule.name = f"rule_{i}"  # rename the rules
+        rule.id = i
+    return sorted_rules
