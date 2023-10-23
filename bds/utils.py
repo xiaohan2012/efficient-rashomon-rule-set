@@ -330,3 +330,17 @@ def read_label_vector_from_file(path):
             labels.append(list(map(int, row.split(" ")[1:])))
 
     return bin_array(labels[1])
+
+
+def compute_truthtable(X: np.ndarray, itemset: set) -> mpz:
+    """
+    given an itemset and data points represented as a binary matrix X (each row corresponds to a data point)
+    return the coverage array indicating which points are captured by the itemset
+    
+    remark: the function is poorly optimized"""
+    support_list = [] 
+    for i in range(X.shape[0]): 
+        if sum([X[i][j] for j in itemset]) == len(itemset): 
+            support_list.append(i)
+    truthtable = mpz_set_bits(mpz(), support_list)
+    return truthtable
