@@ -599,7 +599,7 @@ class UniGen:
         Y_size = len(Y)
         return Y_size, Y
 
-    def prepare(self, parallel: bool = True):
+    def prepare(self, parallel: bool = True, show_approx_mc2_progress: bool = False):
         """
         presolve the problem with upperbound and estimate the number of feasible solutions if needed
         """
@@ -628,7 +628,7 @@ class UniGen:
                 eps=0.8,
                 rand_seed=self.rand_seed,
                 parallel=parallel,
-                show_progress=False,
+                show_progress=show_approx_mc2_progress,
             )
             self.q = int_ceil(np.log2(self.C) + np.log2(1.8) - np.log2(pivot))
             logger.debug(f"esimated C = {self.C}")
