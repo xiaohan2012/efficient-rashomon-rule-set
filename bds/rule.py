@@ -15,10 +15,15 @@ class Rule:
     name: str  # string representation of the rule, e.g., attr1 == 0 AND attr2 < 10.
     cardinality: int  # number of conditions in the rule
     truthtable: mpz  # whether a sample evaluates to true for this rule, 1 bit per sample,
+    predicates: Optional[
+        List[str]
+    ] = None  # the list predicates involved or feature column names (assuming the data is binary)
 
     def __post_init__(self):
         """if parent is not None, 'bind' self and parent by upting children and depth accordingly"""
         assert isinstance(self.truthtable, mpz)
+        if self.predicates is None:
+            self.predicates = []
 
     @property
     def support(self):
@@ -40,10 +45,14 @@ class Rule:
 
         return (
             (self.id == other.id)
-            and (self.cardinality == other.cardinality)
             and (self.name == other.name)
+            and (self.cardinality == other.cardinality)
+            and (self.predicates == other.predicates)
             and (self.truthtable == other.truthtable)
         )
+
+    def __repr__(self):
+        return "{}: {}".format(self.name, " AND ".join(self.predicates))
 
 
 def lor_of_truthtable(rules: List[Rule]) -> mpz:
