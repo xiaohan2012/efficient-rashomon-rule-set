@@ -633,6 +633,10 @@ class UniGen:
             self.q = int_ceil(np.log2(self.C) + np.log2(1.8) - np.log2(pivot))
             logger.debug(f"esimated C = {self.C}")
             logger.debug(f"q = {self.q}")
+        else:
+            logger.info(
+                f"|Y| {self.presolve_Y_size} < {self.hi_thresh}, thus sample directly"
+            )        
 
     def sample_once(self) -> Optional[Set[int]]:
         """sample one feasible solution from the solution space"""
