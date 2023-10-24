@@ -52,7 +52,7 @@ class Rule:
         )
 
     def __repr__(self):
-        return "{}: {}".format(self.name, " AND ".join(self.predicates))
+        return "({})".format(" AND ".join(self.predicates))
 
 
 def lor_of_truthtable(rules: List[Rule]) -> mpz:
