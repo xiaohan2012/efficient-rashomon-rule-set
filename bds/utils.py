@@ -134,13 +134,23 @@ def fill_array_from(arr, start_idx, val):
     for i in range(start_idx, len(arr)):  # typo in paper |S| -> |S| - 1
         arr[i] = val
 
-
 def mpz_set_bits(n: mpz, bits: np.ndarray) -> mpz:
     """return a copy of n and set `bits` to 1 in `n`"""
     for i in bits:
         n = gmp.bit_set(n, int(i))
     return n
 
+def np2mpz(arr: np.ndarray) -> mpz:
+    """represent a numpy boolean array as a mpz number"""
+    return mpz_set_bits(
+        mpz(), arr.nonzero()[0]
+    )
+
+def mpz2np(n: mpz, size: int) -> np.array:
+    """represent a mpz number as numpy boolean array"""
+    arr = np.zeros(size, dtype=bool)
+    arr[list(mpz2bag(n))] = 1
+    return arr
 
 def mpz_clear_bits(n: mpz, bits: np.ndarray) -> mpz:
     """return a copy of n and set `bits` to 0 in `n`"""
