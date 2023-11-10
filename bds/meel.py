@@ -663,8 +663,6 @@ class UniGen:
                 logger.debug(f"current i = {m}")
                 A_sub, b_sub = A[:m], b[:m]
 
-                # sol_iter = self.cbb.run(A_sub, t_sub)
-
                 # obtain only the first `thresh` solutions in the random cell
                 cbb = self._create_cbb()
                 Y = cbb.bounded_sols(
@@ -688,10 +686,13 @@ class UniGen:
                 return None
 
     def sample(
-        self, k: int, exclude_none: Optional[bool] = True
+        self, k: int, exclude_none: Optional[bool] = True, show_progress: bool = True
     ) -> List[Optional[set]]:
         """take k samples"""
-        raw_samples = [self.sample_once() for _ in tqdm(range(k))]
+        iter_obj = range(k)
+        if show_progress:
+            iter_obj = tqdm(iter_obj)
+        raw_samples = [self.sample_once() for _ in iter_obj]
         if exclude_none:
             return list(filter(None, raw_samples))
         return raw_samples
