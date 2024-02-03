@@ -76,7 +76,7 @@ class BranchAndBoundGeneric:
     def _check_rule_ids(self):
         """check the rule ids are consecutive integers starting from 0"""
         rule_ids = np.array([r.id for r in self.rules])
-        np.testing.assert_allclose(rule_ids, np.arange(0, len(rule_ids)))
+        np.testing.assert_allclose(rule_ids, np.arange(0, len(rule_ids)), err_msg="rule are not ordered by their ids starting from 0")
 
     def reset(self):
         # logger.debug("initializing search tree and priority queue")
