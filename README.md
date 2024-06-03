@@ -25,6 +25,8 @@ The source code is tested against Python 3.8 on MacOS 14.4.1
 - [ ] fix unit tests
   - [ ] `tests/test_meel.py::TestUniGen::test_prepare`
   - [ ] `tests/test_bbSampleTree.py`
+- [ ] clean up unused notebooks
+- [ ] rename package to `rds`
 - [ ] linting and formatting 
 
 
