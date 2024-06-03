@@ -386,7 +386,7 @@ class TestUniGen:
     @pytest.mark.parametrize("eps", [8, 10])
     @pytest.mark.parametrize("ub, sample_directly", [(0.6, True), (0.9, False)])
     @pytest.mark.parametrize("rand_seed", randints(3))
-    def test_prepare(self, eps, ub, sample_directly, rand_seed):
+    def test_prepare(self, eps, ub, sample_directly, rand_seed, ray_fix):
         ug = self.create_unigen(ub, eps, rand_seed)
 
         ug.prepare()
@@ -404,7 +404,7 @@ class TestUniGen:
 
     @pytest.mark.parametrize("ub", [0.8])
     @pytest.mark.parametrize("thresh", [10.5, 20.7, 30.0, 40])
-    def test_presolve(self, ub, thresh):
+    def test_presolve(self, ub, thresh, ray_fix):
         ug = self.create_unigen(ub, eps=2.0)
         Y_size, Y = ug.presolve(thresh)
         assert Y_size <= thresh
@@ -412,7 +412,7 @@ class TestUniGen:
 
     @pytest.mark.parametrize("ub", [0.6, 0.9])
     @pytest.mark.parametrize("rand_seed", randints(3))
-    def test_sample_once(self, ub, rand_seed):
+    def test_sample_once(self, ub, rand_seed, ray_fix):
         ug = self.create_unigen(ub, eps=10.0, rand_seed=rand_seed)
         ug.prepare()
         ret = ug.sample_once()
@@ -420,7 +420,7 @@ class TestUniGen:
 
     @pytest.mark.parametrize("ub", [0.6, 0.9])
     @pytest.mark.parametrize("rand_seed", randints(3))
-    def test_sample(self, ub, rand_seed):
+    def test_sample(self, ub, rand_seed, ray_fix):
         ug = self.create_unigen(ub, eps=10.0, rand_seed=rand_seed)
         ug.prepare()
         samples = ug.sample(10, exclude_none=True)

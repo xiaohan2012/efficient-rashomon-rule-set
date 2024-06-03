@@ -442,6 +442,7 @@ def approx_mc2(
                 else:
                     logger.debug("one esimtation failed")
         else:
+            print("ray.available_resources(): {}".format(ray.available_resources()))            
             num_available_cpus = int(ray.available_resources()["CPU"])
             logger.info(f"number of available CPUs: {num_available_cpus}")
 
