@@ -27,6 +27,7 @@ The source code is tested against Python 3.8 on MacOS 14.4.1
   - [ ] `tests/test_bbSampleTree.py`
 - [ ] clean up unused notebooks
 - [ ] rename package to `rds`
+- [ ] add citation section
 - [ ] linting and formatting 
 
 
