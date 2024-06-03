@@ -1,7 +1,7 @@
 from ortools.sat.python import cp_model
 from typing import List, Tuple, Any, Union
 
-from ..gf2 import GF, rref
+from ..gf2 import GF, extended_rref
 from ..common import CPVar, Program, BoundedLinearExpression, ConstraintInfo
 
 
@@ -109,7 +109,7 @@ def get_xor_constraints(A: GF, b: GF, var_list: List[CPVar], use_rref: bool = Tr
     4. the row is empty (all zeros) -- no constraint to add
     """
     if use_rref:
-        A, b = rref(A, b)
+        A, b, _, _ = extended_rref(A, b)
         
     constraints = []
     n = A.shape[0]
