@@ -5,7 +5,7 @@ This repository contains the source code of the paper *"Efficient Exploration of
 
 # Environment setup
 
-The source code is tested against Python 3.8 on MacOS 14.4.1
+The source code is tested with Python 3.8 on MacOS 14.4.1
 
 
 # Example usage
