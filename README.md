@@ -118,6 +118,8 @@ candidate_rules = extract_rules_with_min_support(X, attribute_names, min_support
 
 # TODO
 
+- [ ] CICD and badges
+- [ ] pre-commit empty notebooks
 - [ ] clean up unused notebooks
-- [ ] rename package to `rds`
-- [ ] add citation section
+- [ ] rename package to `erds`
+- [ ] add citation
