@@ -123,3 +123,4 @@ candidate_rules = extract_rules_with_min_support(X, attribute_names, min_support
 - [ ] clean up unused notebooks
 - [ ] rename package to `erds`
 - [ ] add citation
+- [ ] packaging
