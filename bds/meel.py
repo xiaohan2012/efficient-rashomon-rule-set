@@ -1,4 +1,5 @@
 import logging
+import psutil
 import math
 import random
 from typing import List, Optional, Set, Tuple, Union
@@ -152,7 +153,7 @@ def log_search(
             Y_size = cbb.bounded_count(
                 thresh,
                 A=A[:cur_m],
-                b=b[:cur_m]
+                b=b[:cur_m],
                 # , solver_status=latest_solver_status
             )
             # logger.debug(f"number of popped items: {cbb.status.queue.popped_count}")
@@ -442,8 +443,15 @@ def approx_mc2(
                 else:
                     logger.debug("one esimtation failed")
         else:
-            print("ray.available_resources(): {}".format(ray.available_resources()))            
-            num_available_cpus = int(ray.available_resources()["CPU"])
+            print("ray.available_resources(): {}".format(ray.available_resources()))
+            if "CPU" in ray.available_resources():
+                num_available_cpus = int(ray.available_resources()["CPU"])
+            else:
+                num_available_cpus = psutil.cpu_count()
+                logger.warning(
+                    "Fall back to psutil.cpu_count() to detect the number of CPUs. Cannot use ray.available_resources()."
+                )
+
             logger.info(f"number of available CPUs: {num_available_cpus}")
 
             num_cpus_per_job = ncpus_per_job
