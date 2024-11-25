@@ -124,3 +124,4 @@ candidate_rules = extract_rules_with_min_support(X, attribute_names, min_support
 - [ ] rename package to `erds`
 - [ ] add citation
 - [ ] packaging
+- [ ] add a logo maybe
