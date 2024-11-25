@@ -24,7 +24,7 @@ We illustrate the usage of approximate counter and almost-uniform sampler applie
 
 ## Preparation
 
-Set up a Ray cluster (for parallel computing), e.g.,
+Set up a Ray cluster for parallel computing, e.g.,
 
 ``` python
 import ray
