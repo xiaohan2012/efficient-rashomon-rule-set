@@ -6,8 +6,8 @@ import numpy as np
 from gmpy2 import mpz
 
 from bds.gf2 import GF
-from bds.rule import Rule
-from bds.utils import bin_random, calculate_obj, mpz_set_bits, randints
+from bds.rule_utils import generate_random_rules_and_y  # noqa
+from bds.utils import calculate_obj, mpz_set_bits
 
 
 def assert_dict_allclose(actual: Dict[Any, Number], expected: [Any, Number]):
@@ -22,23 +22,6 @@ def assert_dict_allclose(actual: Dict[Any, Number], expected: [Any, Number]):
             np.array(expected[k], dtype=float),
             err_msg=k,
         )
-
-
-def generate_random_rule_list(num_pts: int, num_rules: int, rand_seed: int = None):
-    """generate a list of `num_rules` random rules on a dataset with num_pts"""
-    np.random.seed(1234)
-    rand_seeds = randints(num_rules)
-    return [
-        Rule.random(id=i, num_pts=num_pts, random_seed=seed)
-        for i, seed in zip(range(num_rules), rand_seeds)
-    ]
-
-
-def generate_random_rules_and_y(num_pts, num_rules, rand_seed: int = None):
-    """generate a list of random rules and a random label vector"""
-    random_rules = generate_random_rule_list(num_pts, num_rules, rand_seed)
-    random_y = bin_random(num_pts)
-    return random_rules, random_y
 
 
 def assert_close_mpfr(v1, v2):
