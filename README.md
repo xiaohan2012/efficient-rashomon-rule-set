@@ -1,3 +1,5 @@
+![](https://img.shields.io/badge/ML-Interpretability-green)  ![](https://img.shields.io/badge/python-3.8-blue)
+
 # Efficient algorithms to explore the Rashomon set of rule set models
 
 This repository contains the source code of the paper *"Efficient Exploration of the Rashomon Set of Rule Set Models"* (KDD 2024)
