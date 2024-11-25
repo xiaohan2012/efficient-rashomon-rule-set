@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -95,7 +95,7 @@ class Node:
 
         the root corresponds to the "default rule", which captures all points and predicts the default label (negative)
         """
-       # print("aaa")
+        # print("aaa")
         return Node(
             rule_id=0,
             lower_bound=0.0,  # the false positive rate, which is zero
@@ -176,6 +176,3 @@ class CacheTree:
             self._set_root(node)
 
         self._num_nodes += 1
-
-
-

@@ -1,11 +1,9 @@
-import numpy as np
-
 from dataclasses import dataclass
 from importlib import import_module
 
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelBinarizer
+import numpy as np
 from aix360.algorithms.rbm import FeatureBinarizer
+from sklearn.model_selection import train_test_split
 
 from ..utils import convert_numerical_columns_to_bool
 
@@ -52,9 +50,10 @@ class Dataset:
         self.y_train = self.y_train.to_numpy()
         self.y_test = self.y_test.to_numpy()
 
+
 class BinaryDataset(Dataset):
     def load(self):
-        super(BinaryDataset, self).load()
+        super().load()
         fb = FeatureBinarizer(negations=True)
 
         self.X_train_b = fb.fit_transform(self.X_train)

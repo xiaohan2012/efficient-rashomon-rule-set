@@ -1,29 +1,28 @@
-import numpy as np
-import gmpy2 as gmp
 import itertools
-
-from logzero import logger
-from gmpy2 import mpz
-from typing import Tuple, Optional, List, Iterable, Union
 from copy import deepcopy
+from typing import Iterable, List, Optional, Tuple, Union
 
-from .queue import Queue
-from .rule import Rule
-from .utils import (
-    assert_binary_array,
-    mpz_set_bits,
-    mpz_all_ones,
-    count_iter,
-    calculate_lower_bound,
-    calculate_obj,
-)
-from .types import RuleSet
+import gmpy2 as gmp
+import numpy as np
+from gmpy2 import mpz
+from logzero import logger
+
 from .bounds import (
     incremental_update_lb,
     incremental_update_obj,
     prefix_specific_length_upperbound,
 )
+from .rule import Rule
 from .solver_status import SolverStatus
+from .types import RuleSet
+from .utils import (
+    assert_binary_array,
+    calculate_lower_bound,
+    calculate_obj,
+    count_iter,
+    mpz_all_ones,
+    mpz_set_bits,
+)
 
 # logger.setLevel(logging.INFO)
 
@@ -71,12 +70,15 @@ class BranchAndBoundGeneric:
 
     def __post_init__(self):
         """hook function to be called after __init__ is called"""
-        pass
 
     def _check_rule_ids(self):
         """check the rule ids are consecutive integers starting from 0"""
         rule_ids = np.array([r.id for r in self.rules])
-        np.testing.assert_allclose(rule_ids, np.arange(0, len(rule_ids)), err_msg="rule are not ordered by their ids starting from 0")
+        np.testing.assert_allclose(
+            rule_ids,
+            np.arange(0, len(rule_ids)),
+            err_msg="rule are not ordered by their ids starting from 0",
+        )
 
     def reset(self):
         # logger.debug("initializing search tree and priority queue")

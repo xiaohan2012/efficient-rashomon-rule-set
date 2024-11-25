@@ -1,16 +1,16 @@
 1. Title: 1984 United States Congressional Voting Records Database
 
 2. Source Information:
-    (a) Source:  Congressional Quarterly Almanac, 98th Congress, 
-                 2nd session 1984, Volume XL: Congressional Quarterly Inc. 
+    (a) Source:  Congressional Quarterly Almanac, 98th Congress,
+                 2nd session 1984, Volume XL: Congressional Quarterly Inc.
                  Washington, D.C., 1985.
     (b) Donor: Jeff Schlimmer (Jeffrey.Schlimmer@a.gp.cs.cmu.edu)
-    (c) Date: 27 April 1987 
+    (c) Date: 27 April 1987
 
 3. Past Usage
    - Publications
-     1. Schlimmer, J. C. (1987).  Concept acquisition through 
-        representational adjustment.  Doctoral dissertation, Department of 
+     1. Schlimmer, J. C. (1987).  Concept acquisition through
+        representational adjustment.  Doctoral dissertation, Department of
         Information and Computer Science, University of California, Irvine, CA.
         -- Results: about 90%-95% accuracy appears to be STAGGER's asymptote
      - Predicted attribute: party affiliation (2 classes)
@@ -50,9 +50,9 @@
 
 8. Missing Attribute Values: Denoted by "?"
 
-   NOTE: It is important to recognize that "?" in this database does 
-         not mean that the value of the attribute is unknown.  It 
-         means simply, that the value is not "yea" or "nay" (see 
+   NOTE: It is important to recognize that "?" in this database does
+         not mean that the value of the attribute is unknown.  It
+         means simply, that the value is not "yea" or "nay" (see
          "Relevant Information" section above).
 
    Attribute:  #Missing Values:

@@ -1,7 +1,8 @@
 # util functions for operations uedr GF(2)
-import numpy as np
+from typing import List, Tuple, Union
+
 import galois
-from typing import Tuple, Union, Optional, List
+import numpy as np
 
 GF = galois.GF(2)
 

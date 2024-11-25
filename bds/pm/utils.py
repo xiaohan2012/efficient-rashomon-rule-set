@@ -1,14 +1,13 @@
-import pandas as pd
-import numpy as np
-
-from typing import Set, List, Dict, Tuple
 from itertools import combinations
+from typing import Dict, List, Set, Tuple
 
-from tqdm import tqdm
-from mlxtend.frequent_patterns import fpgrowth
+import numpy as np
+import pandas as pd
 from logzero import logger
+from mlxtend.frequent_patterns import fpgrowth
+from tqdm import tqdm
 
-from ..common import Pattern, SupportSet, PatternSet
+from ..common import Pattern, PatternSet, SupportSet
 
 
 def support_set(itemset: Set[int], column_names: pd.MultiIndex, dataset: pd.DataFrame):

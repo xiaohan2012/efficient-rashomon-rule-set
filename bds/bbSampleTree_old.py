@@ -1,44 +1,33 @@
-import numpy as np
-import gmpy2 as gmp
 import itertools
 
+# logger.setLevel(logging.INFO)
+import math
+import random
+from itertools import combinations
+from typing import Iterable, List, Optional, Tuple
+
+import gmpy2 as gmp
+import numpy as np
+from gmpy2 import mpfr, mpz
 from logzero import logger
-from gmpy2 import mpz, mpfr
-from typing import Tuple, Optional, List, Iterable
 
-from .SampleTreeUtils import CacheTreeST, NodeST
-
-from .queue import Queue
-from .rule import Rule
-from .utils import (
-    bin_ones,
-    assert_binary_array,
-    mpz_set_bits,
-    mpz_all_ones,
-    count_iter,
-)
 from .bounds import (
     incremental_update_lb,
     incremental_update_obj,
     prefix_specific_length_upperbound,
 )
-
-# logger.setLevel(logging.INFO)
-from .bounds_utils import *
-from .bounds_v2 import (
-    rule_set_size_bound_with_default,
-    equivalent_points_bounds,
-    update_equivalent_lower_bound,
-)
-import math
-from itertools import combinations
-import random 
+from .queue import Queue
+from .rule import Rule
+from .SampleTreeUtils import CacheTreeST, NodeST
+from .utils import assert_binary_array, count_iter, mpz_all_ones, mpz_set_bits
 
 
 class BranchAndBoundGeneric:
     """a generic class of branch-and-bound algorithm for decision set enumeration"""
 
-    def __init__(self, rules: List[Rule], ub: float, y: np.ndarray, lmbd: float, l: float, k: int):
+    def __init__(
+        self, rules: List[Rule], ub: float, y: np.ndarray, lmbd: float, l: float, k: int
+    ):
         """
         rules: a list of candidate rules
         ub: the upper bound on objective value of any ruleset to be returned
@@ -68,11 +57,10 @@ class BranchAndBoundGeneric:
         self._check_rule_ids()
 
         self.__post_init__()
-        #self.not_captured_dict = dict() 
+        # self.not_captured_dict = dict()
 
     def __post_init__(self):
         """hook function to be called after __init__ is called"""
-        pass
 
     def _check_rule_ids(self):
         """check the rule ids are consecutive integers starting from 1"""
@@ -89,74 +77,69 @@ class BranchAndBoundGeneric:
         # logger.debug("initializing search tree and priority queue")
         self.reset_tree()
         self.reset_queue()
-        
-        
+
     def compute_union(self, vectors):
         result = vectors[0]  # Initialize result with the first vector
         for vector in vectors[1:]:
-            result = result | vector   # Perform bitwise OR operation
+            result = result | vector  # Perform bitwise OR operation
         return result
-
 
     def _captured_by_rule(self, rule: Rule, parent_not_captured: mpz):
         """return the captured array for the rule in the context of parent"""
         return parent_not_captured & rule.truthtable
 
-    
-    def _captured_by_rules(self, rules: list, parent_not_captured: mpz): 
-        return parent_not_captured & self.compute_union([rule.truthtable for rule in rules])
-
+    def _captured_by_rules(self, rules: list, parent_not_captured: mpz):
+        return parent_not_captured & self.compute_union(
+            [rule.truthtable for rule in rules]
+        )
 
     # @profile
     def generate(self, return_objective=False) -> Iterable:
         while not self.queue.is_empty:
             queue_item = self.queue.pop()
             yield from self._loop(*queue_item, return_objective=return_objective)
-            
-            
-    
+
     def runST(self, return_objective=False, **kwargs) -> Iterable:
-        
-        self.reset_tree() 
-        #self.reset(**kwargs) # ?? 
-        
+        self.reset_tree()
+        # self.reset(**kwargs) # ??
+
         not_captured_root = self._not_captured_by_default_rule()
-        pseudosolutions = [(self.tree._root, not_captured_root)] # empty -
-        
-        
-        L = math.ceil(self.n/self.l)
-        
-        current_length =1 
-        
-        for h in range(L): 
-            pseudosolutions = self.generate_single_level(pseudosolutions,  current_length)
-            current_length+=self.l 
-            
-            if len(pseudosolutions) == 0: # hit the length bound
+        pseudosolutions = [(self.tree._root, not_captured_root)]  # empty -
+
+        L = math.ceil(self.n / self.l)
+
+        current_length = 1
+
+        for h in range(L):
+            pseudosolutions = self.generate_single_level(
+                pseudosolutions, current_length
+            )
+            current_length += self.l
+
+            if len(pseudosolutions) == 0:  # hit the length bound
                 break
-        
+
         return pseudosolutions
-        
-            
+
     def generate_single_level(self, pseudosolutions, current_length) -> Iterable:
-        
-        n_samples = min(self.k,len(pseudosolutions))
+        n_samples = min(self.k, len(pseudosolutions))
         sampled_items = random.sample(pseudosolutions, n_samples)
-            
+
         all_solutions = []
         for j in range(n_samples):
             #
             #
             this_sample = sampled_items[j]
-            
+
             print(this_sample)
-            if this_sample!=None:
-            
-                all_solutions.extend( list(self._loop( *this_sample , current_length, return_objective=False) ) ) 
-            
-        return all_solutions    
-            
-        
+            if this_sample != None:
+                all_solutions.extend(
+                    list(
+                        self._loop(*this_sample, current_length, return_objective=False)
+                    )
+                )
+
+        return all_solutions
 
     # @profile
     def run(self, return_objective=False, **kwargs) -> Iterable:
@@ -186,8 +169,6 @@ class BranchAndBoundGeneric:
         return list(self._bounded_sols_iter(threshold, **kwargs))
 
 
-
-
 class BranchAndBoundNaive(BranchAndBoundGeneric):
     """an implementation of the branch and bound algorithm for enumerating good decision sets.
 
@@ -195,11 +176,10 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
     """
 
     def reset_tree(self):
-
         self.tree = CacheTreeST()
         root = NodeST.make_root(self.default_rule_fnr, self.num_train_pts)
         root.rule_id = "0"
-                
+
         # add the root
         self.tree.add_node(root)
 
@@ -222,12 +202,13 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
     ) -> NodeST:
         """create a node using information provided by rule, lb, obj, and captured
         and add it as a child of parent"""
-        
-        
-        rules_id =  parent_node.rule_id + "-" + "-".join([str(rule.id) for rule in rules]) 
+
+        rules_id = (
+            parent_node.rule_id + "-" + "-".join([str(rule.id) for rule in rules])
+        )
         if rules_id not in parent_node.children:
             child_node = NodeST(
-                rule_id=rules_id, 
+                rule_id=rules_id,
                 lower_bound=lb,
                 objective=obj,
                 num_captured=gmp.popcount(captured),
@@ -246,8 +227,12 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
 
     # @profile
     def _loop(
-        self, parent_node: NodeST, parent_not_captured: mpz, current_length: int, return_objective=False
-        ):
+        self,
+        parent_node: NodeST,
+        parent_not_captured: mpz,
+        current_length: int,
+        return_objective=False,
+    ):
         """
         check one node in the search tree, update the queue, and yield feasible solution if exists
 
@@ -255,79 +240,69 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
         parent_not_captured: postives not captured by the current prefix
         return_objective: True if return the objective of the evaluated node
         """
-        
-        
-      
-        
+
         parent_lb = parent_node.lower_bound
         length_ub = prefix_specific_length_upperbound(
             parent_lb, current_length, self.lmbd, self.ub
         )
 
+        # rest_rules = self.rules #[parent_node.rule_id: ]
 
+        # find all combinations of l
 
-        #rest_rules = self.rules #[parent_node.rule_id: ]
-        
-        # find all combinations of l 
-        
-        #print(parent_node.rule_id.split("-")) 
-        
+        # print(parent_node.rule_id.split("-"))
+
         rules_to_skip = [int(x) for x in parent_node.rule_id.split("-")]
-        
-        #rules_to_skip = set([int(part) for item in parent_node.rule_id for part in item.split('-')])
-        to_consider = [self.rules[r] for r in range(len(self.rules)) if r not in rules_to_skip]
-        
-        combinations_list = list(combinations(to_consider, self.l)) #find_combinations(self.rules, self.l)
+
+        # rules_to_skip = set([int(part) for item in parent_node.rule_id for part in item.split('-')])
+        to_consider = [
+            self.rules[r] for r in range(len(self.rules)) if r not in rules_to_skip
+        ]
+
+        combinations_list = list(
+            combinations(to_consider, self.l)
+        )  # find_combinations(self.rules, self.l)
 
         if (current_length + self.l) > length_ub:
-            yield 
-            
-        
-        for rules in combinations_list: #self.rules[parent_node.rule_id :]:
+            yield
+
+        for rules in combinations_list:  # self.rules[parent_node.rule_id :]:
             # prune by ruleset length
-            
 
             captured = self._captured_by_rules(rules, parent_not_captured)
-            
+
             lb = (
                 parent_lb
                 + self._incremental_update_lb(captured, self.y_mpz)
                 + self.lmbd
             )
-                
+
             if lb <= self.ub:
                 fn_fraction, not_captured = self._incremental_update_obj(
                     parent_not_captured, captured
                 )
-                
-                
-                
+
                 obj = lb + fn_fraction
 
                 child_node = self._create_new_node_and_add_to_tree(
                     rules, lb, obj, captured, parent_node
                 )
                 # apply look-ahead bound
-                #lookahead_lb = child_node.lower_bound + self.lmbd
+                # lookahead_lb = child_node.lower_bound + self.lmbd
 
-                #if lookahead_lb <= self.ub:
+                # if lookahead_lb <= self.ub:
                 #    self.queue.push(
                 #        (child_node, not_captured),
                 #        key=child_node.lower_bound,  # the choice of key shouldn't matter for complete enumeration
                 #    )
-                    #self.not_captured_dict[child_node]  = not_captured
-                    
+                # self.not_captured_dict[child_node]  = not_captured
+
                 if obj <= self.ub:
-                    #ruleset = child_node.get_ruleset_ids()
-                    #if return_objective:
+                    # ruleset = child_node.get_ruleset_ids()
+                    # if return_objective:
                     yield (child_node, not_captured)
-                   # else:
-                   #     yield ruleset
-                        
-                        
-                        
-
-
+                # else:
+                #     yield ruleset
 
 
 def get_ground_truth_count(
@@ -344,4 +319,3 @@ def get_ground_truth_count(
         return len(sols), sols
     else:
         return len(sols)
-

@@ -1,12 +1,11 @@
-import numpy as np
 import re
+from typing import Callable, List, Tuple
+
+import numpy as np
+from logzero import logger
 from ortools.sat.python import cp_model
 
-from typing import Tuple, List, Callable
-from itertools import chain
-from logzero import logger
-
-from ..common import Program, CPVarList2D, CPVarList, PATTERN_LOG_LEVEL
+from ..common import PATTERN_LOG_LEVEL, CPVarList, CPVarList2D, Program
 from .printers import PatternSolutionPrinter
 
 
@@ -269,9 +268,7 @@ class ContrastPatternSolutionPrinter(PatternSolutionPrinter):
 
         # infer the number of patterns from the variable name, e.g., 'I[0, 1]', where the first index is the pattern index
         self.num_patterns = len(
-            set(
-                [re.findall("I\[(\d+),\d+\]", str(i))[0] for i in pattern_variables]
-            )
+            {re.findall(r"I\[(\d+),\d+\]", str(i))[0] for i in pattern_variables}
         )
         self.num_feats = int(len(pattern_variables) / self.num_patterns)
         assert self.num_feats == (len(pattern_variables) / self.num_patterns)
@@ -380,9 +377,7 @@ class BoundedWeightSATCallback(cp_model.CpSolverSolutionCallback):
 
         # infer the number of patterns from the variable name, e.g., 'I[0, 1]', where the first index is the pattern index
         self.num_patterns = len(
-            set(
-                [re.findall("I\[(\d+),\d+\]", str(i))[0] for i in pattern_variables]
-            )
+            {re.findall(r"I\[(\d+),\d+\]", str(i))[0] for i in pattern_variables}
         )
         self.num_feats = int(len(pattern_variables) / self.num_patterns)
         assert self.num_feats == (len(pattern_variables) / self.num_patterns)

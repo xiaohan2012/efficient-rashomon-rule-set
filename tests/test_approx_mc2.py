@@ -1,24 +1,19 @@
-import pytest
 import numpy as np
+import pytest
 
+from bds.gf2 import is_piecewise_linear
+from bds.random_hash import generate_h_and_alpha
 from bds.sat.approx_mc2 import (
-    log_sat_search,
+    approx_mc2,
     approx_mc2_core,
     get_theoretical_bounds,
-    approx_mc2,
+    log_sat_search,
 )
-
-from bds.random_hash import generate_h_and_alpha
-from bds.gf2 import is_piecewise_linear
+from bds.sat.bounded_sat import get_xor_constraints
+from bds.sat.ground_truth import get_ground_truth_count
 from bds.utils import randints
 
-from bds.sat.ground_truth import get_ground_truth_count
-from bds.sat.bounded_sat import (
-    BoundedPatternSATCallback,
-    get_xor_constraints,
-    add_constraints_to_program,
-)
-from .fixtures import get_input_program_by_name, solver
+from .fixtures import get_input_program_by_name, solver  # noqa
 
 np.random.seed(123456)
 
@@ -39,7 +34,7 @@ class Test_log_sat_search:
                 assert big_cell[m - 1] == 1
         else:
             assert Y_size >= thresh
-            # m is at the boundary            
+            # m is at the boundary
             if m < big_cell.shape[0] - 1:
                 assert big_cell[m + 1] == 0
 

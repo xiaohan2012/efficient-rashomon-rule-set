@@ -1,14 +1,14 @@
+from typing import Callable, Optional
+
 import numpy as np
-
-from ortools.sat.python import cp_model
-from typing import List, Tuple, Any, Union, Callable, Optional
 from logzero import logger
+from ortools.sat.python import cp_model
 
-from ..common import CPVar, CPVarList, Program
-from .utils import copy_cpmodel
-from .solver import construct_solver
+from ..common import CPVarList, Program
 from ..random_hash import generate_h_and_alpha
-from .bounded_sat import get_xor_constraints, add_constraints_to_program
+from .bounded_sat import add_constraints_to_program, get_xor_constraints
+from .solver import construct_solver
+from .utils import copy_cpmodel
 
 PATTERN_LOG_LEVEL = 5
 

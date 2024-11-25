@@ -1,19 +1,17 @@
 import numpy as np
-
-
 import pytest
 from gmpy2 import mpz
 
-from bds.rule import Rule
 from bds.gf2 import GF, extended_rref
-from bds.utils import (
-    calculate_obj,
-    calculate_lower_bound,
-    mpz_set_bits,
-    CBBUtilityMixin,
-)
-from bds.types import RuleSet
 from bds.parity_constraints import build_boundary_table
+from bds.rule import Rule
+from bds.types import RuleSet
+from bds.utils import (
+    CBBUtilityMixin,
+    calculate_lower_bound,
+    calculate_obj,
+    mpz_set_bits,
+)
 
 
 @pytest.fixture
@@ -137,7 +135,7 @@ class TestCBBUtilityMixin:
         obj.b_gf = GF(b)
         obj.rank = rank
         obj.B = B
-        print("B: {}".format(B))
+        print(f"B: {B}")
         obj.pivot_rule_idxs = set(pivot_columns)
 
         obj.num_rules = A.shape[1]

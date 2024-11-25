@@ -1,8 +1,10 @@
+from typing import Tuple
+
 import numpy as np
-from typing import Optional, List, Dict, Tuple, Union
-from .gf2 import GF
 from numba import jit
-from .types import RuleSet, ParityConstraintViolation
+
+from .gf2 import GF
+from .types import ParityConstraintViolation, RuleSet
 from .utils import bin_zeros
 
 

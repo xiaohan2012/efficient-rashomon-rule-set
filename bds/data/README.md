@@ -9,5 +9,3 @@ ds = data.BinaryDataset('iris')
 ds.load()
 # access the data using ds.X_train_b, etc
 ```
-
-

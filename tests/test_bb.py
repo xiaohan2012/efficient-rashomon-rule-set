@@ -1,18 +1,14 @@
+import gmpy2 as gmp
 import numpy as np
 import pytest
-import gmpy2 as gmp
-from gmpy2 import mpz, mpfr
+from gmpy2 import mpfr, mpz
 
 from bds.bb import BranchAndBoundNaive
-from bds.rule import Rule
 from bds.common import EPSILON
-from bds.utils import (
-    bin_random,
-    mpz_all_ones,
-    solutions_to_dict,
-)
+from bds.rule import Rule
+from bds.utils import bin_random, mpz_all_ones, solutions_to_dict
 
-from .fixtures import rules, y
+from .fixtures import rules, y  # noqa
 from .utils import assert_dict_allclose, normalize_solutions
 
 

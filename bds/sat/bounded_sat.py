@@ -1,8 +1,9 @@
-from ortools.sat.python import cp_model
-from typing import List, Tuple, Any, Union
+from typing import List
 
+from ortools.sat.python import cp_model
+
+from ..common import ConstraintInfo, CPVar
 from ..gf2 import GF, extended_rref
-from ..common import CPVar, Program, BoundedLinearExpression, ConstraintInfo
 
 
 class BoundedPatternSATCallback(cp_model.CpSolverSolutionCallback):
@@ -62,11 +63,14 @@ class BoundedPatternSATCallback(cp_model.CpSolverSolutionCallback):
             print()
 
         if (
-                self.__solution_limit >= 0
-                and self.__solution_count >= self.__solution_limit
+            self.__solution_limit >= 0
+            and self.__solution_count >= self.__solution_limit
         ):
             if self.verbose > 0:
-                print("BoundedPatternSATCallback: stop search after finding %i solutions" % self.__solution_limit)
+                print(
+                    "BoundedPatternSATCallback: stop search after finding %i solutions"
+                    % self.__solution_limit
+                )
             self.StopSearch()
 
     @property
@@ -82,8 +86,9 @@ class BoundedPatternSATCallback(cp_model.CpSolverSolutionCallback):
         return self.__solution_stat
 
 
-
-def get_xor_constraints(A: GF, b: GF, var_list: List[CPVar], use_rref: bool = True, verbose: int = 0) -> List[ConstraintInfo]:
+def get_xor_constraints(
+    A: GF, b: GF, var_list: List[CPVar], use_rref: bool = True, verbose: int = 0
+) -> List[ConstraintInfo]:
     """
     get XOR constraints applied to the variables specified in var_list
 
@@ -110,7 +115,7 @@ def get_xor_constraints(A: GF, b: GF, var_list: List[CPVar], use_rref: bool = Tr
     """
     if use_rref:
         A, b, _, _ = extended_rref(A, b)
-        
+
     constraints = []
     n = A.shape[0]
 

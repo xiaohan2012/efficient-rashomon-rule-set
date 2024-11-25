@@ -1,22 +1,23 @@
-import ray
-import numpy as np
-import pytest
 from collections import Counter
 
+import numpy as np
+import pytest
+import ray
+
+from bds.bb import get_ground_truth_count
 from bds.common import EPSILON
-from bds.gf2 import is_piecewise_linear, extended_rref
+from bds.gf2 import extended_rref, is_piecewise_linear
 from bds.meel import (
+    UniGen,
+    _get_theoretical_bounds,
+    approx_mc2,
     approx_mc2_core,
     log_search,
-    approx_mc2,
-    _get_theoretical_bounds,
-    UniGen,
 )
 from bds.random_hash import generate_h_and_alpha
 from bds.utils import bin_array, bin_zeros, randints
-from bds.bb import get_ground_truth_count
 
-from .fixtures import rules, y
+from .fixtures import rules, y  # noqa
 from .utils import generate_random_rules_and_y
 
 
@@ -194,7 +195,7 @@ class TestLogSearch:
                 m_prev=m_prev,
                 return_full=True,
             )[:4]
-            print("m_prev: {}".format(m_prev))
+            print(f"m_prev: {m_prev}")
             np.testing.assert_equal(ref_big_cell, actual_big_cell)
             assert ref_m == actual_m
             assert ref_Y_size == actual_Y_size
@@ -346,7 +347,9 @@ class TestApproxMC2:
     @pytest.mark.parametrize("eps", [0.8])
     @pytest.mark.parametrize("delta", [0.8])
     @pytest.mark.parametrize("rand_seed", randints(3))
-    def test_sequential_run_if_estimate_is_within_bounds(self, ub, eps, delta, rand_seed):
+    def test_sequential_run_if_estimate_is_within_bounds(
+        self, ub, eps, delta, rand_seed
+    ):
         random_rules, random_y = generate_random_rules_and_y(
             self.num_pts, self.num_rules, rand_seed=1234
         )

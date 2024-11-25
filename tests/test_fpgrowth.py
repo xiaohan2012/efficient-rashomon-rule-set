@@ -1,17 +1,19 @@
-import pytest
 import itertools
-from bds.utils import powerset
+
+import pytest
+
 from bds.fpgrowth import (
     FPTree,
     _add_frequency_to_transaction_list,
     _extract_frequent_items_and_order,
     _filter_and_reorder_transaction_list,
-    squash_path_by_leaf_frequency,
-    insert_node,
     build_fptree,
     fpgrowth_on_tree,
+    insert_node,
     preprocess_transaction_list,
+    squash_path_by_leaf_frequency,
 )
+from bds.utils import powerset
 
 
 @pytest.fixture
@@ -51,7 +53,7 @@ class TestFPTree:
 
         # multiple nodes in a line is a path
         child = root.add_child(FPTree(1))
-        grandchild = child.add_child(FPTree(2))
+        child.add_child(FPTree(2))
         assert root.is_path
 
         # turn it into a non-path
@@ -183,7 +185,7 @@ class TestFPGrowth:
         single_node_tree.add_child(FPTree(0, 1))
 
         actual = set(fpgrowth_on_tree(single_node_tree, set(), 1))
-        expected = set([(0,)])
+        expected = {(0,)}
         assert actual == expected
 
     def test_a_path(self):
@@ -192,30 +194,30 @@ class TestFPGrowth:
         child.add_child(FPTree(1, 1))
 
         actual = set(fpgrowth_on_tree(path, set(), 1))
-        expected = set([(0,), (1,), (0, 1)])
+        expected = {(0,), (1,), (0, 1)}
         assert actual == expected
 
-    @pytest.mark.parametrize('min_support, expected',
-                             [
-                                 (2, powerset({0, 1}, min_size=1)),
-                                 (1, itertools.chain(
-                                     powerset({0, 1, 2}, min_size=1),
-                                     powerset({0, 1, 3}, min_size=1),
-                                 ))
-                             ])
+    @pytest.mark.parametrize(
+        "min_support, expected",
+        [
+            (2, powerset({0, 1}, min_size=1)),
+            (
+                1,
+                itertools.chain(
+                    powerset({0, 1, 2}, min_size=1),
+                    powerset({0, 1, 3}, min_size=1),
+                ),
+            ),
+        ],
+    )
     def test_allgether(self, min_support, expected):
         input_transactions = [{0, 1, 2}, {0, 1, 3}]
 
         ordered_input_data = preprocess_transaction_list(
             input_transactions, min_support
         )
-        
+
         tree = build_fptree(ordered_input_data)
         actual = set(fpgrowth_on_tree(tree, set(), min_support))
-        expected = set(
-            map(
-                lambda seq: tuple(sorted(seq)),
-                expected
-            )
-        )
+        expected = set(map(lambda seq: tuple(sorted(seq)), expected))
         assert actual == expected

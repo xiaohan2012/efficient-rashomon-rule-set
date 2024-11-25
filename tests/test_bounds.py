@@ -1,17 +1,17 @@
-import pytest
 import numpy as np
-from gmpy2 import mpz, mpfr
+import pytest
+from gmpy2 import mpz
 
-from bds.utils import mpz_set_bits, mpz_clear_bits, randints, bin_random, bin_array
-from bds.rule import Rule
 from bds.bounds import (
+    EquivalentPointClass,
+    find_equivalence_points,
+    get_equivalent_point_lb,
     incremental_update_lb,
     incremental_update_obj,
     prefix_specific_length_upperbound,
-    find_equivalence_points,
-    EquivalentPointClass,
-    get_equivalent_point_lb,
 )
+from bds.rule import Rule
+from bds.utils import bin_array, mpz_clear_bits, mpz_set_bits, randints
 
 
 @pytest.mark.parametrize("seed", randints(5))
@@ -120,9 +120,7 @@ class TestEquivalencePointsLowerBound:
             pt2rules,
             ep_classes,
         ) = find_equivalence_points(self.y, self.rules)
-        eqc_as_tuples = set(
-            tuple(sorted(cls.data_points)) for cls in ep_classes.values()
-        )
+        eqc_as_tuples = {tuple(sorted(cls.data_points)) for cls in ep_classes.values()}
         assert eqc_as_tuples == {(0,), (1, 2), (3, 4)}
 
         assert tot_not_captured_error_bound_init == 1 / 5  # one minority mistake

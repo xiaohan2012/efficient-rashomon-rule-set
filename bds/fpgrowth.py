@@ -14,10 +14,9 @@ example usage:
     frequent_itemsets = set(fpgrowth_on_tree(tree, set(), min_support))
 ```
 """
+from collections import Counter, defaultdict
 from dataclasses import dataclass
-from collections import OrderedDict, defaultdict, Counter
-
-from typing import List, Set, Optional, Dict, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from .utils import powerset
 
@@ -114,7 +113,7 @@ class FPTree:
         return ret
 
     def __repr__(self):
-        return "{}:{}".format(self.name, self.count)
+        return f"{self.name}:{self.count}"
 
     def as_nested_tuple(self):
         """
@@ -194,7 +193,7 @@ def _add_frequency_to_transaction_list(
     """
     trans_list_with_freq = []
     for trans in trans_list:
-        new_trans = dict([(item, 1) for item in trans])
+        new_trans = {item: 1 for item in trans}
         trans_list_with_freq.append(new_trans)
     return trans_list_with_freq
 

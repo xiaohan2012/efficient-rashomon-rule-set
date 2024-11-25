@@ -20,5 +20,3 @@ SolutionSet = Set[RuleSet]
 
 class ParityConstraintViolation(Exception):
     """an exception class meaning a partiy constraint system Ax=b must be violated given a partial assignment of x"""
-
-    pass

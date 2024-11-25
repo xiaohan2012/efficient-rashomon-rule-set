@@ -1,11 +1,10 @@
-import ortools
 import logging
+from typing import List, Set, Tuple, Union
+
+import ortools
+from matplotlib import pyplot as plt
 from ortools.sat.python import cp_model
 from ortools.sat.python.cp_model import BoundedLinearExpression
-
-from matplotlib import pyplot as plt
-
-from typing import List, Tuple, Union, Set
 
 # variable type of constraint programing in ortools
 CPVar = ortools.sat.python.cp_model.IntVar

@@ -1,10 +1,12 @@
-import numpy as np
-import gmpy2 as gmp
-from gmpy2 import mpz
-from typing import Optional, List, Dict, Tuple, Union
 from dataclasses import dataclass
 from functools import reduce
-from .utils import bin_zeros, assert_binary_array, mpz_set_bits
+from typing import List, Optional
+
+import gmpy2 as gmp
+import numpy as np
+from gmpy2 import mpz
+
+from .utils import mpz_set_bits
 
 
 @dataclass

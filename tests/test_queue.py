@@ -1,8 +1,9 @@
 import numpy as np
 import pytest
 from gmpy2 import mpz
-from bds.queue import Queue, NonRedundantQueue
-from bds.utils import randints, bin_array
+
+from bds.queue import NonRedundantQueue, Queue
+from bds.utils import bin_array, randints
 
 
 class TestQueue:
@@ -14,9 +15,7 @@ class TestQueue:
 
         q = Queue()
 
-        print(
-            "self.items_with_key_permutated: {}".format(self.items_with_key_permutated)
-        )
+        print(f"self.items_with_key_permutated: {self.items_with_key_permutated}")
         for item, key in self.items_with_key_permutated:
             q.push(item, key=key)
 

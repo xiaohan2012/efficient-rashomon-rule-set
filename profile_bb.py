@@ -1,11 +1,13 @@
-from contexttimer import Timer
-import numpy as np
 import pickle as pkl
+
+import numpy as np
+from contexttimer import Timer
+
 from bds.bb import BranchAndBoundNaive
 
 rules = pkl.load(open("rules/rules_compas_06_104", "rb"))
 
-f = open("data/compas_test.label", "r")
+f = open("data/compas_test.label")
 labels = []
 for row in f.readlines():
     labels.append(list(map(int, row.split(" ")[1:])))

@@ -28,10 +28,4 @@ The source code is tested with Python 3.8 on MacOS 14.4.1
 - [ ] clean up unused notebooks
 - [ ] rename package to `rds`
 - [ ] add citation section
-- [ ] linting and formatting 
-
-
-
-
-
-
+- [ ] linting and formatting

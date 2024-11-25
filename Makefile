@@ -1,5 +1,5 @@
 KP = kernprof -l
-LP = python -m line_profiler 
+LP = python -m line_profiler
 
 pa: profile_approx_mc2_core.py
 	$(KP) profile_approx_mc2_core.py

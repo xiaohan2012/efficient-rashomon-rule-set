@@ -1,20 +1,20 @@
-import numpy as np
 import math
+from typing import List, Optional, Tuple, Union
+
+import numpy as np
 from logzero import logger
 from ortools.sat.python import cp_model
-from typing import Union, Tuple, Optional, List
 from tqdm import tqdm
 
+from ..common import ConstraintInfo, CPVarList, Program, Solver
+from ..random_hash import generate_h_and_alpha
 from .bounded_sat import (
     BoundedPatternSATCallback,
     add_constraints_to_program,
     get_xor_constraints,
 )
-from ..common import Program, CPVarList, ConstraintInfo, Solver
-from ..random_hash import generate_h_and_alpha
-
-from .utils import copy_cpmodel
 from .solver import construct_solver
+from .utils import copy_cpmodel
 
 
 def log_sat_search(
@@ -306,5 +306,5 @@ def approx_mc2(
 
 
 def get_theoretical_bounds(ground_truth: int, eps: float) -> Tuple[float, float]:
-    """given the true count ground_truth, return the lower bound and upper bound of the estimate assuming \epsilon = eps"""
+    r"""given the true count ground_truth, return the lower bound and upper bound of the estimate assuming \epsilon = eps"""
     return ground_truth / (1 + eps), ground_truth * (1 + eps)

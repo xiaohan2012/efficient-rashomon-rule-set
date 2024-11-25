@@ -1,21 +1,20 @@
-import random
-import ray
-import numpy as np
 import math
-from logzero import logger
+import random
 from typing import Callable, Optional
+
+import numpy as np
+import ray
+from logzero import logger
 from tqdm import tqdm
 
-from .weight_mc import weight_mc
-from .utils import copy_cpmodel
-from .solver import construct_solver
-from .bounded_weight_sat import BoundedWeightedPatternSATCallback
-from .bounded_sat import get_xor_constraints, add_constraints_to_program
-
-from ..utils import int_ceil
-from ..random_hash import generate_h_and_alpha
 from ..common import CPVarList, Program, Solver
+from ..random_hash import generate_h_and_alpha
 from ..ray_pbar import RayProgressBar
+from ..utils import int_ceil
+from .bounded_sat import add_constraints_to_program, get_xor_constraints
+from .solver import construct_solver
+from .utils import copy_cpmodel
+from .weight_mc import weight_mc
 
 
 def get_eps(kappa):
@@ -100,7 +99,7 @@ def _sample_once(
         normalized_w_total = cb.w_total / w_max
 
         within_bound = lo_thresh <= normalized_w_total <= hi_thresh
-        max_iter_reached = (i == q)
+        max_iter_reached = i == q
         if within_bound or max_iter_reached:
             if within_bound:
                 log_debug(

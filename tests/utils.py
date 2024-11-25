@@ -1,15 +1,13 @@
-import numpy as np
+from itertools import chain, combinations
+from numbers import Number
+from typing import Any, Dict, Iterable, List, Set, Tuple
 
-import gmpy2 as gmp
+import numpy as np
 from gmpy2 import mpz
 
-from typing import Dict, Any, List, Iterable, Tuple, Set
-from numbers import Number
-from itertools import combinations, chain
-
-from bds.rule import Rule, lor_of_truthtable
-from bds.utils import bin_random, randints, mpz_set_bits, calculate_obj
 from bds.gf2 import GF
+from bds.rule import Rule
+from bds.utils import bin_random, calculate_obj, mpz_set_bits, randints
 
 
 def assert_dict_allclose(actual: Dict[Any, Number], expected: [Any, Number]):
@@ -70,8 +68,8 @@ def brute_force_enumeration(
                 # print("obj: {}".format(obj))
                 # and obj is upper boudned by ub
                 if sol in {(0, 2, 4, 9), (0, 2, 4, 8), (0, 4, 8, 9)}:
-                    print("sol: {}".format(sol))
-                    print("obj: {}".format(obj))
+                    print(f"sol: {sol}")
+                    print(f"obj: {obj}")
                 if obj <= ub:
                     yield (tuple(sorted(sol)), obj)
 

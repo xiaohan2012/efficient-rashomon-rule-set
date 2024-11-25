@@ -1,17 +1,16 @@
-import pandas as pd
-import numpy as np
-from typing import Tuple, Union, List
+from typing import List, Union
 
+import numpy as np
+import pandas as pd
+from aix360.algorithms.rule_induction.rbm.utils import OPERATOR_MAPS
+from aix360.algorithms.rule_induction.trxf.core.dnf_ruleset import (
+    Conjunction,
+    DnfRuleSet,
+)
+from aix360.algorithms.rule_induction.trxf.core.predicate import Feature, Predicate
+from aix360.algorithms.rule_induction.trxf.core.utils import batch_evaluate
 from sklearn.base import BaseEstimator
 from tqdm import tqdm
-
-from aix360.algorithms.rule_induction.trxf.core.dnf_ruleset import (
-    DnfRuleSet,
-    Conjunction,
-)
-from aix360.algorithms.rule_induction.trxf.core.predicate import Predicate, Feature
-from aix360.algorithms.rule_induction.rbm.utils import OPERATOR_MAPS
-from aix360.algorithms.rule_induction.trxf.core.utils import batch_evaluate
 
 from .common import PatternSet
 
@@ -65,7 +64,7 @@ class EnsembleDNFClassifier(BaseEstimator):
     """an ensemble of multiple DNFRuleSetClassifier"""
 
     def __init__(self, base_estimators: List[DNFRuleSetClassifier]):
-        assert len(base_estimators) > 0, 'at least one base estimator should be given'
+        assert len(base_estimators) > 0, "at least one base estimator should be given"
         self.base_estimators = base_estimators
 
     def fit(self, X, y):

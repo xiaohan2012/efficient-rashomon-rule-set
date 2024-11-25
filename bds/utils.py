@@ -1,25 +1,23 @@
 import itertools
-from .gf2 import GF
 import json
 import math
 import os
 import pickle as pkl
 import tempfile
-import gmpy2 as gmp
-import numpy as np
-import pandas as pd
-
 from collections import deque
 from functools import reduce
 from itertools import chain, combinations
-from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
-from scipy.sparse import csc_matrix, csr_matrix
+from typing import Dict, Iterable, List, Set, Tuple
 
-
+import gmpy2 as gmp
+import numpy as np
+import pandas as pd
 from gmpy2 import mpz
 from logzero import logger
+from scipy.sparse import csc_matrix, csr_matrix
 
 from .common import loglevel
+from .gf2 import GF
 from .types import RuleSet
 
 ii32 = np.iinfo(np.int32)
@@ -134,23 +132,25 @@ def fill_array_from(arr, start_idx, val):
     for i in range(start_idx, len(arr)):  # typo in paper |S| -> |S| - 1
         arr[i] = val
 
+
 def mpz_set_bits(n: mpz, bits: np.ndarray) -> mpz:
     """return a copy of n and set `bits` to 1 in `n`"""
     for i in bits:
         n = gmp.bit_set(n, int(i))
     return n
 
+
 def np2mpz(arr: np.ndarray) -> mpz:
     """represent a numpy boolean array as a mpz number"""
-    return mpz_set_bits(
-        mpz(), arr.nonzero()[0]
-    )
+    return mpz_set_bits(mpz(), arr.nonzero()[0])
+
 
 def mpz2np(n: mpz, size: int) -> np.array:
     """represent a mpz number as numpy boolean array"""
     arr = np.zeros(size, dtype=bool)
     arr[list(mpz2bag(n))] = 1
     return arr
+
 
 def mpz_clear_bits(n: mpz, bits: np.ndarray) -> mpz:
     """return a copy of n and set `bits` to 0 in `n`"""
@@ -288,9 +288,9 @@ class CBBUtilityMixin:
     """utility class for the constrained branch-and-bound algorithm"""
 
     def print_Axb(self):
-        print("A.shape: {}".format(self.A.shape))
-        print("A:\n{}".format(self.A.astype(int)))
-        print("b:\n{}".format(self.b.astype(int)))
+        print(f"A.shape: {self.A.shape}")
+        print(f"A:\n{self.A.astype(int)}")
+        print(f"b:\n{self.b.astype(int)}")
 
     def is_prefix_feasible(self, prefix: RuleSet) -> bool:
         """return True if the prefix is feasible, i.e., Ax=b is satisfied and obj(prefix) <= ub"""
@@ -335,7 +335,7 @@ class CBBUtilityMixin:
 
 def read_label_vector_from_file(path):
     labels = []
-    with open(path, "r") as f:
+    with open(path) as f:
         for row in f.readlines():
             labels.append(list(map(int, row.split(" ")[1:])))
 
@@ -346,11 +346,11 @@ def compute_truthtable(X: np.ndarray, itemset: set) -> mpz:
     """
     given an itemset and data points represented as a binary matrix X (each row corresponds to a data point)
     return the coverage array indicating which points are captured by the itemset
-    
+
     remark: the function is poorly optimized"""
-    support_list = [] 
-    for i in range(X.shape[0]): 
-        if sum([X[i][j] for j in itemset]) == len(itemset): 
+    support_list = []
+    for i in range(X.shape[0]):
+        if sum([X[i][j] for j in itemset]) == len(itemset):
             support_list.append(i)
     truthtable = mpz_set_bits(mpz(), support_list)
     return truthtable

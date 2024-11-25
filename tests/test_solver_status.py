@@ -1,9 +1,9 @@
-import numpy as np
-import pytest
-
 from copy import copy
-from bds.solver_status import SolverStatus
+
+import pytest
 from gmpy2 import mpz
+
+from bds.solver_status import SolverStatus
 from bds.types import RuleSet
 
 
@@ -93,7 +93,7 @@ class TestSolverStatus:
 
         s.reset_solution_set()
         assert s.solution_set == set()
-        assert len(solution_set) == 2        
+        assert len(solution_set) == 2
 
     def test_queue_setter(self):
         s1 = SolverStatus()

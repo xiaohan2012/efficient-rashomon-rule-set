@@ -1,9 +1,10 @@
-import pytest
-import numpy as np
-
 from collections import Counter
-from bds.sat.unigen import find_kappa, get_eps, UniGen
+
+import numpy as np
+import pytest
+
 from bds.sat.ground_truth import get_ground_truth_count
+from bds.sat.unigen import UniGen, find_kappa, get_eps
 
 from .fixtures import get_input_program_by_name
 

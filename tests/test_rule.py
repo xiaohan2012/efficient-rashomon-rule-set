@@ -1,10 +1,9 @@
-import pytest
-import gmpy2 as gmp
-from gmpy2 import mpz
 import numpy as np
+import pytest
+from gmpy2 import mpz
 
 from bds.rule import Rule, lor_of_truthtable
-from bds.utils import randints, mpz_set_bits
+from bds.utils import mpz_set_bits, randints
 
 
 class TestRule:
@@ -38,21 +37,23 @@ class TestRule:
 def make_rule(idx, truthtable: mpz):
     return Rule(idx, "", 1, truthtable)
 
+
 class TestLOROfTruthtable:
     @pytest.mark.parametrize(
-        'rules, expected',
+        "rules, expected",
         [
             ([], mpz()),
             ([make_rule(1, mpz("0b001010"))], mpz("0b001010")),
-            ([make_rule(1, mpz("0b001010")),
-              make_rule(2, mpz("0b001101"))],
-             mpz("0b001111"))]
+            (
+                [make_rule(1, mpz("0b001010")), make_rule(2, mpz("0b001101"))],
+                mpz("0b001111"),
+            ),
+        ],
     )
     def test(self, rules, expected):
         assert lor_of_truthtable(rules) == expected
 
-    
-    
+
 # class TestRuleEntry:
 #     def test_init(self):
 #         n_samples = 200

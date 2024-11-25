@@ -1,15 +1,16 @@
 # SAT programs with frequency-related constraints
+from typing import Tuple
+
 import numpy as np
-from scipy import sparse as sp
 from ortools.sat.python import cp_model
-from typing import Tuple, List
 
 from ..common import CPVarList
 
 
 def construct_program(
-        D: np.ndarray, freq_thresh: int,
-        which: str,
+    D: np.ndarray,
+    freq_thresh: int,
+    which: str,
 ) -> Tuple[cp_model.CpModel, CPVarList, CPVarList]:
     """
     given D the data matrix of shape num points x num features
@@ -23,7 +24,7 @@ def construct_program(
     - the set of feature variables (which is an independent set of the formula)
     - the set of data example variables
     """
-    if which not in ('>=', '<='):
+    if which not in (">=", "<="):
         raise ValueError(f'operation "{which}" is not supported')
     # ------- problem definition ----------
     # Create the CP-SAT model.
@@ -49,7 +50,7 @@ def construct_program(
     for i in range(num_feats):
         examples_with_feat_i = D[:, i].nonzero()[0]
         num_covered_examples = sum(T[t] for t in examples_with_feat_i)
-        if which == '>=':
+        if which == ">=":
             model.Add(num_covered_examples >= freq_thresh).OnlyEnforceIf(I[i])
         else:
             model.Add(num_covered_examples <= freq_thresh).OnlyEnforceIf(I[i])

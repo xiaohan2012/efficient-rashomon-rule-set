@@ -1,6 +1,7 @@
+from copy import deepcopy
 from numbers import Number
-from typing import Any, Optional, Set, Tuple, Dict
-from copy import deepcopy, copy
+from typing import Any, Dict, Optional, Set
+
 from .queue import Queue
 from .types import RuleSet
 

@@ -1,6 +1,7 @@
+from typing import Tuple
+
 import numpy as np
 import pandas as pd
-from typing import Tuple
 
 DATA_TYPE = {
     "age": np.float64,
@@ -56,8 +57,6 @@ def load() -> Tuple[pd.DataFrame, pd.Series]:
         skiprows=np.array(ROWS_TO_SKIP) - 1,
     )
 
-    y = df[TARGET_COLUMN].apply(
-        lambda v: 0 if v == NEGATIVE_TARGET_VALUE else 1
-    )
+    y = df[TARGET_COLUMN].apply(lambda v: 0 if v == NEGATIVE_TARGET_VALUE else 1)
     X = df.drop(columns=[TARGET_COLUMN])
     return X, y

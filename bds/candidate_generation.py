@@ -1,8 +1,10 @@
-import numpy as np
 from typing import List
-from bds.fpgrowth import preprocess_transaction_list, build_fptree, fpgrowth_on_tree
-from bds.utils import compute_truthtable
+
+import numpy as np
+
+from bds.fpgrowth import build_fptree, fpgrowth_on_tree, preprocess_transaction_list
 from bds.rule import Rule
+from bds.utils import compute_truthtable
 
 
 def extract_rules_with_min_support(
@@ -22,7 +24,7 @@ def extract_rules_with_min_support(
     sorted_rules = extract_rules_with_min_support(X, attribute_names, min_support=70)
     ```
     """
-    X_bag = [set([j for j, x in enumerate(row) if x]) for row in X]
+    X_bag = [{j for j, x in enumerate(row) if x} for row in X]
 
     ordered_input_data = preprocess_transaction_list(X_bag, min_support)
     tree = build_fptree(ordered_input_data)

@@ -1,25 +1,22 @@
 import logging
-import psutil
 import math
 import random
 from typing import List, Optional, Set, Tuple, Union
 
 import gmpy2 as gmp
 import numpy as np
+import psutil
 import ray
 from contexttimer import Timer
 from logzero import logger
 from tqdm import tqdm
 
 from .bb import BranchAndBoundNaive
-
 from .cbb import ConstrainedBranchAndBound
-
 from .random_hash import generate_h_and_alpha
 from .ray_pbar import RayProgressBar
 from .rule import Rule
 from .utils import (
-    bin_array,
     assert_binary_array,
     fill_array_from,
     fill_array_until,
@@ -443,7 +440,7 @@ def approx_mc2(
                 else:
                     logger.debug("one esimtation failed")
         else:
-            print("ray.available_resources(): {}".format(ray.available_resources()))
+            print(f"ray.available_resources(): {ray.available_resources()}")
             if "CPU" in ray.available_resources():
                 num_available_cpus = int(ray.available_resources()["CPU"])
             else:

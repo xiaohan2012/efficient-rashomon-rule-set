@@ -1,15 +1,23 @@
-import pytest
 import numpy as np
-from bds.sat.bounded_weight_sat import BoundedWeightedPatternSATCallback, weight_mc_core, WeightedPatternSATCallback
-from .fixtures import get_input_program_by_name, solver
+import pytest
+
+from bds.sat.bounded_weight_sat import (
+    BoundedWeightedPatternSATCallback,
+    WeightedPatternSATCallback,
+    weight_mc_core,
+)
 from bds.utils import randints
+
+from .fixtures import get_input_program_by_name, solver  # noqa
 
 
 def uniform_weight(pattern, covered_example):
     return 1
 
+
 def weight_by_support_size(pattern, covered_example):
     return len(covered_example)
+
 
 class TestBoundedWeightedPatternSATCallback:
     def setup_method(self, method):
@@ -17,12 +25,14 @@ class TestBoundedWeightedPatternSATCallback:
             [1, 2, 1, 3, 1, 3, 2]
         )  # weights of patterns, ordered by the time they are found
         self.ws_cumsum = np.cumsum(self.ws)  # [1, 3, 4, 7, 8, 11, 13]
-        
-    @pytest.mark.parametrize('weight_func, expected_w_total, expected_w_min, expected_w_max', [
-        (uniform_weight, 7.0, 1., 1.),
-        (weight_by_support_size, 13.0, 1., 3.)
-    ])
-    def test_WeightedPatternSATCallback(self, solver, weight_func, expected_w_total, expected_w_min, expected_w_max):
+
+    @pytest.mark.parametrize(
+        "weight_func, expected_w_total, expected_w_min, expected_w_max",
+        [(uniform_weight, 7.0, 1.0, 1.0), (weight_by_support_size, 13.0, 1.0, 3.0)],
+    )
+    def test_WeightedPatternSATCallback(
+        self, solver, weight_func, expected_w_total, expected_w_min, expected_w_max
+    ):
         program, I, T = get_input_program_by_name("toy-1")
 
         cb = WeightedPatternSATCallback(I, T, weight_func)
@@ -49,9 +59,10 @@ class TestBoundedWeightedPatternSATCallback:
         assert cb.w_min == 1.0
         assert cb.overflows_w_total  # the total weight should overflow the pivot
         assert cb.result == (cb.solutions_found, 1.0)
-        assert len(cb.solutions_found) == cb.w_total == (cb.pivot + 1) == len(cb.weights)
+        assert (
+            len(cb.solutions_found) == cb.w_total == (cb.pivot + 1) == len(cb.weights)
+        )
         assert (np.array(cb.weights) == 1.0).all()
-
 
     @pytest.mark.parametrize("pivot", np.arange(7, 10))
     def test_uniform_weight_with_total_weight_nonoverflow(self, solver, pivot):
@@ -71,10 +82,9 @@ class TestBoundedWeightedPatternSATCallback:
         with pytest.raises(RuntimeError):
             cb.result
 
-
     @pytest.mark.parametrize("max_total_weight", np.arange(1, 13))
     def test_nonuniform_and_weight_overflow_and_accurate_r_and_w_max(
-            self, solver, max_total_weight
+        self, solver, max_total_weight
     ):
         """non-uniform weight and overflow w_total
 
@@ -105,11 +115,11 @@ class TestBoundedWeightedPatternSATCallback:
         assert cb.w_total == self.ws_cumsum[len(cb.solutions_found) - 1]
         assert cb.overflows_w_total
         assert cb.result == (cb.solutions_found, cb.w_min * cb.r)
-        np.testing.assert_array_equal(cb.weights, self.ws[:len(cb.weights)])    
+        np.testing.assert_array_equal(cb.weights, self.ws[: len(cb.weights)])
 
     @pytest.mark.parametrize("max_total_weight", np.arange(13, 20))
     def test_nonuniform_and_weight_nonoverflow_and_accurate_r_and_w_max(
-            self, solver, max_total_weight
+        self, solver, max_total_weight
     ):
         """non-uniform weight and non-overflow w_total
 
@@ -140,7 +150,6 @@ class TestBoundedWeightedPatternSATCallback:
 
         with pytest.raises(RuntimeError):
             cb.result
-
 
     @pytest.mark.parametrize("max_total_weight", np.arange(1, 13))
     def test_nonuniform_inaccurate_r_and_w_max_overflow(self, solver, max_total_weight):
@@ -175,11 +184,13 @@ class TestBoundedWeightedPatternSATCallback:
         assert cb.w_total == self.ws_cumsum[len(cb.solutions_found) - 1]
         assert cb.overflows_w_total
         assert cb.result == (cb.solutions_found, cb.w_min * cb.r)
-        np.testing.assert_array_equal(cb.weights, self.ws[:len(cb.weights)])
+        np.testing.assert_array_equal(cb.weights, self.ws[: len(cb.weights)])
 
     @pytest.mark.parametrize("max_total_weight", np.arange(13, 20))
-    def test_nonuniform_inaccurate_r_and_w_max_nonoverflow(self, solver, max_total_weight):
-        """non-uniform weight and inaccurate r and r_max"""        
+    def test_nonuniform_inaccurate_r_and_w_max_nonoverflow(
+        self, solver, max_total_weight
+    ):
+        """non-uniform weight and inaccurate r and r_max"""
         program, I, T = get_input_program_by_name("toy-1")
 
         # say r and w_max are accurate
@@ -209,14 +220,13 @@ class TestBoundedWeightedPatternSATCallback:
 
 class TestWeightMCCore_uniform_weight:
     """this test case assumes the weight is uniform"""
+
     def check_result(self, c, w_max_new, details):
         """check if the returned result by weight_mc_core is correct"""
         if c is not None:
             # valid result returned
             if details["i"] > 0:
-                assert c == (
-                    details["w_total"] * np.power(2, details["i"]) / w_max_new
-                )
+                assert c == (details["w_total"] * np.power(2, details["i"]) / w_max_new)
                 assert not details["smallest_cell_too_big"]
                 assert not details["cell_size_is_zero"]
             else:
@@ -233,6 +243,7 @@ class TestWeightMCCore_uniform_weight:
 
     def get_result(self, pivot, r, w_max, rand_seed):
         program, I, T = get_input_program_by_name("toy-1")
+
         def make_callback(weight_func, pivot, w_max, r):
             return BoundedWeightedPatternSATCallback(
                 I,
@@ -242,7 +253,7 @@ class TestWeightMCCore_uniform_weight:
                 w_max=w_max,
                 r=r,
             )
-        
+
         return weight_mc_core(
             program,
             I,
@@ -253,7 +264,7 @@ class TestWeightMCCore_uniform_weight:
             w_max=w_max,
             rand_seed=rand_seed,
             return_details=True,
-        )        
+        )
 
     @pytest.mark.parametrize("pivot", [7, 8, 9, 10])
     @pytest.mark.parametrize("rand_seed", randints(10))
@@ -339,20 +350,19 @@ class TestWeightMCCore_uniform_weight:
 
 class TestWeightMCCore_nonuniform_weight:
     """this test case assumes the weight is the support size"""
+
     def setup_method(self, method):
         # the correct r and w_max
         self.r = 3.0
         self.w_max = 3.0
-        
+
     def check_result(self, c, w_max_new, details):
         """check if the returned result by weight_mc_core is correct"""
         assert details["i"] <= details["n"]
         if c is not None:
             # valid result returned
             if details["i"] > 0:
-                assert c == (
-                    details["w_total"] * np.power(2, details["i"]) / w_max_new
-                )
+                assert c == (details["w_total"] * np.power(2, details["i"]) / w_max_new)
                 assert not details["smallest_cell_too_big"]
                 assert not details["cell_size_is_zero"]
             else:
@@ -369,6 +379,7 @@ class TestWeightMCCore_nonuniform_weight:
 
     def get_result(self, pivot, r, w_max, rand_seed):
         program, I, T = get_input_program_by_name("toy-1")
+
         def make_callback(weight_func, pivot, w_max, r):
             return BoundedWeightedPatternSATCallback(
                 I,
@@ -378,7 +389,7 @@ class TestWeightMCCore_nonuniform_weight:
                 w_max=w_max,
                 r=r,
             )
-        
+
         return weight_mc_core(
             program,
             I,
@@ -390,7 +401,7 @@ class TestWeightMCCore_nonuniform_weight:
             rand_seed=rand_seed,
             return_details=True,
         )
-    
+
     @pytest.mark.parametrize("unnormalized_pivot", [13, 14, 15, 16])
     @pytest.mark.parametrize("rand_seed", randints(10))
     def test_accurate_parameters_and_large_pivot(self, unnormalized_pivot, rand_seed):
@@ -414,7 +425,9 @@ class TestWeightMCCore_nonuniform_weight:
 
     @pytest.mark.parametrize("unnormalized_pivot", np.arange(2, 13))
     @pytest.mark.parametrize("rand_seed", randints(10))
-    def test_with_accurate_parameters_and_nonlarge_pivot(self, unnormalized_pivot, rand_seed):
+    def test_with_accurate_parameters_and_nonlarge_pivot(
+        self, unnormalized_pivot, rand_seed
+    ):
         """piviot is not that large so that the algorithm needs to partition the solution space"""
         r = self.r
         w_max = self.w_max
@@ -429,9 +442,10 @@ class TestWeightMCCore_nonuniform_weight:
 
     @pytest.mark.parametrize("unnormalized_pivot", [1])
     @pytest.mark.parametrize("rand_seed", randints(10))
-    def test_with_accurate_parameters_and_too_small_pivot(self, unnormalized_pivot, rand_seed):
-        """piviot is too small so that even the smallest cell size cannot be under pivot
-        """
+    def test_with_accurate_parameters_and_too_small_pivot(
+        self, unnormalized_pivot, rand_seed
+    ):
+        """piviot is too small so that even the smallest cell size cannot be under pivot"""
         r = self.r
         w_max = self.w_max
 
@@ -473,4 +487,3 @@ class TestWeightMCCore_nonuniform_weight:
         assert w_max_new <= w_max
 
         self.check_result(c, w_max_new, details)
-        

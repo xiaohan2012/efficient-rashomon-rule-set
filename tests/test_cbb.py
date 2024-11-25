@@ -1,17 +1,19 @@
 import math
 import random
+from operator import itemgetter
+
 import numpy as np
 import pytest
 from gmpy2 import mpz
-from operator import itemgetter
 
 from bds.cbb import ConstrainedBranchAndBound
 from bds.gf2 import GF
 from bds.random_hash import generate_h_and_alpha
 from bds.rule import Rule
 from bds.types import RuleSet
-from bds.utils import bin_array, randints, solutions_to_dict, powerset, bin_zeros
+from bds.utils import bin_array, bin_zeros, powerset, randints, solutions_to_dict
 
+from .fixtures import rules, y  # noqa
 from .utils import (
     assert_dict_allclose,
     brute_force_enumeration,
@@ -19,7 +21,6 @@ from .utils import (
     is_disjoint,
     normalize_solutions,
 )
-from .fixtures import rules, y
 
 
 class UtilityMixin:
@@ -349,7 +350,11 @@ class TestConstrainedBranchAndBoundMethods(UtilityMixin):
         b = bin_zeros(4)
 
         cbb = ConstrainedBranchAndBound(
-            self.input_rules, float("inf"), self.input_y, lmbd=0.1, reorder_columns=False
+            self.input_rules,
+            float("inf"),
+            self.input_y,
+            lmbd=0.1,
+            reorder_columns=False,
         )
         # new ordering: [0, 2, 3, 1]
         cbb.setup_constraint_system(A, b)

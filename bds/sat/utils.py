@@ -1,5 +1,6 @@
-from ..common import Program
 from ortools.sat.python import cp_model
+
+from ..common import Program
 
 
 def copy_cpmodel(program: Program):

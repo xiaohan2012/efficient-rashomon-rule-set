@@ -1,8 +1,10 @@
-from .utils import copy_cpmodel
-from .solver import construct_solver
+from typing import Callable
+
 from .bounded_sat import BoundedPatternSATCallback
 from .bounded_weight_sat import WeightedPatternSATCallback
-from typing import Callable
+from .solver import construct_solver
+from .utils import copy_cpmodel
+
 
 def get_ground_truth_count(program, I, T, verbose: int = 0):
     program_cp = copy_cpmodel(program)

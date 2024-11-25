@@ -1,16 +1,15 @@
 import numpy as np
-import pandas as pd
-from .cache_tree import CacheTree, Node
 from gmpy2 import mpz
 
 from .bounds_utils import *
+from .cache_tree import Node
 from .utils import mpz2bag
 
 #### TODO: test and eventually integrate within the bb.py loop() calling the function below
 #### TODO2: (optionally) add more bounds
 
-""" 
-Here problem formulation is f(S^*) < \alpha, i.e., no  Rashomon set is explictitly considered 
+"""
+Here problem formulation is f(S^*) < \alpha, i.e., no  Rashomon set is explictitly considered
 """
 
 
@@ -47,7 +46,9 @@ def rule_set_size_bound_with_default(parent_node: Node, lmbd: float, alpha: floa
     return ruleset_size > (alpha / lmbd)
 
 
-def prefix_specific_length_upperbound(prefix_lb: float, prefix_length: int, lmbd: float, ub: float):
+def prefix_specific_length_upperbound(
+    prefix_lb: float, prefix_length: int, lmbd: float, ub: float
+):
     """
     for a prefix `d` with lb=`prefix_lb` and length=`prefix_length`,
     determine the upper bound of the sizes of rulesets that extend from `d`

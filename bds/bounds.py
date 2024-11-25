@@ -1,14 +1,13 @@
-import numpy as np
+from typing import Dict, List, Tuple
+
 import gmpy2 as gmp
+import numpy as np
+from gmpy2 import mpz
+from numba import jit
 
-from gmpy2 import mpz, mpfr
-
-from typing import Tuple, Optional, List, Iterable, Dict
 from .cache_tree import Node
 from .rule import Rule
 from .utils import mpz2bag, mpz_set_bits
-from logzero import logger
-from numba import jit
 
 
 # @jit(nopython=False, cache=True)
@@ -265,7 +264,7 @@ def find_equivalence_points(
             try:
                 pt2rules[cov].append(rule.id)
             except IndexError:
-                print("cov: {}".format(cov))
+                print(f"cov: {cov}")
                 raise IndexError
 
     for i in range(n_pts):

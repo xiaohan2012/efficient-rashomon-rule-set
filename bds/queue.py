@@ -1,8 +1,9 @@
 import heapq
-import numpy as np
+from copy import deepcopy
 from operator import itemgetter
 from typing import Any, Union
-from copy import deepcopy
+
+import numpy as np
 
 
 class Queue:
@@ -40,7 +41,7 @@ class Queue:
     @property
     def max_size(self):
         return self._max_size
-    
+
     @property
     def size(self) -> int:
         return len(self._items)
@@ -66,19 +67,19 @@ class Queue:
 
         for i1, i2 in zip(self._items, items):
             if len(i1) != len(i2):
-                print("len(i1) != len(i2): {}".format(len(i1) != len(i2)))
+                print(f"len(i1) != len(i2): {len(i1) != len(i2)}")
                 return False
             k1, k2 = i1[0], i2[0]
             if k1 != k2:
                 # keys are different
-                print("k1 != k2: {}".format(k1 != k2))
+                print(f"k1 != k2: {k1 != k2}")
                 return False
             for e1, e2 in zip(i1[1], i2[1]):
                 # check the item content
-                print("e1: {}".format(e1))
-                print("e2: {}".format(e2))
+                print(f"e1: {e1}")
+                print(f"e2: {e2}")
                 if type(e1) != type(e2):
-                    print("type(e1) != type(e2): {}".format(type(e1) != type(e2)))
+                    print(f"type(e1) != type(e2): {type(e1) != type(e2)}")
                     return False
                 if isinstance(e1, np.ndarray):
                     if not np.allclose(e1, e2):
@@ -89,7 +90,7 @@ class Queue:
                         )
                         return False
                 elif e1 != e2:
-                    print("{} != {}".format(e1, e2))
+                    print(f"{e1} != {e2}")
                     return False
         return True
 
@@ -111,12 +112,12 @@ class NonRedundantQueue(Queue):
     """a subclass of Queue which avoids pushing keys that already exist in the queue"""
 
     def __init__(self):
-        super(NonRedundantQueue, self).__init__()
+        super().__init__()
         self._existing_keys = set()
 
     def push(self, item: Any, key: Union[float, int]):
         if key not in self._existing_keys:
-            super(NonRedundantQueue, self).push(item, key)
+            super().push(item, key)
             self._existing_keys.add(key)
 
     def pop(self):

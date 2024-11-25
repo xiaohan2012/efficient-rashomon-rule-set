@@ -1,14 +1,14 @@
-import numpy as np
-import ray
-from tqdm import tqdm
-
-from logzero import logger
 from typing import Callable
 
-from ..common import Program, CPVarList, Solver
-from .solver import construct_solver
-from .bounded_weight_sat import weight_mc_core
+import numpy as np
+import ray
+from logzero import logger
+from tqdm import tqdm
+
+from ..common import CPVarList, Program, Solver
 from ..ray_pbar import RayProgressBar
+from .bounded_weight_sat import weight_mc_core
+from .solver import construct_solver
 
 
 @ray.remote

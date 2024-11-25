@@ -1,19 +1,19 @@
-import numpy as np
 import math
 import random
+
+import numpy as np
 from tqdm import tqdm
 
-from .utils import copy_cpmodel
-from ..utils import int_ceil, int_floor
-from .solver import construct_solver
-from .approx_mc2 import approx_mc2
-
 from ..random_hash import generate_h_and_alpha
+from ..utils import int_ceil, int_floor
+from .approx_mc2 import approx_mc2
 from .bounded_sat import (
-    get_xor_constraints,
-    add_constraints_to_program,
     BoundedPatternSATCallback,
+    add_constraints_to_program,
+    get_xor_constraints,
 )
+from .solver import construct_solver
+from .utils import copy_cpmodel
 
 
 def get_eps(kappa):

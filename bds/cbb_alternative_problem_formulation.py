@@ -1,13 +1,13 @@
 import logging
-from typing import Tuple
-from typing import List
+from typing import List, Tuple
+
 import numpy as np
 from logzero import logger
 
 from .cache_tree import CacheTree, Node
 from .queue import Queue
 from .rule import Rule
-from .utils import bin_ones, assert_binary_array
+from .utils import assert_binary_array, bin_ones
 
 logger.setLevel(logging.DEBUG)
 
@@ -54,7 +54,7 @@ class BranchAndBoundGeneric:
     def __init__(self, rules: List[Rule], ub: float, y: np.ndarray, lmbd: float):
         """
         rules: a list of candidate rules
-        ub: the parameter of the Rashomon set 
+        ub: the parameter of the Rashomon set
         y: the ground truth label
         lmbd: the parameter that controls regularization strength
         """
@@ -69,10 +69,8 @@ class BranchAndBoundGeneric:
 
         # false negative rate of the default rule = fraction of positives
         self.default_rule_fnr = y.sum() / self.num_train_pts
-        
-        self.current_optimal_loss = float("inf") 
 
-
+        self.current_optimal_loss = float("inf")
 
     def reset_tree(self):
         raise NotImplementedError()
@@ -161,10 +159,10 @@ class BranchAndBoundNaive(BranchAndBoundGeneric):
                     if obj <= self.ub:
                         logger.debug(f"yield rule {rule.id} as a feasible solution")
                         ruleset = child_node.get_ruleset_ids()
-                        
-                        if child_node.objective < self.current_optimal_loss: 
+
+                        if child_node.objective < self.current_optimal_loss:
                             self.current_optimal_loss = child_node.objective
-                        
+
                         if return_objective:
                             yield (ruleset, child_node.objective)
                         else:

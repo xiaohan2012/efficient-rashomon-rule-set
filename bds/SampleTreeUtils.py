@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Union
-
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -96,7 +95,7 @@ class NodeST:
 
         the root corresponds to the "default rule", which captures all points and predicts the default label (negative)
         """
-       # print("aaa")
+        # print("aaa")
         return NodeST(
             rule_id=0,
             lower_bound=0.0,  # the false positive rate, which is zero
@@ -146,7 +145,6 @@ class NodeST:
         return f"Node(rule_id={self.rule_id}, lower_bound={self.lower_bound}, objective={self.objective})"
 
 
-
 class CacheTreeST:
     """a prefix tree"""
 
@@ -178,4 +176,3 @@ class CacheTreeST:
             self._set_root(node)
 
         self._num_nodes += 1
-

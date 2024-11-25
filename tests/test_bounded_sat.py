@@ -1,15 +1,15 @@
 from ortools.sat.python import cp_model
 
-
 from bds import gf2
+from bds.common import BoundedLinearExpression, CPVar
 from bds.sat.bounded_sat import (
     BoundedPatternSATCallback,
-    get_xor_constraints,
     add_constraints_to_program,
+    get_xor_constraints,
 )
-from bds.common import BoundedLinearExpression, CPVar
 from bds.sat.printers import VarArraySolutionPrinter
-from .fixtures import get_input_program_by_name, solver
+
+from .fixtures import get_input_program_by_name, solver  # noqa
 
 
 def test_basic(solver):

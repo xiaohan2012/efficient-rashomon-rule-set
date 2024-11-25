@@ -1,17 +1,18 @@
+from typing import List
+
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from typing import List
-from .demo_utils import prettify_axes
-from .common import CMAP
 
 
 def plot_decision_boundary(
-        ax, clf,
-        X: np.ndarray,
-        columns: List[str],
-        feature_binarizer=None,
-        h=0.02, cmap=plt.cm.coolwarm  # step size in the mesh
+    ax,
+    clf,
+    X: np.ndarray,
+    columns: List[str],
+    feature_binarizer=None,
+    h=0.02,
+    cmap=plt.cm.coolwarm,  # step size in the mesh
 ):
     """
     X: the original feature matrix (without discretization)

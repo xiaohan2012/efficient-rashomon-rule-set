@@ -1,42 +1,30 @@
-import functools
-from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
-
-import gmpy2 as gmp
-import numpy as np
-from gmpy2 import mpfr, mpz
-from logzero import logger
-from numba import jit
 from copy import deepcopy
+from typing import Iterable, List, Optional, Tuple, Union
+
+import numpy as np
+from gmpy2 import mpz
+from logzero import logger
 
 from .bb import BranchAndBoundNaive
 from .bounds import (
-    prefix_specific_length_upperbound,
     check_look_ahead_bound,
     check_pivot_length_bound,
+    prefix_specific_length_upperbound,
 )
 from .gf2 import GF, extended_rref
-from .queue import NonRedundantQueue
-from .rule import Rule, lor_of_truthtable
-from .utils import (
-    assert_binary_array,
-    bin_array,
-    bin_ones,
-    bin_zeros,
-    get_indices_and_indptr,
-    calculate_lower_bound,
-    calculate_obj,
-    CBBUtilityMixin,
-)
 from .parity_constraints import (
-    inc_ensure_minimal_no_violation,
-    inc_ensure_satisfiability,
-    count_added_pivots,
     build_boundary_table,
+    count_added_pivots,
     ensure_minimal_non_violation,
     ensure_satisfiability,
+    inc_ensure_minimal_no_violation,
+    inc_ensure_satisfiability,
 )
-from .types import RuleSet
+from .queue import NonRedundantQueue
+from .rule import Rule
 from .solver_status import SolverStatus
+from .types import RuleSet
+from .utils import CBBUtilityMixin, assert_binary_array, bin_array, bin_zeros
 
 
 class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
@@ -49,7 +37,7 @@ class ConstrainedBranchAndBound(BranchAndBoundNaive, CBBUtilityMixin):
         reorder_columns=True,
         **kwargs,
     ):
-        super(ConstrainedBranchAndBound, self).__init__(rules, ub, y, lmbd, **kwargs)
+        super().__init__(rules, ub, y, lmbd, **kwargs)
         self.reorder_columns = reorder_columns
         # copy the rules for later use
         self.rules_before_ordering = deepcopy(self.rules)

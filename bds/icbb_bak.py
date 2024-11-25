@@ -1,5 +1,5 @@
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Set
 import copy
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 from gmpy2 import mpz
@@ -301,9 +301,7 @@ class IncrementalConstrainedBranchAndBound(ConstrainedBranchAndBoundNaive):
             self.reset_tree()
             self.reset_queue()
         else:
-            logger.debug(
-                "solve incrementally "
-            )
+            logger.debug("solve incrementally ")
             self._copy_solver_status(solver_status)
 
     def run(self, return_objective=False, **kwargs) -> Iterable:

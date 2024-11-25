@@ -1,5 +1,6 @@
+from typing import Optional, Tuple
+
 from .gf2 import GF
-from typing import Tuple, Optional
 from .utils import bin_array
 
 

@@ -1,18 +1,19 @@
-import pytest
-import numpy as np
 from itertools import chain
 
-from bds.sat.min_freq import construct_min_freq_program
-from bds.sat.max_freq import construct_max_freq_program
+import numpy as np
+import pytest
+
 from bds.sat.contrastive_patterns import (
-    construct_program,
-    ContrastPatternSolutionPrinter,
     BoundedWeightSATCallback,
+    ContrastPatternSolutionPrinter,
+    construct_program,
 )
 from bds.sat.ground_truth import get_ground_truth_count
+from bds.sat.max_freq import construct_max_freq_program
+from bds.sat.min_freq import construct_min_freq_program
 
-from .cset_fixtures import toy_Dp, toy_Dn
-from .fixtures import solver
+from .cset_fixtures import toy_Dn, toy_Dp  # noqa
+from .fixtures import solver  # noqa
 
 
 class TestProgramConstruction:
@@ -167,7 +168,7 @@ class TestBoundedWeightSATCallback:
     )
     def test_uniform_weight(self, pivot, overflow, solver, toy_Dp, toy_Dn):
         prog, I, Tp, Tn = self.get_inputs(toy_Dp, toy_Dn)
-        num_feats = toy_Dp.shape[1]
+        toy_Dp.shape[1]
         cb = BoundedWeightSATCallback(
             I,
             Tp,
@@ -199,7 +200,7 @@ class TestBoundedWeightSATCallback:
         ws_cumsum = np.cumsum(ws)
 
         prog, I, Tp, Tn = self.get_inputs(toy_Dp, toy_Dn)
-        num_feats = toy_Dp.shape[1]
+        toy_Dp.shape[1]
         cb = BoundedWeightSATCallback(
             I,
             Tp,

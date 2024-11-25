@@ -1,17 +1,11 @@
 import numpy as np
 import pytest
 
-from bds import gf2
-from bds.gf2 import (
-    GF,
-    extended_rref,
-    fix_variables_to_one,
-    num_of_solutions,
-    negate_all,
-)
-from bds.random_hash import generate_h_and_alpha
+from bds.gf2 import GF, extended_rref
 from bds.gf2 import eye as gf2_eye
-from bds.utils import randints, bin_array
+from bds.gf2 import fix_variables_to_one, negate_all, num_of_solutions
+from bds.random_hash import generate_h_and_alpha
+from bds.utils import bin_array
 
 np.random.seed(12345)
 

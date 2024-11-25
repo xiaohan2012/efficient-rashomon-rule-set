@@ -1,20 +1,17 @@
-import pandas as pd
+from typing import List
+
 import numpy as np
-from typing import List, Tuple
-from logzero import logger
-
-from sklearn.model_selection import train_test_split
-from sklearn.datasets import make_classification
-
+import pandas as pd
 from aix360.algorithms.rbm import FeatureBinarizer
 from aix360.algorithms.rule_induction.rbm.boolean_rule_cg import BooleanRuleCG as BRCG
-
-
-from .sat.contrastive_patterns import construct_program, BoundedWeightSATCallback
-from .sat.weight_gen import WeightGen
-from .models import construct_dnf_rule, DNFRuleSetClassifier, EnsembleDNFClassifier
+from logzero import logger
+from sklearn.datasets import make_classification
+from sklearn.model_selection import train_test_split
 
 from .common import PatternSet
+from .models import DNFRuleSetClassifier, EnsembleDNFClassifier, construct_dnf_rule
+from .sat.contrastive_patterns import BoundedWeightSATCallback, construct_program
+from .sat.weight_gen import WeightGen
 
 
 def binarize_data(X_train_df, X_test_df, return_fb=False):

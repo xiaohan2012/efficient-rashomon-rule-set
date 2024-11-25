@@ -1,11 +1,10 @@
 import pandas as pd
 
 NUM_COLS = 34
-DATA_URI = 'https://archive.ics.uci.edu/ml/machine-learning-databases/ionosphere/ionosphere.data'
-DATA_TYPE = {'c{}'.format(i): float
-             for i in range(NUM_COLS)}
+DATA_URI = "https://archive.ics.uci.edu/ml/machine-learning-databases/ionosphere/ionosphere.data"
+DATA_TYPE = {f"c{i}": float for i in range(NUM_COLS)}
 
-TARGET_COLUMN = 'label'
+TARGET_COLUMN = "label"
 DATA_TYPE[TARGET_COLUMN] = str
 
 NEGATIVE_TARGET_VALUE = "b"
@@ -24,4 +23,3 @@ def load():
     y = df[TARGET_COLUMN].apply(lambda v: 0 if v == NEGATIVE_TARGET_VALUE else 1)
     X = df.drop(columns=[TARGET_COLUMN])
     return X, y
-
