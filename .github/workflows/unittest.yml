@@ -1,0 +1,51 @@
+name: Unit test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+
+    - name: Install dependencies
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install -r requirements.txt
+
+    - name: Test with pytest
+      run: |
+        source venv/bin/activate
+        pytest --cov bds --cov-report term --cov-report json:coverage.json
+        export TOTAL=$(python -c "import json;print(json.load(open('coverage.json'))['totals']['percent_covered_display'])")
+        echo "total=$TOTAL" >> $GITHUB_ENV
+        echo "### Total coverage: ${TOTAL}%" >> $GITHUB_STEP_SUMMARY
+
+    # reference: https://nedbatchelder.com/blog/202209/making_a_coverage_badge.html
+    - name: "Make badge"
+      uses: schneegans/dynamic-badges-action@v1.4.0
+      with:
+        # GIST_TOKEN is a GitHub personal access token with scope "gist".
+        auth: ${{ secrets.GIST_TOKEN }}
+        gistID: 8ac958d25256fd2edaf265694b7f1ab2   # replace with your real Gist id.
+        filename: covbadge.json
+        label: Coverage
+        message: ${{ env.total }}%
+        minColorRange: 50
+        maxColorRange: 90
+        valColorRange: ${{ env.total }}
+        # visit the https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/han-xiao-upright/8ac958d25256fd2edaf265694b7f1ab2/raw/covbadge.json)
