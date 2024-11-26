@@ -6,10 +6,33 @@
 
 # Efficient algorithms to explore the Rashomon set of rule set models
 
-This repository contains the source code of the paper *"Efficient Exploration of the Rashomon Set of Rule Set Models"* (KDD 2024)
+This repository contains the source code of the paper *"[Efficient Exploration of the Rashomon Set of Rule Set Models](https://arxiv.org/pdf/2406.03059)"* (KDD 2024)
 
+## What is a Rashomon set and why studying it?
 
-# Environment setup
+*The Rashomon set* of an ML problem refers to the set of models near-optimal predictive performance.
+
+**Why studying it?** Because models with similar performance may exhibit *drastically different* properties (such as fairness-related metrics), therefore a single model does not offer an adequate representation of reality.
+
+An example showcasing the Rashomon set of rule set models for the [COMPAS](https://www.propublica.org/datastore/dataset/compas-recidivism-risk-score-data-and-analysis) dataset.
+
+- Each rule set is plotted as a point, whose position is determined by the statistical parity (`SP`) of the rule set on race and gender (in the X and Y axis, respectively).
+  - Statistical parity quantifies the fairness of classification models
+- You can see that two highlighted models have very different `SP[race]` scores, though their accuracy scores are close.
+
+![](./assets/rashomon-set-example.png)
+
+## Contributions of this project
+
+- We design efficient ⚡ algorithms to explore the Rashomon set of rule-set models for binary classification problems.
+  - we focus on rule set models, due to their inherent interpretability
+- We investigated two exploration modes -- *counting* and *uniform sampling* from the set
+- Instead of tackling exact counting and uniform sampling, we study the approximate versions of them, which reduces the search space drastically
+- For both problems, we have invented theoretically-sound algorithms and their efficient implementations.
+
+The figure below show cases
+
+## Environment setup
 
 The source code is tested against Python 3.8 on MacOS 14.2.1
 
@@ -24,11 +47,11 @@ Verify that unit tests pass
 pytest tests
 ```
 
-# Example usage
+## Example usage
 
 We illustrate the usage of approximate counter and almost-uniform sampler applied on synthetic data.
 
-## Preparation
+### Preparation
 
 Set up a Ray cluster for parallel computing, e.g.,
 
@@ -37,7 +60,7 @@ import ray
 ray.init()
 ```
 
-## Approximate counting
+### Approximate counting
 
 ``` python
 from bds.rule_utils import generate_random_rules_and_y
@@ -69,7 +92,7 @@ estimated_count = approx_mc2(
 )
 ```
 
-## Almost uniform sampling
+### Almost uniform sampling
 
 
 ``` python
@@ -93,7 +116,7 @@ sampler.prepare()  # collect necessary statistics required for sampling
 samples = sampler.sample(10, exclude_none=True)
 ```
 
-## Candidate rules extraction on real-world datasets
+### Candidate rules extraction on real-world datasets
 
 When working with real-world datasets, the first step is often extract a list of candidate rules.
 
@@ -114,12 +137,12 @@ candidate_rules = extract_rules_with_min_support(X, attribute_names, min_support
 # then you may apply the sampler or count estimator on the candidate rules
 ```
 
-# Contact persons
+## Contact persons
 
 - Han Xiao: xiaohan2012@gmail.com
 - Martino Ciaperoni: martino.ciaperoni@aalto.fi
 
-# Citing this work
+## Citing this work
 
 If you find this work useful, please consider citing it.
 
@@ -139,11 +162,8 @@ If you find this work useful, please consider citing it.
 </details>
 
 
-
-
-# TODO
+## TODO
 
 - [ ] rename package to `ers`
-- [ ] add citation
 - [ ] packaging
 - [ ] maybe add a logo?
