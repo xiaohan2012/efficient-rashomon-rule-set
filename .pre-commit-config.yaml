@@ -48,11 +48,11 @@ repos:
      additional_dependencies: [pyupgrade==3.15.0]
      args: ["--py38-plus"]
 
-#  # clear output of Jupyter notebooks
-# -   repo: local
-#     hooks:
-#       - id: jupyter-nb-clear-output
-#         name: jupyter-nb-clear-output
-#         files: \.ipynb$
-#         language: python
-#         entry: jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace
+ # clear output of Jupyter notebooks
+-   repo: local
+    hooks:
+      - id: jupyter-nb-clear-output
+        name: jupyter-nb-clear-output
+        files: \.ipynb$
+        language: python
+        entry: jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace
