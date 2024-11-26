@@ -30,8 +30,6 @@ An example showcasing the Rashomon set of rule set models for the [COMPAS](https
 - Instead of tackling exact counting and uniform sampling, we study the approximate versions of them, which reduces the search space drastically.
 - For both problems, we have invented theoretically-sound algorithms and their efficient implementations.
 
-The figure below show cases
-
 ## Environment setup
 
 The source code is tested against Python 3.8 on MacOS 14.2.1
