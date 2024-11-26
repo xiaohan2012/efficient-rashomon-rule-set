@@ -1,6 +1,8 @@
-![](https://img.shields.io/badge/ML-Interpretability-lightgreen)
-![](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/xiaohan2012/2920be1e33237a8f2c58abcf09dfefcc/raw/covbadge.json)
-![](https://img.shields.io/badge/python-3.8-blue)
+![About](https://img.shields.io/badge/ML-Interpretability-lightgreen)
+![Unittests](https://github.com/xiaohan2012/efficient-rashomon-rule-set/actions/workflows/unittest.yml/badge.svg)
+![Lint](https://github.com/xiaohan2012/efficient-rashomon-rule-set/actions/workflows/lint.yml/badge.svg)
+![TestCoverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/xiaohan2012/2920be1e33237a8f2c58abcf09dfefcc/raw/covbadge.json)
+![PythonVersion](https://img.shields.io/badge/python-3.8-blue)
 
 # Efficient algorithms to explore the Rashomon set of rule set models
 
