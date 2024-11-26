@@ -41,11 +41,11 @@ jobs:
       with:
         # GIST_TOKEN is a GitHub personal access token with scope "gist".
         auth: ${{ secrets.GIST_TOKEN }}
-        gistID: 8ac958d25256fd2edaf265694b7f1ab2   # replace with your real Gist id.
+        gistID: 2920be1e33237a8f2c58abcf09dfefcc   # replace with your real Gist id.
         filename: covbadge.json
         label: Coverage
         message: ${{ env.total }}%
         minColorRange: 50
         maxColorRange: 90
         valColorRange: ${{ env.total }}
-        # visit the https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/han-xiao-upright/8ac958d25256fd2edaf265694b7f1ab2/raw/covbadge.json)
+        # visit the https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/xiaohan2012/2920be1e33237a8f2c58abcf09dfefcc/raw/covbadge.json)
