@@ -22,7 +22,7 @@ An example showcasing the Rashomon set of rule set models for the [COMPAS](https
 
 ![](./assets/rashomon-set-example.png)
 
-## Contributions of this project
+## Project overview
 
 - We designed efficient ⚡ algorithms to explore the Rashomon set of rule-set models for binary classification problems.
   - we focus on rule set models, due to their inherent interpretability.
