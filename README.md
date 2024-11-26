@@ -10,24 +10,24 @@ This repository contains the source code of the paper *"[Efficient Exploration o
 
 ## What is a Rashomon set and why studying it?
 
-*The Rashomon set* of an ML problem refers to the set of models near-optimal predictive performance.
+*The Rashomon set* of an ML problem refers to the set of models of near-optimal predictive performance.
 
-**Why studying it?** Because models with similar performance may exhibit *drastically different* properties (such as fairness-related metrics), therefore a single model does not offer an adequate representation of reality.
+**Why studying it?** Because models with similar performance may exhibit *drastically different* properties (such as fairness), therefore a single model does not offer an adequate representation of the reality.
 
 An example showcasing the Rashomon set of rule set models for the [COMPAS](https://www.propublica.org/datastore/dataset/compas-recidivism-risk-score-data-and-analysis) dataset.
 
 - Each rule set is plotted as a point, whose position is determined by the statistical parity (`SP`) of the rule set on race and gender (in the X and Y axis, respectively).
-  - Statistical parity quantifies the fairness of classification models
+  - Statistical parity quantifies the fairness of classification models.
 - You can see that two highlighted models have very different `SP[race]` scores, though their accuracy scores are close.
 
 ![](./assets/rashomon-set-example.png)
 
 ## Contributions of this project
 
-- We design efficient ⚡ algorithms to explore the Rashomon set of rule-set models for binary classification problems.
-  - we focus on rule set models, due to their inherent interpretability
-- We investigated two exploration modes -- *counting* and *uniform sampling* from the set
-- Instead of tackling exact counting and uniform sampling, we study the approximate versions of them, which reduces the search space drastically
+- We designed efficient ⚡ algorithms to explore the Rashomon set of rule-set models for binary classification problems.
+  - we focus on rule set models, due to their inherent interpretability.
+- We investigated two exploration modes -- *counting* and *uniform sampling* from the Rashomon set.
+- Instead of tackling exact counting and uniform sampling, we study the approximate versions of them, which reduces the search space drastically.
 - For both problems, we have invented theoretically-sound algorithms and their efficient implementations.
 
 The figure below show cases
