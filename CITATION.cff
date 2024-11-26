@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Xiao"
+  given-names: "Han"
+  orcid: "https://orcid.org/0000-0003-3529-083X"
+- family-names: "Ciaperoni"
+  given-names: "Martino"
+  orcid: ""
+title: "Efficient Exploration of the Rashomon Set of Rule Set Models"
+version: 0.0.0
+doi: 10.5281/zenodo.14219954
+date-released: 2024-11-26
+url: "https://github.com/xiaohan2012/efficient-rashomon-rule-set/"
