@@ -24,12 +24,12 @@ An example showcasing the Rashomon set of rule set models for the [COMPAS](https
 
 ## Project overview
 
-- We designed efficient algorithms to explore the Rashomon set of rule-set models for binary classification problems.
-  - we focus on rule set models, due to their inherent interpretability.
+- We designed *efficient algorithms* to explore the Rashomon set of rule-set models for binary classification problems.
+  - Our focus is on rule set models, due to their inherent *interpretability* 💡.
 - We investigated two exploration modes -- *counting* and *uniform sampling* from the Rashomon set.
 - Instead of tackling exact counting and uniform sampling, we study the approximate versions of them, which reduces the search space drastically.
-- For both problems, we invented theoretically-sound algorithms sped up by effective pruning bounds, and a efficient implementation of it powered by Numba and Ray.
-  - Compared to off-the-shelf tools (such as [Google OR-tools](https://github.com/google/or-tools)), our implementation is often **>1000x faster**
+- For both problems, we invented theoretically-sound algorithms sped up by *effective pruning bounds*, and a efficient implementation of it powered by Numba and Ray.
+  - Compared to off-the-shelf tools (such as [Google OR-tools](https://github.com/google/or-tools)), our implementation is often **>1000x faster** ⚡⚡⚡
 
 ## Environment setup
 
