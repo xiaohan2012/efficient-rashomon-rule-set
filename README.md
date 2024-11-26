@@ -119,13 +119,31 @@ candidate_rules = extract_rules_with_min_support(X, attribute_names, min_support
 - Han Xiao: xiaohan2012@gmail.com
 - Martino Ciaperoni: martino.ciaperoni@aalto.fi
 
+# Citing this work
+
+If you find this work useful, please consider citing it.
+
+<details>
+<summary>Bibtex entry</summary>
+
+``` bibtex
+@inproceedings{ciaperoni2024efficient,
+  title={Efficient Exploration of the Rashomon Set of Rule-Set Models},
+  author={Ciaperoni, Martino and Xiao, Han and Gionis, Aristides},
+  booktitle={Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining},
+  pages={478--489},
+  year={2024}
+}
+```
+
+</details>
+
+
+
 
 # TODO
 
-- [ ] CICD and badges
-- [ ] pre-commit empty notebooks
-- [ ] clean up unused notebooks
-- [ ] rename package to `erds`
+- [ ] rename package to `ers`
 - [ ] add citation
 - [ ] packaging
-- [ ] add a logo maybe
+- [ ] maybe add a logo?
