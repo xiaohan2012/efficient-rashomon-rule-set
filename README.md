@@ -1,4 +1,4 @@
-![About](https://img.shields.io/badge/ML-Interpretability-lightgreen)
+![About](https://img.shields.io/badge/ML-Interpretability-orange)
 ![Unittests](https://github.com/xiaohan2012/efficient-rashomon-rule-set/actions/workflows/unittest.yml/badge.svg)
 ![Lint](https://github.com/xiaohan2012/efficient-rashomon-rule-set/actions/workflows/lint.yml/badge.svg)
 ![TestCoverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/xiaohan2012/2920be1e33237a8f2c58abcf09dfefcc/raw/covbadge.json)
